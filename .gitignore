@@ -26,6 +26,10 @@ dist/
 data/postgres/
 data/backups/
 
+# Source de données externe (workbook Google Sheets exporté)
+data/*.xlsx
+data/*.ods
+
 # Éditeurs
 .idea/
 .vscode/

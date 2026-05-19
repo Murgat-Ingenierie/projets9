@@ -68,7 +68,6 @@ def create_user(
         password_hash=hash_password(payload.password),
         role=payload.role,
         actif=payload.actif,
-        updated_by_id=me.id,
     )
     _check_global_user_invariants(db, _all_users_view(db, new))
     db.add(new)
@@ -108,7 +107,6 @@ def update_user(
         user.role = payload.role
     if payload.actif is not None:
         user.actif = payload.actif
-    user.updated_by_id = me.id
 
     _check_global_user_invariants(db, _all_users_view(db, user))
     db.commit()
