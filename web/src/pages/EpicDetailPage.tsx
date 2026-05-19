@@ -111,18 +111,6 @@ export default function EpicDetailPage() {
       setErr(e);
     }
   }
-  async function toggleCritereAtteint() {
-    if (!epic) return;
-    try {
-      const updated = await epics.update(epic.trigramme, {
-        critere_atteint: !epic.critere_atteint,
-      });
-      setEpic(updated);
-    } catch (e) {
-      setErr(e);
-    }
-  }
-
   // --- Edit Project (inline) ---
   function startEditProject(p: Project) {
     setEditingProjectId(p.id);
@@ -287,22 +275,6 @@ export default function EpicDetailPage() {
             />
             <code style={{ color: "#5f6368", fontSize: 12 }}>{epic.couleur ?? "(défaut)"}</code>
           </div>
-        ),
-    },
-    {
-      label: "Critère atteint",
-      render: () =>
-        editingEpic ? (
-          <input
-            type="checkbox"
-            checked={!!epicDraft.critere_atteint}
-            onChange={(e) => setEpicDraft({ ...epicDraft, critere_atteint: e.target.checked })}
-          />
-        ) : (
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <input type="checkbox" checked={epic.critere_atteint} onChange={toggleCritereAtteint} />
-            <span>{epic.critere_atteint ? "Oui" : "Non"}</span>
-          </label>
         ),
     },
   ];

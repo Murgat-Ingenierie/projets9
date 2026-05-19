@@ -17,7 +17,6 @@ class EpicBase(BaseModel):
     jalon_fin_max: date | None = None
     statut: EpicStatus = EpicStatus.idee
     categorie: EpicCategory = EpicCategory.operationnel
-    critere_atteint: bool = False
     couleur: str | None = Field(default=None, pattern=COLOR_PATTERN)
 
 
@@ -33,7 +32,6 @@ class EpicUpdate(BaseModel):
     jalon_fin_max: date | None = None
     statut: EpicStatus | None = None
     categorie: EpicCategory | None = None
-    critere_atteint: bool | None = None
     couleur: str | None = Field(default=None, pattern=COLOR_PATTERN)
 
 

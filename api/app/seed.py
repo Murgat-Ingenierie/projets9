@@ -106,7 +106,6 @@ def _ensure_epics_from_csv() -> None:
                     categorie=_CATEGORY_BY_TRIGRAMME.get(
                         trigramme, EpicCategory.operationnel
                     ),
-                    critere_atteint=False,
                 )
                 db.add(epic)
                 created += 1

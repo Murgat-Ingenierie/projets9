@@ -38,7 +38,7 @@ User                              (responsable de Projet ou Tâche)
 | `jalon_fin_max` | date | optionnel, borne dure |
 | `statut` | enum | `idée` \| `actif` \| `réalisé` \| `abandonné` |
 | `catégorie` | enum | `opérationnel` \| `stratégique` \| `long_terme` |
-| `critère_atteint` | bool | case à cocher manuelle (cf. INV-19) |
+| `couleur` | str(7) | optionnel, hex `#RRGGBB`, utilisée sur le Gantt |
 
 #### Projet
 | Champ | Type | Notes |
@@ -161,7 +161,7 @@ Unité : **jour calendaire**. Toutes les comparaisons sont inclusives.
 | INV-16 | `Tâche.avancement_%` ∈ [0, 100]. |
 | INV-17 | `Tâche.statut = réalisé` ⇔ `avancement_% = 100`. |
 | INV-18 | `Projet.statut = réalisé` ⇒ toutes ses tâches sont `réalisé` ou `abandonné`. |
-| INV-19 | `Epic.statut = réalisé` ⇒ tous ses projets sont `réalisé` ou `abandonné` ET tous ses jalons sont `atteint` ET `critère_atteint = true`. |
+| INV-19 | `Epic.statut = réalisé` ⇒ tous ses projets sont `réalisé` ou `abandonné` ET tous ses jalons sont `atteint`. |
 
 ### Mesures
 
@@ -191,7 +191,7 @@ Unité : **jour calendaire**. Toutes les comparaisons sont inclusives.
 5. **Liste / CRUD Tâches**.
 6. **Liste / CRUD Jalons**.
 7. **Liste / CRUD Dépendances**.
-8. **Page Epic** (détail) : infos + courbe de la `Mesure` dans le temps + liste des projets et jalons + case `critère_atteint`.
+8. **Page Epic** (détail) : infos + courbe de la `Mesure` dans le temps + liste des projets et jalons.
 9. **Liste / CRUD Mesures** (depuis la page Epic).
 10. **Gestion utilisateurs** (admin uniquement) : créer / désactiver / changer rôle.
 11. **Paramètres / Backup** : déclencher un dump, voir l'historique des backups.

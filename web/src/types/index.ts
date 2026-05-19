@@ -24,7 +24,6 @@ export interface Epic {
   jalon_fin_max: string | null;
   statut: EpicStatus;
   categorie: EpicCategory;
-  critere_atteint: boolean;
   couleur: string | null;
   created_at: string;
   updated_at: string;

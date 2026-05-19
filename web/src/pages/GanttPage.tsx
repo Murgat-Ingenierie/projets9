@@ -41,6 +41,13 @@ function toDate(s: string): Date {
   return new Date(s + "T00:00:00");
 }
 
+function isoDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function fmtDate(d: Date): string {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -115,8 +122,9 @@ export default function GanttPage() {
   const [err, setErr] = useState<unknown>(null);
   const [view, setView] = useState<ViewMode>(ViewMode.Month);
   const [expandedEpics, setExpandedEpics] = useState<Set<string>>(new Set());
+  const [editMode, setEditMode] = useState(false);
 
-  useEffect(() => {
+  function load() {
     Promise.all([epics.list(), projects.list(), tasks.list()])
       .then(([e, p, t]) => {
         setEpics(e);
@@ -124,7 +132,8 @@ export default function GanttPage() {
         setTasks(t);
       })
       .catch(setErr);
-  }, []);
+  }
+  useEffect(load, []);
 
   function toggleEpic(trigramme: string) {
     setExpandedEpics((prev) => {
@@ -133,6 +142,28 @@ export default function GanttPage() {
       else next.add(trigramme);
       return next;
     });
+  }
+
+  async function handleDateChange(task: GanttTask) {
+    setErr(null);
+    try {
+      const date_debut = isoDate(task.start);
+      const date_fin = isoDate(task.end);
+      if (task.id.startsWith("proj-")) {
+        const id = Number(task.id.slice(5));
+        await projects.update(id, { date_debut, date_fin });
+      } else if (task.id.startsWith("task-")) {
+        const id = Number(task.id.slice(5));
+        await tasks.update(id, { date_debut, date_fin });
+      } else {
+        return;
+      }
+      load();
+    } catch (e) {
+      setErr(e);
+      // On recharge depuis la base pour resynchroniser visuellement
+      load();
+    }
   }
 
   const ganttTasks: GanttTask[] = useMemo(() => {
@@ -160,6 +191,7 @@ export default function GanttPage() {
         end,
         progress: 0,
         hideChildren: !isExpanded,
+        isDisabled: true, // les epics ne sont jamais draggables (agrégat)
         styles: stylesFor(epicColor),
       });
       if (!isExpanded) continue;
@@ -172,6 +204,7 @@ export default function GanttPage() {
           end: toDate(p.date_fin),
           progress: 0,
           project: `epic-${e.trigramme}`,
+          isDisabled: !editMode,
           styles: stylesFor(projectColor),
         });
         const projTasks = tasksList.filter((t) => t.projet_id === p.id);
@@ -184,18 +217,15 @@ export default function GanttPage() {
             end: toDate(t.date_fin),
             progress: 0,
             project: `epic-${e.trigramme}`,
+            isDisabled: !editMode,
             styles: stylesFor(taskColor),
           });
         }
       }
     }
     return out;
-  }, [epicsList, projectsList, tasksList, expandedEpics]);
+  }, [epicsList, projectsList, tasksList, expandedEpics, editMode]);
 
-  // TaskListTable défini en interne pour avoir accès via closure à
-  // toggleEpic / expandedEpics. On contourne ainsi le wrapper
-  // onExpanderClick de la lib qui n'invoque pas le callback quand le
-  // type est "task" + hideChildren se perd dans la conversion en BarTask.
   function CustomTaskListTable(props: {
     tasks: GanttTask[];
     rowHeight: number;
@@ -222,35 +252,27 @@ export default function GanttPage() {
                 fontWeight: isEpic ? 600 : 400,
                 boxSizing: "border-box",
                 color: "#1f2329",
+                cursor: isEpic ? "pointer" : "default",
+                userSelect: "none",
               }}
+              onClick={isEpic ? () => toggleEpic(t.id.slice(5)) : undefined}
             >
               {isEpic ? (
-                <button
-                  type="button"
-                  onClick={() => toggleEpic(t.id.slice(5))}
+                <span
                   style={{
                     marginRight: 8,
                     width: 24,
                     height: 24,
-                    border: 0,
-                    background: "transparent",
-                    cursor: "pointer",
                     color: "#5f6368",
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    borderRadius: 4,
-                    padding: 0,
                   }}
-                  title={collapsed ? "Déplier" : "Replier"}
                 >
-                  <span
-                    className="material-symbols-outlined"
-                    style={{ fontSize: 18 }}
-                  >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
                     {collapsed ? "chevron_right" : "expand_more"}
                   </span>
-                </button>
+                </span>
               ) : (
                 <span style={{ width: 32 }} />
               )}
@@ -271,6 +293,7 @@ export default function GanttPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Ouvrir l'édition dans un nouvel onglet"
+                  onClick={(e) => e.stopPropagation()}
                   style={{
                     marginLeft: 6,
                     display: "inline-flex",
@@ -278,6 +301,7 @@ export default function GanttPage() {
                     color: "#9aa0a6",
                     padding: 2,
                     borderRadius: 4,
+                    transition: "color 180ms, background 180ms",
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLElement).style.color = "#1976d2";
@@ -323,23 +347,39 @@ export default function GanttPage() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          className={`chip ${editMode ? "active" : ""}`}
+          onClick={() => setEditMode((v) => !v)}
+          title="Permet de déplacer / redimensionner les barres en glissant"
+          style={{ marginLeft: 12 }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16, marginRight: 4 }}>
+            {editMode ? "lock_open" : "lock"}
+          </span>
+          Édition
+        </button>
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
-          Cliquez sur l'icône ↗ à droite d'un nom pour l'ouvrir en édition.
+          {editMode
+            ? "Glissez une barre pour la déplacer ou redimensionnez ses bords."
+            : "Cliquez sur l'icône ↗ pour ouvrir l'édition d'un epic ou projet."}
         </span>
       </div>
       {ganttTasks.length === 0 ? (
         <p>Aucun projet planifié.</p>
       ) : (
-        <div className="gantt-container">
+        <div className={`gantt-container ${editMode ? "edit-mode" : ""}`}>
           <Gantt
             tasks={ganttTasks}
             viewMode={view}
             locale="fr-FR"
             listCellWidth="320px"
             columnWidth={COLUMN_WIDTH_BY_VIEW[view] ?? 100}
+            barFill={editMode ? 80 : 60}
             TaskListHeader={TaskListHeader}
             TaskListTable={CustomTaskListTable}
             TooltipContent={TooltipContent}
+            onDateChange={handleDateChange}
           />
         </div>
       )}

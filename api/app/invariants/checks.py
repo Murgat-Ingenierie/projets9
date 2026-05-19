@@ -50,7 +50,6 @@ class EpicLike(Protocol):
     critere_reussite: str | None
     date_fin_prevue: date | None
     jalon_fin_max: date | None
-    critere_atteint: bool
 
 
 class ProjectLike(Protocol):
@@ -344,7 +343,7 @@ def check_epic_realise_consistency(
     projects: Iterable[ProjectLike],
     milestones: Iterable[MilestoneLike],
 ) -> None:
-    """INV-19 : epic realise ⇒ projets realise/abandonne ET jalons atteints ET critere_atteint."""
+    """INV-19 : epic realise ⇒ tous ses projets realise/abandonne ET tous ses jalons atteints."""
     if e.statut != "realise":
         return
     for p in projects:
@@ -359,11 +358,6 @@ def check_epic_realise_consistency(
                 "INV-19",
                 f"Epic {e.trigramme} realise mais jalon non atteint",
             )
-    if not e.critere_atteint:
-        raise InvariantError(
-            "INV-19",
-            f"Epic {e.trigramme} realise mais critere_atteint=false",
-        )
 
 
 # -----------------------------------------------------------------------------
