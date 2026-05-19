@@ -17,5 +17,7 @@ class Settings(BaseSettings):
 
     max_active_users: int = 10
 
+    auth_disabled: bool = False
+
 
 settings = Settings()

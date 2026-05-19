@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getToken, setToken } from "./api/client";
+import { setToken } from "./api/client";
 import { users } from "./api/endpoints";
 import type { User } from "./types";
 
@@ -17,10 +17,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!getToken()) {
-      setLoading(false);
-      return;
-    }
+    // On tente toujours users.me() : si AUTH_DISABLED côté API, ça renvoie
+    // l'admin par défaut même sans token. Sinon, le 401 nous renvoie au login.
     users
       .me()
       .then(setUser)
