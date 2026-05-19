@@ -89,6 +89,12 @@ type ListTableProps = {
   onExpanderClick: (t: GanttTask) => void;
 };
 
+function editUrlFor(t: GanttTask): string | null {
+  if (t.id.startsWith("epic-")) return `/epics/${t.id.slice(5)}/edit`;
+  if (t.id.startsWith("proj-")) return `/projects/${t.id.slice(5)}/edit`;
+  return null;
+}
+
 function TaskListTable({
   tasks: rowTasks,
   fontFamily,
@@ -101,6 +107,7 @@ function TaskListTable({
     <div style={{ fontFamily, fontSize, width: rowWidth }}>
       {rowTasks.map((t) => {
         const collapsible = t.hideChildren !== undefined;
+        const editUrl = editUrlFor(t);
         return (
           <div
             key={t.id}
@@ -110,22 +117,55 @@ function TaskListTable({
               alignItems: "center",
               paddingLeft: 12,
               borderBottom: "1px solid #f3f4f6",
-              cursor: collapsible ? "pointer" : "default",
               fontWeight: collapsible ? 600 : 400,
               boxSizing: "border-box",
             }}
-            onClick={() => collapsible && onExpanderClick(t)}
           >
             {collapsible ? (
-              <span style={{ marginRight: 6, fontSize: 10, width: 12 }}>
+              <span
+                style={{
+                  marginRight: 6,
+                  fontSize: 10,
+                  width: 16,
+                  cursor: "pointer",
+                  textAlign: "center",
+                  userSelect: "none",
+                }}
+                onClick={() => onExpanderClick(t)}
+              >
                 {t.hideChildren ? "▶" : "▼"}
               </span>
             ) : (
               <span style={{ width: 18 }} />
             )}
-            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {t.name}
-            </span>
+            {editUrl ? (
+              <a
+                href={editUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "#1d4ed8",
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  flex: 1,
+                }}
+                title="Ouvrir l'édition dans un nouvel onglet"
+              >
+                {t.name}
+              </a>
+            ) : (
+              <span
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {t.name}
+              </span>
+            )}
           </div>
         );
       })}
@@ -152,7 +192,6 @@ function TooltipContent({ task }: { task: GanttTask }) {
       {task.progress > 0 && (
         <div style={{ color: "#6b7280", marginTop: 2 }}>Avancement : {task.progress}%</div>
       )}
-      <div style={{ color: "#9ca3af", marginTop: 4, fontSize: 11 }}>Double-clic : éditer</div>
     </div>
   );
 }
@@ -239,17 +278,6 @@ export default function GanttPage() {
     });
   }
 
-  function handleDoubleClick(task: GanttTask) {
-    if (task.id.startsWith("epic-")) {
-      const tri = task.id.slice(5);
-      window.open(`/epics/${tri}/edit`, "_blank");
-    } else if (task.id.startsWith("proj-")) {
-      const pid = task.id.slice(5);
-      window.open(`/projects/${pid}/edit`, "_blank");
-    }
-    // tasks : on n'ouvre rien pour l'instant
-  }
-
   return (
     <>
       <h2>Planning Gantt</h2>
@@ -262,7 +290,7 @@ export default function GanttPage() {
           <option value={ViewMode.Month}>Mois</option>
         </select>
         <span style={{ color: "#6b7280", fontSize: 12, marginLeft: 12 }}>
-          Astuce : double-clic sur une barre d'epic ou de projet pour l'éditer dans un nouvel onglet.
+          Cliquez sur le nom d'un epic ou d'un projet pour l'éditer dans un nouvel onglet (▶/▼ pour replier).
         </span>
       </div>
       {ganttTasks.length === 0 ? (
@@ -278,7 +306,6 @@ export default function GanttPage() {
           TaskListTable={TaskListTable}
           TooltipContent={TooltipContent}
           onExpanderClick={handleExpander}
-          onDoubleClick={handleDoubleClick}
         />
       )}
     </>
