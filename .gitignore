@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Env / secrets
+.env
+.env.local
+*.local
+
+# DB / backups (locaux uniquement, ne pas committer)
+data/postgres/
+data/backups/
+
+# Éditeurs
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Logs
+*.log

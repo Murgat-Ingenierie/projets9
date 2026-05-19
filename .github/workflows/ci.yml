@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: API — lint + tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check .
+      - name: Tests
+        run: pytest -q
+
+  web:
+    name: Web — lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci || npm install
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Docker — build images
+    runs-on: ubuntu-latest
+    needs: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API
+        run: docker build -t gestion-projet-api:ci ./api
+      - name: Build Web
+        run: docker build -t gestion-projet-web:ci ./web
+      - name: Build Backup
+        run: docker build -t gestion-projet-backup:ci ./docker/backup

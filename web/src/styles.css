@@ -1,0 +1,71 @@
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1f2937;
+  background: #f6f7f9;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+.sidebar {
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 16px;
+}
+.sidebar h1 { font-size: 18px; margin: 0 0 16px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 4px; }
+.sidebar a {
+  color: #e5e7eb;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.sidebar a.active, .sidebar a:hover { background: #374151; }
+.sidebar .me { font-size: 12px; color: #9ca3af; margin-top: 24px; }
+.sidebar button.logout {
+  margin-top: 8px; background: #ef4444; border: 0; color: white;
+  padding: 6px 10px; border-radius: 4px; cursor: pointer;
+}
+
+.main { padding: 24px; overflow-x: auto; }
+h2 { margin-top: 0; }
+
+table { border-collapse: collapse; width: 100%; background: white; }
+th, td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px; }
+th { background: #f3f4f6; font-weight: 600; }
+
+.btn {
+  background: #2563eb; color: white; border: 0; padding: 8px 14px;
+  border-radius: 4px; cursor: pointer; font-size: 14px;
+}
+.btn.secondary { background: #6b7280; }
+.btn.danger { background: #dc2626; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.form { display: grid; gap: 8px; max-width: 480px; }
+.form label { font-size: 13px; color: #374151; }
+.form input, .form select, .form textarea {
+  padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;
+}
+.error {
+  background: #fee2e2; color: #991b1b; padding: 8px 12px; border-radius: 4px;
+  margin: 8px 0; font-size: 13px;
+}
+.login-page {
+  display: grid; place-items: center; min-height: 100vh;
+}
+.login-card {
+  background: white; padding: 32px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  width: 360px;
+}
+
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+.tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #e5e7eb; }
+.tag.actif { background: #dbeafe; color: #1e3a8a; }
+.tag.realise { background: #dcfce7; color: #166534; }
+.tag.abandonne { background: #fef3c7; color: #92400e; }
+.tag.idee { background: #f3f4f6; color: #374151; }
