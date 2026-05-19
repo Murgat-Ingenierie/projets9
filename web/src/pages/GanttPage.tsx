@@ -5,12 +5,13 @@ import { epics, projects, tasks } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Epic, Project, Task } from "../types";
 
-const EPIC_BG = "#4f46e5";
-const EPIC_SELECTED = "#3730a3";
-const PROJECT_BG = "#2563eb";
-const PROJECT_SELECTED = "#1d4ed8";
-const TASK_BG = "#10b981";
-const TASK_SELECTED = "#047857";
+// Palette alignée Material : primary (Indigo), accent (Blue), tertiary (Teal)
+const EPIC_BG = "#3f51b5";
+const EPIC_SELECTED = "#303f9f";
+const PROJECT_BG = "#1976d2";
+const PROJECT_SELECTED = "#0d47a1";
+const TASK_BG = "#00897b";
+const TASK_SELECTED = "#00695c";
 
 const EPIC_STYLES = {
   backgroundColor: EPIC_BG,
@@ -58,21 +59,24 @@ type ListHeaderProps = {
   rowWidth: string;
 };
 
-function TaskListHeader({ headerHeight, fontFamily, fontSize, rowWidth }: ListHeaderProps) {
+function TaskListHeader({ headerHeight, rowWidth }: ListHeaderProps) {
   return (
     <div
       style={{
         height: headerHeight,
         width: rowWidth,
-        fontFamily,
-        fontSize,
-        fontWeight: 600,
+        fontFamily: "Roboto, sans-serif",
+        fontSize: 12,
+        fontWeight: 500,
+        letterSpacing: "0.6px",
+        textTransform: "uppercase",
+        color: "#5f6368",
         display: "flex",
         alignItems: "center",
-        paddingLeft: 12,
-        borderBottom: "2px solid #e5e7eb",
+        paddingLeft: 16,
+        borderBottom: "1px solid #e0e0e0",
         boxSizing: "border-box",
-        background: "#f3f4f6",
+        background: "#fafafa",
       }}
     >
       Nom
@@ -97,14 +101,12 @@ function editUrlFor(t: GanttTask): string | null {
 
 function TaskListTable({
   tasks: rowTasks,
-  fontFamily,
-  fontSize,
   rowHeight,
   rowWidth,
   onExpanderClick,
 }: ListTableProps) {
   return (
-    <div style={{ fontFamily, fontSize, width: rowWidth }}>
+    <div style={{ fontFamily: "Roboto, sans-serif", fontSize: 14, width: rowWidth }}>
       {rowTasks.map((t) => {
         const collapsible = t.hideChildren !== undefined;
         const editUrl = editUrlFor(t);
@@ -115,28 +117,30 @@ function TaskListTable({
               height: rowHeight,
               display: "flex",
               alignItems: "center",
-              paddingLeft: 12,
-              borderBottom: "1px solid #f3f4f6",
-              fontWeight: collapsible ? 600 : 400,
+              paddingLeft: 16,
+              borderBottom: "1px solid #f1f3f4",
+              fontWeight: collapsible ? 500 : 400,
               boxSizing: "border-box",
+              color: "#1f2329",
             }}
           >
             {collapsible ? (
               <span
                 style={{
-                  marginRight: 6,
+                  marginRight: 8,
                   fontSize: 10,
                   width: 16,
                   cursor: "pointer",
                   textAlign: "center",
                   userSelect: "none",
+                  color: "#5f6368",
                 }}
                 onClick={() => onExpanderClick(t)}
               >
                 {t.hideChildren ? "▶" : "▼"}
               </span>
             ) : (
-              <span style={{ width: 18 }} />
+              <span style={{ width: 24 }} />
             )}
             {editUrl ? (
               <a
@@ -144,7 +148,7 @@ function TaskListTable({
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  color: "#1d4ed8",
+                  color: "#1976d2",
                   textDecoration: "none",
                   whiteSpace: "nowrap",
                   overflow: "hidden",
@@ -177,20 +181,22 @@ function TooltipContent({ task }: { task: GanttTask }) {
   return (
     <div
       style={{
-        background: "white",
-        padding: "8px 12px",
-        border: "1px solid #d1d5db",
+        background: "#1f2329",
+        color: "white",
+        padding: "10px 14px",
         borderRadius: 4,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
         fontSize: 13,
+        fontFamily: "Roboto, sans-serif",
+        maxWidth: 300,
       }}
     >
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{task.name}</div>
-      <div>
+      <div style={{ fontWeight: 500, marginBottom: 4 }}>{task.name}</div>
+      <div style={{ opacity: 0.85 }}>
         {fmtDate(task.start)} – {fmtDate(task.end)}
       </div>
       {task.progress > 0 && (
-        <div style={{ color: "#6b7280", marginTop: 2 }}>Avancement : {task.progress}%</div>
+        <div style={{ opacity: 0.7, marginTop: 4 }}>Avancement : {task.progress}%</div>
       )}
     </div>
   );
