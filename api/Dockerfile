@@ -12,11 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
-RUN pip install --upgrade pip && pip install .
-
+COPY app/ ./app/
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
-COPY app/ ./app/
+
+RUN pip install --upgrade pip && pip install .
 
 EXPOSE 8000
 
