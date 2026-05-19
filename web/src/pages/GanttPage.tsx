@@ -106,8 +106,10 @@ function TaskListTable({
   return (
     <div style={{ fontFamily: "Roboto, sans-serif", fontSize: 14, width: rowWidth }}>
       {rowTasks.map((t) => {
-        const collapsible = t.hideChildren !== undefined;
+        const isEpic = t.id.startsWith("epic-");
+        const isTask = t.id.startsWith("task-");
         const editUrl = editUrlFor(t);
+        const indent = isEpic ? 0 : isTask ? 44 : 24;
         return (
           <div
             key={t.id}
@@ -115,18 +117,18 @@ function TaskListTable({
               height: rowHeight,
               display: "flex",
               alignItems: "center",
-              paddingLeft: 16,
+              paddingLeft: 12 + indent,
               borderBottom: "1px solid #f1f3f4",
-              fontWeight: collapsible ? 500 : 400,
+              fontWeight: isEpic ? 600 : 400,
               boxSizing: "border-box",
               color: "#1f2329",
             }}
           >
-            {collapsible ? (
+            {isEpic ? (
               <span
                 style={{
                   marginRight: 8,
-                  fontSize: 10,
+                  fontSize: 11,
                   width: 16,
                   cursor: "pointer",
                   textAlign: "center",
@@ -163,6 +165,7 @@ function TaskListTable({
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
+                  color: "#374151",
                 }}
               >
                 {t.name}
@@ -233,16 +236,14 @@ export default function GanttPage() {
       );
       const isExpanded = expandedEpics.has(e.trigramme);
       const epicColor = e.couleur ?? DEFAULT_EPIC_COLOR;
-      // Projets : variante un peu plus claire de la couleur de l'epic
       const projectColor = adjustBrightness(epicColor, 1.3);
-      // Tâches : encore plus claire
       const taskColor = adjustBrightness(epicColor, 1.7);
+      // Epic en type "task" pour barre uniforme (pas de triangles d'extrémité
+      // qui causaient l'effet bicolore). On gère le repliage manuellement
+      // côté React puisque la lib ignore hideChildren pour les "task".
       out.push({
         id: `epic-${e.trigramme}`,
         name: e.nom,
-        // type "task" plutôt que "project" : pas de petits triangles aux
-        // extrémités (qui apparaissaient en couleur "progress" et créaient
-        // l'effet bicolore).
         type: "task",
         start,
         end,
@@ -250,6 +251,7 @@ export default function GanttPage() {
         hideChildren: !isExpanded,
         styles: stylesFor(epicColor),
       });
+      if (!isExpanded) continue;
       for (const p of epicProjects) {
         out.push({
           id: `proj-${p.id}`,
@@ -265,7 +267,7 @@ export default function GanttPage() {
         for (const t of projTasks) {
           out.push({
             id: `task-${t.id}`,
-            name: `  ${t.nom}`,
+            name: t.nom,
             type: "task",
             start: toDate(t.date_debut),
             end: toDate(t.date_fin),
