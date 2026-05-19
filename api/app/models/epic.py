@@ -38,6 +38,7 @@ class Epic(Base, TimestampMixin):
         default=EpicCategory.operationnel,
     )
     critere_atteint: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    couleur: Mapped[str | None] = mapped_column(String(7), nullable=True)
     updated_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     projects = relationship("Project", back_populates="epic", cascade="all, delete-orphan")

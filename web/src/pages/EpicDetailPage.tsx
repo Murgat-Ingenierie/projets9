@@ -34,6 +34,7 @@ export default function EpicDetailPage() {
   const [jalons, setJalons] = useState<Milestone[]>([]);
   const [mes, setMes] = useState<Measure[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allEpics, setAllEpics] = useState<Epic[]>([]);
   const [err, setErr] = useState<unknown>(null);
 
   const [editingEpic, setEditingEpic] = useState(false);
@@ -55,13 +56,15 @@ export default function EpicDetailPage() {
       milestones.list({ epic: trigramme }),
       measures.list(trigramme),
       users.list(),
+      epics.list(),
     ])
-      .then(([e, p, j, m, u]) => {
+      .then(([e, p, j, m, u, allE]) => {
         setEpic(e);
         setProjs(p);
         setJalons(j);
         setMes(m);
         setAllUsers(u);
+        setAllEpics(allE);
       })
       .catch(setErr);
   }
@@ -258,6 +261,35 @@ export default function EpicDetailPage() {
         ),
     },
     {
+      label: "Couleur",
+      render: () =>
+        editingEpic ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="color"
+              value={epicDraft.couleur ?? "#3f51b5"}
+              onChange={(e) => setEpicDraft({ ...epicDraft, couleur: e.target.value })}
+              style={{ width: 48, height: 32, padding: 0, cursor: "pointer", border: "1px solid #e0e0e0", borderRadius: 4 }}
+            />
+            <code style={{ color: "#5f6368", fontSize: 12 }}>{epicDraft.couleur ?? "—"}</code>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 20,
+                height: 20,
+                background: epic.couleur ?? "#3f51b5",
+                borderRadius: 4,
+                border: "1px solid #e0e0e0",
+              }}
+            />
+            <code style={{ color: "#5f6368", fontSize: 12 }}>{epic.couleur ?? "(défaut)"}</code>
+          </div>
+        ),
+    },
+    {
       label: "Critère atteint",
       render: () =>
         editingEpic ? (
@@ -313,6 +345,7 @@ export default function EpicDetailPage() {
         <thead>
           <tr>
             <th>Nom</th>
+            <th>Epic</th>
             <th>Début</th>
             <th>Fin</th>
             <th>Responsable</th>
@@ -329,6 +362,18 @@ export default function EpicDetailPage() {
                     value={projectDraft.nom ?? ""}
                     onChange={(ev) => setProjectDraft({ ...projectDraft, nom: ev.target.value })}
                   />
+                </td>
+                <td>
+                  <select
+                    value={projectDraft.epic_trigramme ?? ""}
+                    onChange={(ev) =>
+                      setProjectDraft({ ...projectDraft, epic_trigramme: ev.target.value })
+                    }
+                  >
+                    {allEpics.map((e) => (
+                      <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>
+                    ))}
+                  </select>
                 </td>
                 <td>
                   <input
@@ -379,6 +424,7 @@ export default function EpicDetailPage() {
             ) : (
               <tr key={p.id}>
                 <td>{p.nom}</td>
+                <td>{epic.nom}</td>
                 <td>{fmtDate(p.date_debut)}</td>
                 <td>{fmtDate(p.date_fin)}</td>
                 <td>{p.responsable_id ? userNameById.get(p.responsable_id) ?? "—" : "—"}</td>

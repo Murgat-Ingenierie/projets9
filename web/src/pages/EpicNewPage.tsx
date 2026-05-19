@@ -17,6 +17,7 @@ export default function EpicNewPage() {
     critere_reussite: "",
     statut: "idee",
     categorie: "operationnel",
+    couleur: "#3f51b5",
   });
 
   async function submit(e: React.FormEvent) {
@@ -57,6 +58,16 @@ export default function EpicNewPage() {
         <select value={draft.categorie} onChange={(e) => setDraft({ ...draft, categorie: e.target.value as EpicCategory })}>
           {CATEGORIES.map((c) => <option key={c} value={c}>{EPIC_CATEGORY_LABELS[c]}</option>)}
         </select>
+        <label>Couleur (utilisée sur le Gantt)</label>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="color"
+            value={draft.couleur ?? "#3f51b5"}
+            onChange={(e) => setDraft({ ...draft, couleur: e.target.value })}
+            style={{ width: 56, height: 36, padding: 0, cursor: "pointer" }}
+          />
+          <code style={{ color: "#5f6368", fontSize: 12 }}>{draft.couleur ?? "—"}</code>
+        </div>
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <button className="btn" type="submit">Créer</button>
           <button type="button" className="btn secondary" onClick={() => nav("/epics")}>Annuler</button>

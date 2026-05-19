@@ -114,7 +114,22 @@ export default function EpicsPage() {
               </tr>
             ) : (
               <tr key={e.trigramme}>
-                <td><Link to={`/epics/${e.trigramme}`}>{e.nom}</Link></td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
+                        background: e.couleur ?? "#3f51b5",
+                        border: "1px solid rgba(0,0,0,0.1)",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Link to={`/epics/${e.trigramme}`}>{e.nom}</Link>
+                  </div>
+                </td>
                 <td>{e.critere_reussite}</td>
                 <td><span className={`tag ${e.statut}`}>{EPIC_STATUS_LABELS[e.statut]}</span></td>
                 <td>{EPIC_CATEGORY_LABELS[e.categorie]}</td>

@@ -5,32 +5,30 @@ import { epics, projects, tasks } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Epic, Project, Task } from "../types";
 
-// Palette alignée Material : primary (Indigo), accent (Blue), tertiary (Teal)
-const EPIC_BG = "#3f51b5";
-const EPIC_SELECTED = "#303f9f";
-const PROJECT_BG = "#1976d2";
-const PROJECT_SELECTED = "#0d47a1";
-const TASK_BG = "#00897b";
-const TASK_SELECTED = "#00695c";
+const DEFAULT_EPIC_COLOR = "#3f51b5";
 
-const EPIC_STYLES = {
-  backgroundColor: EPIC_BG,
-  backgroundSelectedColor: EPIC_SELECTED,
-  progressColor: EPIC_BG,
-  progressSelectedColor: EPIC_SELECTED,
-};
-const PROJECT_STYLES = {
-  backgroundColor: PROJECT_BG,
-  backgroundSelectedColor: PROJECT_SELECTED,
-  progressColor: PROJECT_BG,
-  progressSelectedColor: PROJECT_SELECTED,
-};
-const TASK_STYLES = {
-  backgroundColor: TASK_BG,
-  backgroundSelectedColor: TASK_SELECTED,
-  progressColor: TASK_BG,
-  progressSelectedColor: TASK_SELECTED,
-};
+function adjustBrightness(hex: string, factor: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const num = parseInt(m[1], 16);
+  const channels = [(num >> 16) & 0xff, (num >> 8) & 0xff, num & 0xff].map((c) => {
+    if (factor < 1) return Math.round(c * factor);
+    // Pour éclaircir, on interpole vers 255 (évite l'effet "washé" du multiplicateur naïf)
+    return Math.round(c + (255 - c) * (1 - 1 / factor));
+  });
+  return `#${channels.map((x) => Math.max(0, Math.min(255, x)).toString(16).padStart(2, "0")).join("")}`;
+}
+
+const darken = adjustBrightness;
+
+function stylesFor(color: string) {
+  return {
+    backgroundColor: color,
+    backgroundSelectedColor: darken(color, 0.8),
+    progressColor: color,
+    progressSelectedColor: darken(color, 0.8),
+  };
+}
 
 const COLUMN_WIDTH_BY_VIEW: Partial<Record<ViewMode, number>> = {
   [ViewMode.Hour]: 30,
@@ -234,6 +232,11 @@ export default function GanttPage() {
         toDate(epicProjects[0].date_fin)
       );
       const isExpanded = expandedEpics.has(e.trigramme);
+      const epicColor = e.couleur ?? DEFAULT_EPIC_COLOR;
+      // Projets : variante un peu plus claire de la couleur de l'epic
+      const projectColor = adjustBrightness(epicColor, 1.3);
+      // Tâches : encore plus claire
+      const taskColor = adjustBrightness(epicColor, 1.7);
       out.push({
         id: `epic-${e.trigramme}`,
         name: e.nom,
@@ -242,7 +245,7 @@ export default function GanttPage() {
         end,
         progress: 0,
         hideChildren: !isExpanded,
-        styles: EPIC_STYLES,
+        styles: stylesFor(epicColor),
       });
       for (const p of epicProjects) {
         out.push({
@@ -253,7 +256,7 @@ export default function GanttPage() {
           end: toDate(p.date_fin),
           progress: 0,
           project: `epic-${e.trigramme}`,
-          styles: PROJECT_STYLES,
+          styles: stylesFor(projectColor),
         });
         const projTasks = tasksList.filter((t) => t.projet_id === p.id);
         for (const t of projTasks) {
@@ -265,7 +268,7 @@ export default function GanttPage() {
             end: toDate(t.date_fin),
             progress: 0,
             project: `epic-${e.trigramme}`,
-            styles: TASK_STYLES,
+            styles: stylesFor(taskColor),
           });
         }
       }

@@ -25,6 +25,7 @@ export interface Epic {
   statut: EpicStatus;
   categorie: EpicCategory;
   critere_atteint: boolean;
+  couleur: string | null;
   created_at: string;
   updated_at: string;
 }
