@@ -1,9 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { dependencies, tasks } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Dependency, DependencyType, Task } from "../types";
 
 const TYPES: DependencyType[] = ["FS", "SS", "FF"];
+const TYPE_LABELS: Record<DependencyType, string> = {
+  FS: "Fin → Début (FS)",
+  SS: "Début → Début (SS)",
+  FF: "Fin → Fin (FF)",
+};
 
 export default function DependenciesPage() {
   const [items, setItems] = useState<Dependency[]>([]);
@@ -20,6 +25,12 @@ export default function DependenciesPage() {
       .catch(setErr);
   }
   useEffect(load, []);
+
+  const taskName = useMemo(() => {
+    const m = new Map<number, string>();
+    allTasks.forEach((t) => m.set(t.id, t.nom));
+    return m;
+  }, [allTasks]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -43,11 +54,6 @@ export default function DependenciesPage() {
     }
   }
 
-  function label(taskId: number) {
-    const t = allTasks.find((x) => x.id === taskId);
-    return t ? `#${t.id} ${t.nom}` : `#${taskId}`;
-  }
-
   return (
     <>
       <h2>Dépendances</h2>
@@ -66,7 +72,7 @@ export default function DependenciesPage() {
         >
           <option value="">—</option>
           {allTasks.map((t) => (
-            <option key={t.id} value={t.id}>{label(t.id)}</option>
+            <option key={t.id} value={t.id}>{t.nom}</option>
           ))}
         </select>
         <label>Tâche aval</label>
@@ -82,7 +88,7 @@ export default function DependenciesPage() {
         >
           <option value="">—</option>
           {allTasks.map((t) => (
-            <option key={t.id} value={t.id}>{label(t.id)}</option>
+            <option key={t.id} value={t.id}>{t.nom}</option>
           ))}
         </select>
         <label>Type</label>
@@ -90,22 +96,21 @@ export default function DependenciesPage() {
           value={draft.type}
           onChange={(e) => setDraft({ ...draft, type: e.target.value as DependencyType })}
         >
-          {TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {TYPES.map((s) => <option key={s} value={s}>{TYPE_LABELS[s]}</option>)}
         </select>
         <button className="btn" type="submit">Ajouter</button>
       </form>
 
       <table>
         <thead>
-          <tr><th>ID</th><th>Amont</th><th>Aval</th><th>Type</th><th></th></tr>
+          <tr><th>Amont</th><th>Aval</th><th>Type</th><th></th></tr>
         </thead>
         <tbody>
           {items.map((d) => (
             <tr key={d.id}>
-              <td>{d.id}</td>
-              <td>{label(d.tache_amont_id)}</td>
-              <td>{label(d.tache_aval_id)}</td>
-              <td>{d.type}</td>
+              <td>{taskName.get(d.tache_amont_id) ?? `tâche #${d.tache_amont_id}`}</td>
+              <td>{taskName.get(d.tache_aval_id) ?? `tâche #${d.tache_aval_id}`}</td>
+              <td>{TYPE_LABELS[d.type]}</td>
               <td><button className="btn danger" onClick={() => remove(d.id)}>Supprimer</button></td>
             </tr>
           ))}

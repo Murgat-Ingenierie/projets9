@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { users as usersApi } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { USER_ROLE_LABELS } from "../labels";
 import type { User, UserRole } from "../types";
 
 const ROLES: UserRole[] = ["admin", "membre"];
@@ -66,7 +67,7 @@ export default function UsersPage() {
           onChange={(e) => setDraft({ ...draft, email: e.target.value })}
           required
         />
-        <label>Mot de passe (min 8)</label>
+        <label>Mot de passe (8 caractères minimum)</label>
         <input
           type="password"
           minLength={8}
@@ -79,7 +80,7 @@ export default function UsersPage() {
           value={draft.role}
           onChange={(e) => setDraft({ ...draft, role: e.target.value as UserRole })}
         >
-          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+          {ROLES.map((r) => <option key={r} value={r}>{USER_ROLE_LABELS[r]}</option>)}
         </select>
         <button className="btn" type="submit">Ajouter</button>
       </form>
@@ -87,16 +88,15 @@ export default function UsersPage() {
       <table>
         <thead>
           <tr>
-            <th>ID</th><th>Nom</th><th>Email</th><th>Rôle</th><th>Actif</th><th></th>
+            <th>Nom</th><th>Email</th><th>Rôle</th><th>Actif</th><th></th>
           </tr>
         </thead>
         <tbody>
           {items.map((u) => (
             <tr key={u.id}>
-              <td>{u.id}</td>
               <td>{u.nom}</td>
               <td>{u.email}</td>
-              <td>{u.role}</td>
+              <td>{USER_ROLE_LABELS[u.role]}</td>
               <td>
                 <button className="btn secondary" onClick={() => toggleActive(u)}>
                   {u.actif ? "Désactiver" : "Activer"}

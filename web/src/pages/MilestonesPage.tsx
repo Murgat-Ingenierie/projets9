@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { epics, milestones, projects } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { fmtDate } from "../labels";
 import type { Epic, Milestone, Project } from "../types";
 
 export default function MilestonesPage() {
@@ -27,6 +28,18 @@ export default function MilestonesPage() {
       .catch(setErr);
   }
   useEffect(load, []);
+
+  const epicName = useMemo(() => {
+    const m = new Map<string, string>();
+    allEpics.forEach((e) => m.set(e.trigramme, e.nom));
+    return m;
+  }, [allEpics]);
+
+  const projectName = useMemo(() => {
+    const m = new Map<number, string>();
+    allProjects.forEach((p) => m.set(p.id, p.nom));
+    return m;
+  }, [allProjects]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -64,8 +77,8 @@ export default function MilestonesPage() {
       <form className="form" onSubmit={create} style={{ marginBottom: 24 }}>
         <label>Rattaché à</label>
         <select value={parentType} onChange={(e) => setParentType(e.target.value as "epic" | "project")}>
-          <option value="epic">Epic</option>
-          <option value="project">Projet</option>
+          <option value="epic">Un epic</option>
+          <option value="project">Un projet</option>
         </select>
         {parentType === "epic" ? (
           <>
@@ -77,7 +90,7 @@ export default function MilestonesPage() {
             >
               <option value="">—</option>
               {allEpics.map((e) => (
-                <option key={e.trigramme} value={e.trigramme}>{e.trigramme} — {e.nom}</option>
+                <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>
               ))}
             </select>
           </>
@@ -124,17 +137,20 @@ export default function MilestonesPage() {
       <table>
         <thead>
           <tr>
-            <th>ID</th><th>Rattaché à</th><th>Nom</th><th>Date</th><th>Atteint</th><th></th>
+            <th>Rattaché à</th><th>Nom</th><th>Date</th><th>Atteint</th><th></th>
           </tr>
         </thead>
         <tbody>
           {items.map((m) => (
             <tr key={m.id}>
-              <td>{m.id}</td>
-              <td>{m.epic_trigramme ?? `proj#${m.project_id}`}</td>
+              <td>
+                {m.epic_trigramme
+                  ? epicName.get(m.epic_trigramme) ?? m.epic_trigramme
+                  : projectName.get(m.project_id ?? -1) ?? "—"}
+              </td>
               <td>{m.nom}</td>
-              <td>{m.date}</td>
-              <td>{m.atteint ? "oui" : "non"}</td>
+              <td>{fmtDate(m.date)}</td>
+              <td>{m.atteint ? "Oui" : "Non"}</td>
               <td><button className="btn danger" onClick={() => remove(m.id)}>Supprimer</button></td>
             </tr>
           ))}

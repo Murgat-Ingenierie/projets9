@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { epics, projects, users } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { PROJECT_STATUS_LABELS, fmtDate } from "../labels";
 import type { Epic, Project, ProjectStatus, User } from "../types";
 
 const STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
@@ -28,6 +29,12 @@ export default function ProjectsPage() {
       .catch(setErr);
   }
   useEffect(load, []);
+
+  const epicNameByTri = useMemo(() => {
+    const m = new Map<string, string>();
+    allEpics.forEach((e) => m.set(e.trigramme, e.nom));
+    return m;
+  }, [allEpics]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -64,19 +71,19 @@ export default function ProjectsPage() {
         >
           <option value="">—</option>
           {allEpics.map((e) => (
-            <option key={e.trigramme} value={e.trigramme}>{e.trigramme} — {e.nom}</option>
+            <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>
           ))}
         </select>
         <label>Nom</label>
         <input value={draft.nom ?? ""} onChange={(e) => setDraft({ ...draft, nom: e.target.value })} required />
-        <label>Date début</label>
+        <label>Date de début</label>
         <input
           type="date"
           value={draft.date_debut ?? ""}
           onChange={(e) => setDraft({ ...draft, date_debut: e.target.value })}
           required
         />
-        <label>Date fin</label>
+        <label>Date de fin</label>
         <input
           type="date"
           value={draft.date_fin ?? ""}
@@ -103,7 +110,9 @@ export default function ProjectsPage() {
           value={draft.statut}
           onChange={(e) => setDraft({ ...draft, statut: e.target.value as ProjectStatus })}
         >
-          {STATUTS.map((s) => <option key={s} value={s}>{s}</option>)}
+          {STATUTS.map((s) => (
+            <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>
+          ))}
         </select>
         <button className="btn" type="submit">Ajouter</button>
       </form>
@@ -111,18 +120,17 @@ export default function ProjectsPage() {
       <table>
         <thead>
           <tr>
-            <th>ID</th><th>Epic</th><th>Nom</th><th>Début</th><th>Fin</th><th>Statut</th><th></th>
+            <th>Epic</th><th>Nom</th><th>Début</th><th>Fin</th><th>Statut</th><th></th>
           </tr>
         </thead>
         <tbody>
           {items.map((p) => (
             <tr key={p.id}>
-              <td>{p.id}</td>
-              <td>{p.epic_trigramme}</td>
+              <td>{epicNameByTri.get(p.epic_trigramme) ?? p.epic_trigramme}</td>
               <td>{p.nom}</td>
-              <td>{p.date_debut}</td>
-              <td>{p.date_fin}</td>
-              <td><span className={`tag ${p.statut}`}>{p.statut}</span></td>
+              <td>{fmtDate(p.date_debut)}</td>
+              <td>{fmtDate(p.date_fin)}</td>
+              <td><span className={`tag ${p.statut}`}>{PROJECT_STATUS_LABELS[p.statut]}</span></td>
               <td><button className="btn danger" onClick={() => remove(p.id)}>Supprimer</button></td>
             </tr>
           ))}

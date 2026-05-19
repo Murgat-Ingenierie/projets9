@@ -15,9 +15,9 @@ function Sidebar() {
   const nav = useNavigate();
   return (
     <aside className="sidebar">
-      <h1>Gestion projet</h1>
+      <h1>Gestion de projet</h1>
       <nav>
-        <NavLink to="/" end>Gantt</NavLink>
+        <NavLink to="/" end>Planning</NavLink>
         <NavLink to="/epics">Epics</NavLink>
         <NavLink to="/projects">Projets</NavLink>
         <NavLink to="/tasks">Tâches</NavLink>
@@ -26,7 +26,7 @@ function Sidebar() {
         {user?.role === "admin" && <NavLink to="/users">Utilisateurs</NavLink>}
       </nav>
       <div className="me">
-        Connecté : {user?.nom} ({user?.role})
+        Connecté : {user?.nom}
         <br />
         <button
           className="logout"

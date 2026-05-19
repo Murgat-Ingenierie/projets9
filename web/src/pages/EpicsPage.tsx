@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { epics } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { EPIC_CATEGORY_LABELS, EPIC_STATUS_LABELS } from "../labels";
 import type { Epic, EpicCategory, EpicStatus } from "../types";
 
 const STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
@@ -39,7 +40,7 @@ export default function EpicsPage() {
   }
 
   async function remove(t: string) {
-    if (!confirm(`Supprimer l'epic ${t} ?`)) return;
+    if (!confirm(`Supprimer l'epic "${t}" ?`)) return;
     try {
       await epics.remove(t);
       load();
@@ -53,7 +54,7 @@ export default function EpicsPage() {
       <h2>Epics</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={create} style={{ marginBottom: 24 }}>
-        <label>Trigramme (3 lettres MAJ, ex: O50)</label>
+        <label>Identifiant court (3 lettres/chiffres, ex : O50)</label>
         <input
           maxLength={3}
           value={draft.trigramme ?? ""}
@@ -76,14 +77,22 @@ export default function EpicsPage() {
           value={draft.statut}
           onChange={(e) => setDraft({ ...draft, statut: e.target.value as EpicStatus })}
         >
-          {STATUTS.map((s) => <option key={s} value={s}>{s}</option>)}
+          {STATUTS.map((s) => (
+            <option key={s} value={s}>
+              {EPIC_STATUS_LABELS[s]}
+            </option>
+          ))}
         </select>
         <label>Catégorie</label>
         <select
           value={draft.categorie}
           onChange={(e) => setDraft({ ...draft, categorie: e.target.value as EpicCategory })}
         >
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {EPIC_CATEGORY_LABELS[c]}
+            </option>
+          ))}
         </select>
         <button className="btn" type="submit">Ajouter</button>
       </form>
@@ -91,9 +100,8 @@ export default function EpicsPage() {
       <table>
         <thead>
           <tr>
-            <th>Trigramme</th>
             <th>Nom</th>
-            <th>Critère</th>
+            <th>Critère de réussite</th>
             <th>Statut</th>
             <th>Catégorie</th>
             <th></th>
@@ -102,11 +110,14 @@ export default function EpicsPage() {
         <tbody>
           {items.map((e) => (
             <tr key={e.trigramme}>
-              <td><Link to={`/epics/${e.trigramme}`}>{e.trigramme}</Link></td>
-              <td>{e.nom}</td>
+              <td>
+                <Link to={`/epics/${e.trigramme}`}>{e.nom}</Link>
+              </td>
               <td>{e.critere_reussite}</td>
-              <td><span className={`tag ${e.statut}`}>{e.statut}</span></td>
-              <td>{e.categorie}</td>
+              <td>
+                <span className={`tag ${e.statut}`}>{EPIC_STATUS_LABELS[e.statut]}</span>
+              </td>
+              <td>{EPIC_CATEGORY_LABELS[e.categorie]}</td>
               <td>
                 <button className="btn danger" onClick={() => remove(e.trigramme)}>
                   Supprimer

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { epics, measures, milestones, projects } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { PROJECT_STATUS_LABELS, fmtDate } from "../labels";
 import type { Epic, Measure, Milestone, Project } from "../types";
 
 export default function EpicDetailPage() {
@@ -45,16 +46,16 @@ export default function EpicDetailPage() {
 
   return (
     <>
-      <h2>{epic.trigramme} — {epic.nom}</h2>
+      <h2>{epic.nom}</h2>
       <ErrorBanner error={err} />
       <p><strong>Critère de réussite :</strong> {epic.critere_reussite || "—"}</p>
-      <p><strong>Raison date fin :</strong> {epic.raison_date_fin || "—"}</p>
-      <p><strong>Date fin prévue :</strong> {epic.date_fin_prevue || "—"}</p>
-      <p><strong>Jalon fin max :</strong> {epic.jalon_fin_max || "—"}</p>
+      <p><strong>Raison de la date de fin :</strong> {epic.raison_date_fin || "—"}</p>
+      <p><strong>Date de fin prévue :</strong> {fmtDate(epic.date_fin_prevue) || "—"}</p>
+      <p><strong>Jalon de fin maximum :</strong> {fmtDate(epic.jalon_fin_max) || "—"}</p>
       <p>
         <label>
           <input type="checkbox" checked={epic.critere_atteint} onChange={toggleCritere} />
-          {" "}Critère atteint (case manuelle)
+          {" "}Critère atteint
         </label>
       </p>
 
@@ -67,9 +68,9 @@ export default function EpicDetailPage() {
           {projs.map((p) => (
             <tr key={p.id}>
               <td>{p.nom}</td>
-              <td>{p.date_debut}</td>
-              <td>{p.date_fin}</td>
-              <td><span className={`tag ${p.statut}`}>{p.statut}</span></td>
+              <td>{fmtDate(p.date_debut)}</td>
+              <td>{fmtDate(p.date_fin)}</td>
+              <td><span className={`tag ${p.statut}`}>{PROJECT_STATUS_LABELS[p.statut]}</span></td>
             </tr>
           ))}
         </tbody>
@@ -84,8 +85,8 @@ export default function EpicDetailPage() {
           {jalons.map((j) => (
             <tr key={j.id}>
               <td>{j.nom}</td>
-              <td>{j.date}</td>
-              <td>{j.atteint ? "oui" : "non"}</td>
+              <td>{fmtDate(j.date)}</td>
+              <td>{j.atteint ? "Oui" : "Non"}</td>
             </tr>
           ))}
         </tbody>
@@ -99,7 +100,7 @@ export default function EpicDetailPage() {
         <tbody>
           {mes.map((m) => (
             <tr key={m.id}>
-              <td>{m.date}</td>
+              <td>{fmtDate(m.date)}</td>
               <td>{m.valeur}</td>
               <td>{m.unite}</td>
               <td>{m.commentaire}</td>
