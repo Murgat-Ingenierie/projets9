@@ -1,4 +1,4 @@
-from datetime import date
+import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -7,7 +7,7 @@ from app.schemas.common import TimestampedRead
 
 class MilestoneBase(BaseModel):
     nom: str = Field(min_length=1, max_length=255)
-    date: date
+    date: datetime.date
     atteint: bool = False
     epic_trigramme: str | None = Field(default=None, min_length=3, max_length=3)
     project_id: int | None = None
@@ -27,14 +27,14 @@ class MilestoneCreate(MilestoneBase):
 
 class MilestoneUpdate(BaseModel):
     nom: str | None = Field(default=None, min_length=1, max_length=255)
-    date: date | None = None
+    date: datetime.date | None = None
     atteint: bool | None = None
 
 
 class MilestoneRead(TimestampedRead):
     id: int
     nom: str
-    date: date
+    date: datetime.date
     atteint: bool
     epic_trigramme: str | None
     project_id: int | None

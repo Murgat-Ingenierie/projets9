@@ -23,13 +23,13 @@ class UserUpdate(BaseModel):
 class UserRead(TimestampedRead):
     id: int
     nom: str
-    email: EmailStr
+    email: str
     role: UserRole
     actif: bool
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 
