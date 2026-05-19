@@ -240,7 +240,10 @@ export default function GanttPage() {
       out.push({
         id: `epic-${e.trigramme}`,
         name: e.nom,
-        type: "project",
+        // type "task" plutôt que "project" : pas de petits triangles aux
+        // extrémités (qui apparaissaient en couleur "progress" et créaient
+        // l'effet bicolore).
+        type: "task",
         start,
         end,
         progress: 0,
@@ -287,35 +290,49 @@ export default function GanttPage() {
     });
   }
 
+  const VIEWS: { value: ViewMode; label: string }[] = [
+    { value: ViewMode.Day, label: "Jour" },
+    { value: ViewMode.Week, label: "Semaine" },
+    { value: ViewMode.Month, label: "Mois" },
+  ];
+
   return (
     <>
       <h2>Planning Gantt</h2>
       <ErrorBanner error={err} />
       <div className="toolbar">
-        <label>Vue :</label>
-        <select value={view} onChange={(e) => setView(e.target.value as ViewMode)}>
-          <option value={ViewMode.Day}>Jour</option>
-          <option value={ViewMode.Week}>Semaine</option>
-          <option value={ViewMode.Month}>Mois</option>
-        </select>
-        <span style={{ color: "#6b7280", fontSize: 12, marginLeft: 12 }}>
-          Cliquez sur le nom d'un epic ou d'un projet pour l'éditer dans un nouvel onglet (▶/▼ pour replier).
+        <div className="chip-group">
+          {VIEWS.map((v) => (
+            <button
+              key={v.value}
+              type="button"
+              className={`chip ${view === v.value ? "active" : ""}`}
+              onClick={() => setView(v.value)}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
+          Cliquez sur le nom d'un epic ou projet pour l'éditer (▶/▼ pour replier).
         </span>
       </div>
       {ganttTasks.length === 0 ? (
         <p>Aucun projet planifié.</p>
       ) : (
-        <Gantt
-          tasks={ganttTasks}
-          viewMode={view}
-          locale="fr-FR"
-          listCellWidth="320px"
-          columnWidth={COLUMN_WIDTH_BY_VIEW[view] ?? 100}
-          TaskListHeader={TaskListHeader}
-          TaskListTable={TaskListTable}
-          TooltipContent={TooltipContent}
-          onExpanderClick={handleExpander}
-        />
+        <div className="gantt-container">
+          <Gantt
+            tasks={ganttTasks}
+            viewMode={view}
+            locale="fr-FR"
+            listCellWidth="320px"
+            columnWidth={COLUMN_WIDTH_BY_VIEW[view] ?? 100}
+            TaskListHeader={TaskListHeader}
+            TaskListTable={TaskListTable}
+            TooltipContent={TooltipContent}
+            onExpanderClick={handleExpander}
+          />
+        </div>
       )}
     </>
   );

@@ -522,10 +522,55 @@ dl.kv dd textarea {
 }
 
 /* =============================================================
+   Chips (Material)
+   ============================================================= */
+
+.chip-group {
+  display: inline-flex;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 18px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--md-divider);
+  color: var(--md-text);
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background var(--md-trans), border-color var(--md-trans),
+    color var(--md-trans), box-shadow var(--md-trans);
+}
+.chip:hover {
+  background: var(--md-surface-2);
+  border-color: var(--md-text-secondary);
+}
+.chip.active {
+  background: var(--md-primary-light);
+  border-color: var(--md-primary);
+  color: var(--md-primary);
+}
+.chip.active:hover {
+  background: var(--md-primary-light);
+}
+
+/* =============================================================
    Gantt : harmonisation (la lib gère son CSS, on retouche peu)
    ============================================================= */
 
 ._gantt-task-react,
-.gantt-task-react {
+.gantt-task-react,
+.gantt-container {
   font-family: "Roboto", sans-serif !important;
+}
+
+/* Masque les libellés affichés sur les barres : le nom est déjà dans le
+   panneau de gauche, l'afficher en plus sur la barre fait doublon. */
+.gantt-container svg text[class*="barLabel"],
+.gantt-container svg text[class*="projectLabel"] {
+  display: none !important;
 }
