@@ -5,6 +5,42 @@ import { epics, projects, tasks } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Epic, Project, Task } from "../types";
 
+const EPIC_BG = "#4f46e5";
+const EPIC_SELECTED = "#3730a3";
+const PROJECT_BG = "#2563eb";
+const PROJECT_SELECTED = "#1d4ed8";
+const TASK_BG = "#10b981";
+const TASK_SELECTED = "#047857";
+
+const EPIC_STYLES = {
+  backgroundColor: EPIC_BG,
+  backgroundSelectedColor: EPIC_SELECTED,
+  progressColor: EPIC_BG,
+  progressSelectedColor: EPIC_SELECTED,
+};
+const PROJECT_STYLES = {
+  backgroundColor: PROJECT_BG,
+  backgroundSelectedColor: PROJECT_SELECTED,
+  progressColor: PROJECT_BG,
+  progressSelectedColor: PROJECT_SELECTED,
+};
+const TASK_STYLES = {
+  backgroundColor: TASK_BG,
+  backgroundSelectedColor: TASK_SELECTED,
+  progressColor: TASK_BG,
+  progressSelectedColor: TASK_SELECTED,
+};
+
+const COLUMN_WIDTH_BY_VIEW: Partial<Record<ViewMode, number>> = {
+  [ViewMode.Hour]: 30,
+  [ViewMode.QuarterDay]: 60,
+  [ViewMode.HalfDay]: 60,
+  [ViewMode.Day]: 60,
+  [ViewMode.Week]: 250,
+  [ViewMode.Month]: 130,
+  [ViewMode.Year]: 220,
+};
+
 function toDate(s: string): Date {
   return new Date(s + "T00:00:00");
 }
@@ -116,6 +152,7 @@ function TooltipContent({ task }: { task: GanttTask }) {
       {task.progress > 0 && (
         <div style={{ color: "#6b7280", marginTop: 2 }}>Avancement : {task.progress}%</div>
       )}
+      <div style={{ color: "#9ca3af", marginTop: 4, fontSize: 11 }}>Double-clic : éditer</div>
     </div>
   );
 }
@@ -160,6 +197,7 @@ export default function GanttPage() {
         end,
         progress: 0,
         hideChildren: !isExpanded,
+        styles: EPIC_STYLES,
       });
       for (const p of epicProjects) {
         out.push({
@@ -170,6 +208,7 @@ export default function GanttPage() {
           end: toDate(p.date_fin),
           progress: 0,
           project: `epic-${e.trigramme}`,
+          styles: PROJECT_STYLES,
         });
         const projTasks = tasksList.filter((t) => t.projet_id === p.id);
         for (const t of projTasks) {
@@ -179,8 +218,9 @@ export default function GanttPage() {
             type: "task",
             start: toDate(t.date_debut),
             end: toDate(t.date_fin),
-            progress: t.avancement,
+            progress: 0,
             project: `epic-${e.trigramme}`,
+            styles: TASK_STYLES,
           });
         }
       }
@@ -199,6 +239,17 @@ export default function GanttPage() {
     });
   }
 
+  function handleDoubleClick(task: GanttTask) {
+    if (task.id.startsWith("epic-")) {
+      const tri = task.id.slice(5);
+      window.open(`/epics/${tri}/edit`, "_blank");
+    } else if (task.id.startsWith("proj-")) {
+      const pid = task.id.slice(5);
+      window.open(`/projects/${pid}/edit`, "_blank");
+    }
+    // tasks : on n'ouvre rien pour l'instant
+  }
+
   return (
     <>
       <h2>Planning Gantt</h2>
@@ -210,6 +261,9 @@ export default function GanttPage() {
           <option value={ViewMode.Week}>Semaine</option>
           <option value={ViewMode.Month}>Mois</option>
         </select>
+        <span style={{ color: "#6b7280", fontSize: 12, marginLeft: 12 }}>
+          Astuce : double-clic sur une barre d'epic ou de projet pour l'éditer dans un nouvel onglet.
+        </span>
       </div>
       {ganttTasks.length === 0 ? (
         <p>Aucun projet planifié.</p>
@@ -219,10 +273,12 @@ export default function GanttPage() {
           viewMode={view}
           locale="fr-FR"
           listCellWidth="320px"
+          columnWidth={COLUMN_WIDTH_BY_VIEW[view] ?? 100}
           TaskListHeader={TaskListHeader}
           TaskListTable={TaskListTable}
           TooltipContent={TooltipContent}
           onExpanderClick={handleExpander}
+          onDoubleClick={handleDoubleClick}
         />
       )}
     </>

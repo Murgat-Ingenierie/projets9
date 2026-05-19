@@ -4,9 +4,11 @@ import LoginPage from "./pages/LoginPage";
 import GanttPage from "./pages/GanttPage";
 import EpicsPage from "./pages/EpicsPage";
 import EpicNewPage from "./pages/EpicNewPage";
+import EpicEditPage from "./pages/EpicEditPage";
 import EpicDetailPage from "./pages/EpicDetailPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProjectNewPage from "./pages/ProjectNewPage";
+import ProjectEditPage from "./pages/ProjectEditPage";
 import TasksPage from "./pages/TasksPage";
 import TaskNewPage from "./pages/TaskNewPage";
 import MilestonesPage from "./pages/MilestonesPage";
@@ -69,10 +71,12 @@ export default function App() {
 
         <Route path="/epics" element={<Protected><EpicsPage /></Protected>} />
         <Route path="/epics/new" element={<Protected><EpicNewPage /></Protected>} />
+        <Route path="/epics/:trigramme/edit" element={<Protected><EpicEditPage /></Protected>} />
         <Route path="/epics/:trigramme" element={<Protected><EpicDetailPage /></Protected>} />
 
         <Route path="/projects" element={<Protected><ProjectsPage /></Protected>} />
         <Route path="/projects/new" element={<Protected><ProjectNewPage /></Protected>} />
+        <Route path="/projects/:id/edit" element={<Protected><ProjectEditPage /></Protected>} />
 
         <Route path="/tasks" element={<Protected><TasksPage /></Protected>} />
         <Route path="/tasks/new" element={<Protected><TaskNewPage /></Protected>} />
