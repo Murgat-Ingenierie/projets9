@@ -37,6 +37,12 @@ h2 { margin-top: 0; }
 table { border-collapse: collapse; width: 100%; background: white; }
 th, td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px; }
 th { background: #f3f4f6; font-weight: 600; }
+th:hover { background: #e5e7eb; }
+tr.editing { background: #fffbeb; }
+tr.editing input, tr.editing select, tr.editing textarea {
+  padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 3px; font-size: 13px; width: 100%;
+}
+tr.editing textarea { resize: vertical; min-height: 38px; }
 
 .btn {
   background: #2563eb; color: white; border: 0; padding: 8px 14px;

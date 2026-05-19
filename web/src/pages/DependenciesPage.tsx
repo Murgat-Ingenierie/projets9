@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { dependencies, tasks } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useSortableList } from "../hooks/useSort";
 import type { Dependency, DependencyType, Task } from "../types";
 
 const TYPES: DependencyType[] = ["FS", "SS", "FF"];
@@ -32,6 +33,8 @@ export default function DependenciesPage() {
     return m;
   }, [allTasks]);
 
+  const { sorted, sortHeader } = useSortableList(items);
+
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
@@ -58,44 +61,30 @@ export default function DependenciesPage() {
     <>
       <h2>Dépendances</h2>
       <ErrorBanner error={err} />
+      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
+        Les dépendances ne sont pas éditables : pour la modifier, supprimez-la et créez-en une nouvelle.
+      </p>
       <form className="form" onSubmit={create} style={{ marginBottom: 24 }}>
         <label>Tâche amont</label>
         <select
           value={draft.tache_amont_id ?? ""}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              tache_amont_id: e.target.value ? Number(e.target.value) : undefined,
-            })
-          }
+          onChange={(e) => setDraft({ ...draft, tache_amont_id: e.target.value ? Number(e.target.value) : undefined })}
           required
         >
           <option value="">—</option>
-          {allTasks.map((t) => (
-            <option key={t.id} value={t.id}>{t.nom}</option>
-          ))}
+          {allTasks.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
         </select>
         <label>Tâche aval</label>
         <select
           value={draft.tache_aval_id ?? ""}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              tache_aval_id: e.target.value ? Number(e.target.value) : undefined,
-            })
-          }
+          onChange={(e) => setDraft({ ...draft, tache_aval_id: e.target.value ? Number(e.target.value) : undefined })}
           required
         >
           <option value="">—</option>
-          {allTasks.map((t) => (
-            <option key={t.id} value={t.id}>{t.nom}</option>
-          ))}
+          {allTasks.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
         </select>
         <label>Type</label>
-        <select
-          value={draft.type}
-          onChange={(e) => setDraft({ ...draft, type: e.target.value as DependencyType })}
-        >
+        <select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value as DependencyType })}>
           {TYPES.map((s) => <option key={s} value={s}>{TYPE_LABELS[s]}</option>)}
         </select>
         <button className="btn" type="submit">Ajouter</button>
@@ -103,10 +92,15 @@ export default function DependenciesPage() {
 
       <table>
         <thead>
-          <tr><th>Amont</th><th>Aval</th><th>Type</th><th></th></tr>
+          <tr>
+            {sortHeader("Amont", "amont", (d: Dependency) => taskName.get(d.tache_amont_id) ?? "")}
+            {sortHeader("Aval", "aval", (d: Dependency) => taskName.get(d.tache_aval_id) ?? "")}
+            {sortHeader("Type", "type", (d: Dependency) => d.type)}
+            <th></th>
+          </tr>
         </thead>
         <tbody>
-          {items.map((d) => (
+          {sorted.map((d) => (
             <tr key={d.id}>
               <td>{taskName.get(d.tache_amont_id) ?? `tâche #${d.tache_amont_id}`}</td>
               <td>{taskName.get(d.tache_aval_id) ?? `tâche #${d.tache_aval_id}`}</td>
