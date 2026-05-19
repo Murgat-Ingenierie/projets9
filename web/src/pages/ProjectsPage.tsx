@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { epics, projects, users } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
@@ -8,17 +9,11 @@ import type { Epic, Project, ProjectStatus, User } from "../types";
 const STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
 
 export default function ProjectsPage() {
+  const nav = useNavigate();
   const [items, setItems] = useState<Project[]>([]);
   const [allEpics, setAllEpics] = useState<Epic[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [err, setErr] = useState<unknown>(null);
-  const [draft, setDraft] = useState<Partial<Project>>({
-    epic_trigramme: "",
-    nom: "",
-    date_debut: "",
-    date_fin: "",
-    statut: "prevu",
-  });
   const [editing, setEditing] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Project>>({});
 
@@ -44,29 +39,7 @@ export default function ProjectsPage() {
     return m;
   }, [allUsers]);
 
-  const { sorted, sortHeader } = useSortableList(items);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    try {
-      await projects.create(draft);
-      setDraft({ epic_trigramme: "", nom: "", date_debut: "", date_fin: "", statut: "prevu" });
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
-
-  async function remove(id: number) {
-    if (!confirm("Supprimer ce projet ?")) return;
-    try {
-      await projects.remove(id);
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
+  const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
 
   function startEdit(p: Project) {
     setEditing(p.id);
@@ -88,41 +61,25 @@ export default function ProjectsPage() {
       setErr(e);
     }
   }
+  async function removeRow(id: number) {
+    if (!confirm("Supprimer ce projet ?")) return;
+    try {
+      await projects.remove(id);
+      cancelEdit();
+      load();
+    } catch (e) {
+      setErr(e);
+    }
+  }
 
   return (
     <>
-      <h2>Projets</h2>
+      <div className="page-header">
+        <h2>Projets</h2>
+        <button className="btn" onClick={() => nav("/projects/new")}>+ Ajouter</button>
+      </div>
       <ErrorBanner error={err} />
-      <form className="form" onSubmit={create} style={{ marginBottom: 24 }}>
-        <label>Epic</label>
-        <select
-          value={draft.epic_trigramme}
-          onChange={(e) => setDraft({ ...draft, epic_trigramme: e.target.value })}
-          required
-        >
-          <option value="">—</option>
-          {allEpics.map((e) => <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>)}
-        </select>
-        <label>Nom</label>
-        <input value={draft.nom ?? ""} onChange={(e) => setDraft({ ...draft, nom: e.target.value })} required />
-        <label>Date de début</label>
-        <input type="date" value={draft.date_debut ?? ""} onChange={(e) => setDraft({ ...draft, date_debut: e.target.value })} required />
-        <label>Date de fin</label>
-        <input type="date" value={draft.date_fin ?? ""} onChange={(e) => setDraft({ ...draft, date_fin: e.target.value })} required />
-        <label>Responsable</label>
-        <select
-          value={draft.responsable_id ?? ""}
-          onChange={(e) => setDraft({ ...draft, responsable_id: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value="">—</option>
-          {allUsers.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
-        </select>
-        <label>Statut</label>
-        <select value={draft.statut} onChange={(e) => setDraft({ ...draft, statut: e.target.value as ProjectStatus })}>
-          {STATUTS.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
-        </select>
-        <button className="btn" type="submit">Ajouter</button>
-      </form>
+      <p className="muted">{filteredCount} sur {totalCount}</p>
 
       <table>
         <thead>
@@ -185,9 +142,10 @@ export default function ProjectsPage() {
                     {STATUTS.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
                   </select>
                 </td>
-                <td>
-                  <button className="btn" onClick={saveEdit}>Enregistrer</button>{" "}
+                <td className="row-actions">
+                  <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancelEdit}>Annuler</button>
+                  <button className="btn danger" onClick={() => removeRow(p.id)}>Supprimer</button>
                 </td>
               </tr>
             ) : (
@@ -198,10 +156,7 @@ export default function ProjectsPage() {
                 <td>{fmtDate(p.date_fin)}</td>
                 <td>{p.responsable_id ? userNameById.get(p.responsable_id) ?? "—" : "—"}</td>
                 <td><span className={`tag ${p.statut}`}>{PROJECT_STATUS_LABELS[p.statut]}</span></td>
-                <td>
-                  <button className="btn secondary" onClick={() => startEdit(p)}>Éditer</button>{" "}
-                  <button className="btn danger" onClick={() => remove(p.id)}>Supprimer</button>
-                </td>
+                <td><button className="btn secondary" onClick={() => startEdit(p)}>Éditer</button></td>
               </tr>
             )
           )}

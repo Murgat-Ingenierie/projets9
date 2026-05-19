@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { epics } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
@@ -10,15 +10,9 @@ const STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
 const CATEGORIES: EpicCategory[] = ["operationnel", "strategique", "long_terme"];
 
 export default function EpicsPage() {
+  const nav = useNavigate();
   const [items, setItems] = useState<Epic[]>([]);
   const [err, setErr] = useState<unknown>(null);
-  const [draft, setDraft] = useState<Partial<Epic>>({
-    trigramme: "",
-    nom: "",
-    critere_reussite: "",
-    statut: "idee",
-    categorie: "operationnel",
-  });
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Epic>>({});
 
@@ -27,29 +21,7 @@ export default function EpicsPage() {
   }
   useEffect(load, []);
 
-  const { sorted, sortHeader } = useSortableList(items);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    try {
-      await epics.create({ ...draft, trigramme: (draft.trigramme ?? "").toUpperCase() } as any);
-      setDraft({ trigramme: "", nom: "", statut: "idee", categorie: "operationnel" });
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
-
-  async function remove(t: string) {
-    if (!confirm(`Supprimer l'epic "${t}" ?`)) return;
-    try {
-      await epics.remove(t);
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
+  const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
 
   function startEdit(e: Epic) {
     setEditing(e.trigramme);
@@ -71,36 +43,25 @@ export default function EpicsPage() {
       setErr(e);
     }
   }
+  async function removeRow(t: string) {
+    if (!confirm(`Supprimer l'epic "${t}" ?`)) return;
+    try {
+      await epics.remove(t);
+      cancelEdit();
+      load();
+    } catch (e) {
+      setErr(e);
+    }
+  }
 
   return (
     <>
-      <h2>Epics</h2>
+      <div className="page-header">
+        <h2>Epics</h2>
+        <button className="btn" onClick={() => nav("/epics/new")}>+ Ajouter</button>
+      </div>
       <ErrorBanner error={err} />
-      <form className="form" onSubmit={create} style={{ marginBottom: 24 }}>
-        <label>Identifiant court (3 lettres/chiffres, ex : O50)</label>
-        <input
-          maxLength={3}
-          value={draft.trigramme ?? ""}
-          onChange={(e) => setDraft({ ...draft, trigramme: e.target.value.toUpperCase() })}
-          required
-        />
-        <label>Nom</label>
-        <input value={draft.nom ?? ""} onChange={(e) => setDraft({ ...draft, nom: e.target.value })} required />
-        <label>Critère de réussite</label>
-        <textarea
-          value={draft.critere_reussite ?? ""}
-          onChange={(e) => setDraft({ ...draft, critere_reussite: e.target.value })}
-        />
-        <label>Statut</label>
-        <select value={draft.statut} onChange={(e) => setDraft({ ...draft, statut: e.target.value as EpicStatus })}>
-          {STATUTS.map((s) => <option key={s} value={s}>{EPIC_STATUS_LABELS[s]}</option>)}
-        </select>
-        <label>Catégorie</label>
-        <select value={draft.categorie} onChange={(e) => setDraft({ ...draft, categorie: e.target.value as EpicCategory })}>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{EPIC_CATEGORY_LABELS[c]}</option>)}
-        </select>
-        <button className="btn" type="submit">Ajouter</button>
-      </form>
+      <p className="muted">{filteredCount} sur {totalCount}</p>
 
       <table>
         <thead>
@@ -145,9 +106,10 @@ export default function EpicsPage() {
                     {CATEGORIES.map((c) => <option key={c} value={c}>{EPIC_CATEGORY_LABELS[c]}</option>)}
                   </select>
                 </td>
-                <td>
-                  <button className="btn" onClick={saveEdit}>Enregistrer</button>{" "}
+                <td className="row-actions">
+                  <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancelEdit}>Annuler</button>
+                  <button className="btn danger" onClick={() => removeRow(e.trigramme)}>Supprimer</button>
                 </td>
               </tr>
             ) : (
@@ -156,10 +118,7 @@ export default function EpicsPage() {
                 <td>{e.critere_reussite}</td>
                 <td><span className={`tag ${e.statut}`}>{EPIC_STATUS_LABELS[e.statut]}</span></td>
                 <td>{EPIC_CATEGORY_LABELS[e.categorie]}</td>
-                <td>
-                  <button className="btn secondary" onClick={() => startEdit(e)}>Éditer</button>{" "}
-                  <button className="btn danger" onClick={() => remove(e.trigramme)}>Supprimer</button>
-                </td>
+                <td><button className="btn secondary" onClick={() => startEdit(e)}>Éditer</button></td>
               </tr>
             )
           )}

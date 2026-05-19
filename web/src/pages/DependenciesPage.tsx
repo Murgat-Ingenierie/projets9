@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { dependencies, tasks } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import type { Dependency, DependencyType, Task } from "../types";
 
-const TYPES: DependencyType[] = ["FS", "SS", "FF"];
 const TYPE_LABELS: Record<DependencyType, string> = {
   FS: "Fin → Début (FS)",
   SS: "Début → Début (SS)",
@@ -12,10 +12,10 @@ const TYPE_LABELS: Record<DependencyType, string> = {
 };
 
 export default function DependenciesPage() {
+  const nav = useNavigate();
   const [items, setItems] = useState<Dependency[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [err, setErr] = useState<unknown>(null);
-  const [draft, setDraft] = useState<Partial<Dependency>>({ type: "FS" });
 
   function load() {
     Promise.all([dependencies.list(), tasks.list()])
@@ -33,19 +33,7 @@ export default function DependenciesPage() {
     return m;
   }, [allTasks]);
 
-  const { sorted, sortHeader } = useSortableList(items);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    try {
-      await dependencies.create(draft);
-      setDraft({ type: "FS" });
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
+  const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
 
   async function remove(id: number) {
     if (!confirm("Supprimer cette dépendance ?")) return;
@@ -59,36 +47,14 @@ export default function DependenciesPage() {
 
   return (
     <>
-      <h2>Dépendances</h2>
+      <div className="page-header">
+        <h2>Dépendances</h2>
+        <button className="btn" onClick={() => nav("/dependencies/new")}>+ Ajouter</button>
+      </div>
       <ErrorBanner error={err} />
-      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
-        Les dépendances ne sont pas éditables : pour la modifier, supprimez-la et créez-en une nouvelle.
+      <p className="muted">
+        {filteredCount} sur {totalCount} — non éditables, supprimer puis recréer pour modifier.
       </p>
-      <form className="form" onSubmit={create} style={{ marginBottom: 24 }}>
-        <label>Tâche amont</label>
-        <select
-          value={draft.tache_amont_id ?? ""}
-          onChange={(e) => setDraft({ ...draft, tache_amont_id: e.target.value ? Number(e.target.value) : undefined })}
-          required
-        >
-          <option value="">—</option>
-          {allTasks.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
-        </select>
-        <label>Tâche aval</label>
-        <select
-          value={draft.tache_aval_id ?? ""}
-          onChange={(e) => setDraft({ ...draft, tache_aval_id: e.target.value ? Number(e.target.value) : undefined })}
-          required
-        >
-          <option value="">—</option>
-          {allTasks.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
-        </select>
-        <label>Type</label>
-        <select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value as DependencyType })}>
-          {TYPES.map((s) => <option key={s} value={s}>{TYPE_LABELS[s]}</option>)}
-        </select>
-        <button className="btn" type="submit">Ajouter</button>
-      </form>
 
       <table>
         <thead>

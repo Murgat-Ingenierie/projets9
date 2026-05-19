@@ -3,12 +3,18 @@ import { AuthProvider, useAuth } from "./auth";
 import LoginPage from "./pages/LoginPage";
 import GanttPage from "./pages/GanttPage";
 import EpicsPage from "./pages/EpicsPage";
+import EpicNewPage from "./pages/EpicNewPage";
 import EpicDetailPage from "./pages/EpicDetailPage";
 import ProjectsPage from "./pages/ProjectsPage";
+import ProjectNewPage from "./pages/ProjectNewPage";
 import TasksPage from "./pages/TasksPage";
+import TaskNewPage from "./pages/TaskNewPage";
 import MilestonesPage from "./pages/MilestonesPage";
+import MilestoneNewPage from "./pages/MilestoneNewPage";
 import DependenciesPage from "./pages/DependenciesPage";
+import DependencyNewPage from "./pages/DependencyNewPage";
 import UsersPage from "./pages/UsersPage";
+import UserNewPage from "./pages/UserNewPage";
 
 function Sidebar() {
   const { user, logout } = useAuth();
@@ -60,13 +66,25 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Protected><GanttPage /></Protected>} />
+
         <Route path="/epics" element={<Protected><EpicsPage /></Protected>} />
+        <Route path="/epics/new" element={<Protected><EpicNewPage /></Protected>} />
         <Route path="/epics/:trigramme" element={<Protected><EpicDetailPage /></Protected>} />
+
         <Route path="/projects" element={<Protected><ProjectsPage /></Protected>} />
+        <Route path="/projects/new" element={<Protected><ProjectNewPage /></Protected>} />
+
         <Route path="/tasks" element={<Protected><TasksPage /></Protected>} />
+        <Route path="/tasks/new" element={<Protected><TaskNewPage /></Protected>} />
+
         <Route path="/milestones" element={<Protected><MilestonesPage /></Protected>} />
+        <Route path="/milestones/new" element={<Protected><MilestoneNewPage /></Protected>} />
+
         <Route path="/dependencies" element={<Protected><DependenciesPage /></Protected>} />
+        <Route path="/dependencies/new" element={<Protected><DependencyNewPage /></Protected>} />
+
         <Route path="/users" element={<Protected><UsersPage /></Protected>} />
+        <Route path="/users/new" element={<Protected><UserNewPage /></Protected>} />
       </Routes>
     </AuthProvider>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { projects, tasks, users } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
@@ -8,17 +9,11 @@ import type { Project, Task, TaskStatus, User } from "../types";
 const STATUTS: TaskStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
 
 export default function TasksPage() {
+  const nav = useNavigate();
   const [items, setItems] = useState<Task[]>([]);
   const [projs, setProjs] = useState<Project[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [err, setErr] = useState<unknown>(null);
-  const [draft, setDraft] = useState<Partial<Task>>({
-    nom: "",
-    date_debut: "",
-    date_fin: "",
-    avancement: 0,
-    statut: "prevu",
-  });
   const [editing, setEditing] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Task>>({});
 
@@ -44,29 +39,7 @@ export default function TasksPage() {
     return m;
   }, [allUsers]);
 
-  const { sorted, sortHeader } = useSortableList(items);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    try {
-      await tasks.create(draft);
-      setDraft({ nom: "", date_debut: "", date_fin: "", avancement: 0, statut: "prevu" });
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
-
-  async function remove(id: number) {
-    if (!confirm("Supprimer cette tâche ?")) return;
-    try {
-      await tasks.remove(id);
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
+  const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
 
   function startEdit(t: Task) {
     setEditing(t.id);
@@ -88,47 +61,25 @@ export default function TasksPage() {
       setErr(e);
     }
   }
+  async function removeRow(id: number) {
+    if (!confirm("Supprimer cette tâche ?")) return;
+    try {
+      await tasks.remove(id);
+      cancelEdit();
+      load();
+    } catch (e) {
+      setErr(e);
+    }
+  }
 
   return (
     <>
-      <h2>Tâches</h2>
+      <div className="page-header">
+        <h2>Tâches</h2>
+        <button className="btn" onClick={() => nav("/tasks/new")}>+ Ajouter</button>
+      </div>
       <ErrorBanner error={err} />
-      <form className="form" onSubmit={create} style={{ marginBottom: 24 }}>
-        <label>Projet</label>
-        <select
-          value={draft.projet_id ?? ""}
-          onChange={(e) => setDraft({ ...draft, projet_id: e.target.value ? Number(e.target.value) : undefined })}
-          required
-        >
-          <option value="">—</option>
-          {projs.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}
-        </select>
-        <label>Nom</label>
-        <input value={draft.nom ?? ""} onChange={(e) => setDraft({ ...draft, nom: e.target.value })} required />
-        <label>Date de début</label>
-        <input type="date" value={draft.date_debut ?? ""} onChange={(e) => setDraft({ ...draft, date_debut: e.target.value })} required />
-        <label>Date de fin</label>
-        <input type="date" value={draft.date_fin ?? ""} onChange={(e) => setDraft({ ...draft, date_fin: e.target.value })} required />
-        <label>Avancement (%)</label>
-        <input
-          type="number" min={0} max={100}
-          value={draft.avancement ?? 0}
-          onChange={(e) => setDraft({ ...draft, avancement: Number(e.target.value) })}
-        />
-        <label>Responsable</label>
-        <select
-          value={draft.responsable_id ?? ""}
-          onChange={(e) => setDraft({ ...draft, responsable_id: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value="">—</option>
-          {allUsers.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
-        </select>
-        <label>Statut</label>
-        <select value={draft.statut} onChange={(e) => setDraft({ ...draft, statut: e.target.value as TaskStatus })}>
-          {STATUTS.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
-        </select>
-        <button className="btn" type="submit">Ajouter</button>
-      </form>
+      <p className="muted">{filteredCount} sur {totalCount}</p>
 
       <table>
         <thead>
@@ -200,9 +151,10 @@ export default function TasksPage() {
                     {STATUTS.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
                   </select>
                 </td>
-                <td>
-                  <button className="btn" onClick={saveEdit}>Enregistrer</button>{" "}
+                <td className="row-actions">
+                  <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancelEdit}>Annuler</button>
+                  <button className="btn danger" onClick={() => removeRow(t.id)}>Supprimer</button>
                 </td>
               </tr>
             ) : (
@@ -214,10 +166,7 @@ export default function TasksPage() {
                 <td>{t.avancement}%</td>
                 <td>{t.responsable_id ? userNameById.get(t.responsable_id) ?? "—" : "—"}</td>
                 <td><span className={`tag ${t.statut}`}>{TASK_STATUS_LABELS[t.statut]}</span></td>
-                <td>
-                  <button className="btn secondary" onClick={() => startEdit(t)}>Éditer</button>{" "}
-                  <button className="btn danger" onClick={() => remove(t.id)}>Supprimer</button>
-                </td>
+                <td><button className="btn secondary" onClick={() => startEdit(t)}>Éditer</button></td>
               </tr>
             )
           )}

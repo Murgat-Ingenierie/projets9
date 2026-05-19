@@ -43,6 +43,17 @@ tr.editing input, tr.editing select, tr.editing textarea {
   padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 3px; font-size: 13px; width: 100%;
 }
 tr.editing textarea { resize: vertical; min-height: 38px; }
+td.row-actions { white-space: nowrap; }
+td.row-actions > * { margin-right: 4px; }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.page-header h2 { margin: 0; }
+.muted { color: #6b7280; font-size: 12px; margin: 0 0 12px; }
 
 .btn {
   background: #2563eb; color: white; border: 0; padding: 8px 14px;

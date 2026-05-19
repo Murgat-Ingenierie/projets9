@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { epics, milestones, projects } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
@@ -6,18 +7,11 @@ import { fmtDate } from "../labels";
 import type { Epic, Milestone, Project } from "../types";
 
 export default function MilestonesPage() {
+  const nav = useNavigate();
   const [items, setItems] = useState<Milestone[]>([]);
   const [allEpics, setAllEpics] = useState<Epic[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [err, setErr] = useState<unknown>(null);
-  const [parentType, setParentType] = useState<"epic" | "project">("epic");
-  const [draft, setDraft] = useState<Partial<Milestone>>({
-    nom: "",
-    date: "",
-    atteint: false,
-    epic_trigramme: null,
-    project_id: null,
-  });
   const [editing, setEditing] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Milestone>>({});
 
@@ -48,36 +42,7 @@ export default function MilestonesPage() {
       ? epicName.get(m.epic_trigramme) ?? m.epic_trigramme
       : projectName.get(m.project_id ?? -1) ?? "";
 
-  const { sorted, sortHeader } = useSortableList(items);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    try {
-      const payload: Partial<Milestone> = {
-        nom: draft.nom,
-        date: draft.date,
-        atteint: draft.atteint ?? false,
-        epic_trigramme: parentType === "epic" ? draft.epic_trigramme : null,
-        project_id: parentType === "project" ? draft.project_id : null,
-      };
-      await milestones.create(payload);
-      setDraft({ nom: "", date: "", atteint: false, epic_trigramme: null, project_id: null });
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
-
-  async function remove(id: number) {
-    if (!confirm("Supprimer ce jalon ?")) return;
-    try {
-      await milestones.remove(id);
-      load();
-    } catch (e) {
-      setErr(e);
-    }
-  }
+  const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
 
   function startEdit(m: Milestone) {
     setEditing(m.id);
@@ -92,7 +57,6 @@ export default function MilestonesPage() {
     if (editing == null) return;
     setErr(null);
     try {
-      // L'API milestone.update ne change pas le parent : on n'envoie que les champs modifiables
       await milestones.update(editing, {
         nom: editDraft.nom,
         date: editDraft.date,
@@ -104,56 +68,25 @@ export default function MilestonesPage() {
       setErr(e);
     }
   }
+  async function removeRow(id: number) {
+    if (!confirm("Supprimer ce jalon ?")) return;
+    try {
+      await milestones.remove(id);
+      cancelEdit();
+      load();
+    } catch (e) {
+      setErr(e);
+    }
+  }
 
   return (
     <>
-      <h2>Jalons</h2>
+      <div className="page-header">
+        <h2>Jalons</h2>
+        <button className="btn" onClick={() => nav("/milestones/new")}>+ Ajouter</button>
+      </div>
       <ErrorBanner error={err} />
-      <form className="form" onSubmit={create} style={{ marginBottom: 24 }}>
-        <label>Rattaché à</label>
-        <select value={parentType} onChange={(e) => setParentType(e.target.value as "epic" | "project")}>
-          <option value="epic">Un epic</option>
-          <option value="project">Un projet</option>
-        </select>
-        {parentType === "epic" ? (
-          <>
-            <label>Epic</label>
-            <select
-              value={draft.epic_trigramme ?? ""}
-              onChange={(e) => setDraft({ ...draft, epic_trigramme: e.target.value || null })}
-              required
-            >
-              <option value="">—</option>
-              {allEpics.map((e) => <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>)}
-            </select>
-          </>
-        ) : (
-          <>
-            <label>Projet</label>
-            <select
-              value={draft.project_id ?? ""}
-              onChange={(e) => setDraft({ ...draft, project_id: e.target.value ? Number(e.target.value) : null })}
-              required
-            >
-              <option value="">—</option>
-              {allProjects.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}
-            </select>
-          </>
-        )}
-        <label>Nom</label>
-        <input value={draft.nom ?? ""} onChange={(e) => setDraft({ ...draft, nom: e.target.value })} required />
-        <label>Date</label>
-        <input type="date" value={draft.date ?? ""} onChange={(e) => setDraft({ ...draft, date: e.target.value })} required />
-        <label>
-          <input
-            type="checkbox"
-            checked={!!draft.atteint}
-            onChange={(e) => setDraft({ ...draft, atteint: e.target.checked })}
-          />
-          {" "}Atteint
-        </label>
-        <button className="btn" type="submit">Ajouter</button>
-      </form>
+      <p className="muted">{filteredCount} sur {totalCount}</p>
 
       <table>
         <thead>
@@ -190,9 +123,10 @@ export default function MilestonesPage() {
                     onChange={(ev) => setEditDraft({ ...editDraft, atteint: ev.target.checked })}
                   />
                 </td>
-                <td>
-                  <button className="btn" onClick={saveEdit}>Enregistrer</button>{" "}
+                <td className="row-actions">
+                  <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancelEdit}>Annuler</button>
+                  <button className="btn danger" onClick={() => removeRow(m.id)}>Supprimer</button>
                 </td>
               </tr>
             ) : (
@@ -201,10 +135,7 @@ export default function MilestonesPage() {
                 <td>{m.nom}</td>
                 <td>{fmtDate(m.date)}</td>
                 <td>{m.atteint ? "Oui" : "Non"}</td>
-                <td>
-                  <button className="btn secondary" onClick={() => startEdit(m)}>Éditer</button>{" "}
-                  <button className="btn danger" onClick={() => remove(m.id)}>Supprimer</button>
-                </td>
+                <td><button className="btn secondary" onClick={() => startEdit(m)}>Éditer</button></td>
               </tr>
             )
           )}
