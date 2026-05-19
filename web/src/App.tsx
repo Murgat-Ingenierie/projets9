@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
 import LoginPage from "./pages/LoginPage";
@@ -17,32 +18,67 @@ import DependencyNewPage from "./pages/DependencyNewPage";
 import UsersPage from "./pages/UsersPage";
 import UserNewPage from "./pages/UserNewPage";
 
-function Sidebar() {
+interface NavItem {
+  to: string;
+  end?: boolean;
+  icon: string;
+  label: string;
+}
+
+function Icon({ name }: { name: string }) {
+  return <span className="material-symbols-outlined">{name}</span>;
+}
+
+function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   const { user, logout } = useAuth();
   const nav = useNavigate();
+
+  const items: NavItem[] = [
+    { to: "/", end: true, icon: "view_timeline", label: "Planning" },
+    { to: "/epics", icon: "folder_special", label: "Epics" },
+    { to: "/projects", icon: "category", label: "Projets" },
+    { to: "/tasks", icon: "task_alt", label: "Tâches" },
+    { to: "/milestones", icon: "flag", label: "Jalons" },
+    { to: "/dependencies", icon: "account_tree", label: "Dépendances" },
+  ];
+  if (user?.role === "admin") {
+    items.push({ to: "/users", icon: "group", label: "Utilisateurs" });
+  }
+
   return (
-    <aside className="sidebar">
-      <h1>Gestion de projet</h1>
+    <aside className={`sidebar ${expanded ? "expanded" : ""}`}>
+      <div className="sidebar-top">
+        <button
+          type="button"
+          className="hamburger"
+          onClick={onToggle}
+          title={expanded ? "Réduire le menu" : "Étendre le menu"}
+        >
+          <Icon name="menu" />
+        </button>
+        <span className="brand">Gestion de projet</span>
+      </div>
       <nav>
-        <NavLink to="/" end>Planning</NavLink>
-        <NavLink to="/epics">Epics</NavLink>
-        <NavLink to="/projects">Projets</NavLink>
-        <NavLink to="/tasks">Tâches</NavLink>
-        <NavLink to="/milestones">Jalons</NavLink>
-        <NavLink to="/dependencies">Dépendances</NavLink>
-        {user?.role === "admin" && <NavLink to="/users">Utilisateurs</NavLink>}
+        {items.map((it) => (
+          <NavLink key={it.to} to={it.to} end={it.end} title={it.label}>
+            <Icon name={it.icon} />
+            <span className="label">{it.label}</span>
+          </NavLink>
+        ))}
       </nav>
       <div className="me">
-        Connecté : {user?.nom}
-        <br />
+        <div className="user-name">{user?.nom}</div>
         <button
+          type="button"
           className="logout"
+          title="Déconnexion"
           onClick={() => {
             logout();
             nav("/login");
           }}
         >
-          Déconnexion
+          <Icon name="logout" />
+          <span className="label">Déconnexion</span>
         </button>
       </div>
     </aside>
@@ -51,11 +87,12 @@ function Sidebar() {
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const [expanded, setExpanded] = useState(false);
   if (loading) return <div className="layout"><main className="main">Chargement…</main></div>;
   if (!user) return <Navigate to="/login" replace />;
   return (
-    <div className="layout">
-      <Sidebar />
+    <div className={`layout ${expanded ? "sidebar-expanded" : ""}`}>
+      <Sidebar expanded={expanded} onToggle={() => setExpanded((v) => !v)} />
       <main className="main">{children}</main>
     </div>
   );
