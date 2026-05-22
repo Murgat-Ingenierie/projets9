@@ -250,9 +250,9 @@ export default function GanttPage() {
     return m;
   }, [epicsList, projectsList, tasksByProject]);
 
-  const taskStatutById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const t of tasksList) m.set(t.id, t.statut);
+  const taskInfoById = useMemo(() => {
+    const m = new Map<number, { statut: string; avancement: number }>();
+    for (const t of tasksList) m.set(t.id, { statut: t.statut, avancement: t.avancement });
     return m;
   }, [tasksList]);
 
@@ -277,7 +277,9 @@ export default function GanttPage() {
         {props.tasks.map((t) => {
           if (t.id.startsWith("task-")) {
             const taskId = Number(t.id.slice(5));
-            const isDone = taskStatutById.get(taskId) === "realise";
+            const tinfo = taskInfoById.get(taskId);
+            // Coche verte + barré si archivée OU à 100 % d'avancement
+            const isDone = tinfo?.statut === "archive" || tinfo?.avancement === 100;
             return (
               <div
                 key={t.id}
@@ -420,13 +422,20 @@ export default function GanttPage() {
               )}
               <button
                 type="button"
-                onClick={() => setPanelTarget({ type: "project", id: projId })}
-                title="Éditer le projet"
+                onClick={tasksCount > 0 ? () => toggleProject(projId) : undefined}
+                disabled={tasksCount === 0}
+                title={
+                  tasksCount > 0
+                    ? isExpanded
+                      ? "Replier les tâches"
+                      : `Voir ${tasksCount} tâche${tasksCount > 1 ? "s" : ""}`
+                    : "Pas de tâches"
+                }
                 style={{
                   background: "transparent",
                   border: 0,
                   padding: 0,
-                  cursor: "pointer",
+                  cursor: tasksCount > 0 ? "pointer" : "default",
                   flex: 1,
                   textAlign: "left",
                   color: "inherit",
@@ -438,10 +447,37 @@ export default function GanttPage() {
                   textOverflow: "ellipsis",
                   textDecoration: isProjectDone ? "line-through" : "none",
                 }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "#1976d2")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "#1f2329")}
               >
                 {t.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanelTarget({ type: "project", id: projId })}
+                title="Éditer le projet"
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  color: "#9aa0a6",
+                  padding: 2,
+                  borderRadius: 4,
+                  transition: "color 180ms, background 180ms",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#1976d2";
+                  (e.currentTarget as HTMLElement).style.background = "#e3f2fd";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#9aa0a6";
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                  edit
+                </span>
               </button>
             </div>
           );
@@ -509,7 +545,7 @@ export default function GanttPage() {
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
           {editMode
             ? "Glissez une barre (projet ou tâche) pour la déplacer ou redimensionner."
-            : "Cliquez sur un nom pour l'éditer dans le panneau. ▶ pour déplier les tâches."}
+            : "Clic sur un projet = déplier ses tâches. ✏️ = éditer dans le panneau. Clic sur une tâche = panneau."}
         </span>
       </div>
       {ganttTasks.length === 0 ? (
