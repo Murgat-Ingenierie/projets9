@@ -14,7 +14,7 @@ import type {
 } from "../types";
 
 const STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
-const TASK_STATUTS: TaskStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
+const TASK_STATUTS: TaskStatus[] = ["ouvert", "archive"];
 
 export default function ProjectEditPage() {
   const { id = "" } = useParams();
@@ -304,7 +304,7 @@ export default function ProjectEditPage() {
                     </td>
                     <td>
                       <select
-                        value={d.statut ?? "prevu"}
+                        value={d.statut ?? "ouvert"}
                         onChange={(ev) =>
                           patchTaskDraft(t.id, { statut: ev.target.value as TaskStatus })
                         }

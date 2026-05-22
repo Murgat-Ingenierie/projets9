@@ -12,7 +12,7 @@ class TaskBase(BaseModel):
     date_fin: date
     avancement: int = Field(default=0, ge=0, le=100)
     responsable_id: int | None = None
-    statut: TaskStatus = TaskStatus.prevu
+    statut: TaskStatus = TaskStatus.ouvert
 
 
 class TaskCreate(TaskBase):

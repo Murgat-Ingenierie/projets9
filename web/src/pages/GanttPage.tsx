@@ -303,44 +303,29 @@ export default function GanttPage() {
                     check_circle
                   </span>
                 )}
-                <span
-                  style={{
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    flex: 1,
-                    textDecoration: isDone ? "line-through" : "none",
-                  }}
-                >
-                  {t.name}
-                </span>
                 <button
                   type="button"
                   onClick={() => setPanelTarget({ type: "task", id: taskId })}
-                  title="Éditer la tâche dans le panneau latéral"
+                  title="Éditer la tâche"
                   style={{
                     background: "transparent",
                     border: 0,
+                    padding: 0,
                     cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    color: "#9aa0a6",
-                    padding: 2,
-                    borderRadius: 4,
-                    transition: "color 180ms, background 180ms",
+                    flex: 1,
+                    textAlign: "left",
+                    color: "inherit",
+                    fontFamily: "inherit",
+                    fontSize: "inherit",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    textDecoration: isDone ? "line-through" : "none",
                   }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = "#1976d2";
-                    (e.currentTarget as HTMLElement).style.background = "#e3f2fd";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = "#9aa0a6";
-                    (e.currentTarget as HTMLElement).style.background = "transparent";
-                  }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "#1976d2")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "#5f6368")}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                    edit
-                  </span>
+                  {t.name}
                 </button>
               </div>
             );
@@ -433,44 +418,30 @@ export default function GanttPage() {
                   check_circle
                 </span>
               )}
-              <span
-                style={{
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  flex: 1,
-                  textDecoration: isProjectDone ? "line-through" : "none",
-                }}
-              >
-                {t.name}
-              </span>
               <button
                 type="button"
                 onClick={() => setPanelTarget({ type: "project", id: projId })}
-                title="Éditer le projet dans le panneau latéral"
+                title="Éditer le projet"
                 style={{
                   background: "transparent",
                   border: 0,
+                  padding: 0,
                   cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  color: "#9aa0a6",
-                  padding: 2,
-                  borderRadius: 4,
-                  transition: "color 180ms, background 180ms",
+                  flex: 1,
+                  textAlign: "left",
+                  color: "inherit",
+                  fontFamily: "inherit",
+                  fontSize: "inherit",
+                  fontWeight: "inherit",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  textDecoration: isProjectDone ? "line-through" : "none",
                 }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.color = "#1976d2";
-                  (e.currentTarget as HTMLElement).style.background = "#e3f2fd";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.color = "#9aa0a6";
-                  (e.currentTarget as HTMLElement).style.background = "transparent";
-                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "#1976d2")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "#1f2329")}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                  edit
-                </span>
+                {t.name}
               </button>
             </div>
           );
@@ -538,7 +509,7 @@ export default function GanttPage() {
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
           {editMode
             ? "Glissez une barre (projet ou tâche) pour la déplacer ou redimensionner."
-            : "Cliquez ▶ pour voir les tâches d'un projet. ✏️ pour ouvrir l'édition dans le panneau."}
+            : "Cliquez sur un nom pour l'éditer dans le panneau. ▶ pour déplier les tâches."}
         </span>
       </div>
       {ganttTasks.length === 0 ? (

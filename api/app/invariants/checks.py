@@ -338,22 +338,18 @@ def check_dependency_acyclic(
 
 
 # -----------------------------------------------------------------------------
-# INV-16 / INV-17 — avancement & statut tâche
+# INV-16 — avancement
+# (INV-17 supprimé : le statut tâche est désormais ouvert/archive,
+#  indépendant du % d'avancement.)
 # -----------------------------------------------------------------------------
 
 
 def check_task_advancement_status(t: TaskLike) -> None:
-    """INV-16 : avancement ∈ [0, 100]. INV-17 : statut=realise ⇔ avancement=100."""
+    """INV-16 : avancement ∈ [0, 100]."""
     if not (0 <= t.avancement <= 100):
         raise InvariantError(
-            "INV-16", f"Task {t.id}: avancement={t.avancement} hors [0,100]"
-        )
-    is_realise = t.statut == "realise"
-    is_complete = t.avancement == 100
-    if is_realise != is_complete:
-        raise InvariantError(
-            "INV-17",
-            f"Task {t.id}: statut={t.statut!r} et avancement={t.avancement} incohérents",
+            "INV-16",
+            f"Tâche {t.nom!r} : avancement {t.avancement} hors [0, 100]",
         )
 
 
@@ -363,14 +359,14 @@ def check_task_advancement_status(t: TaskLike) -> None:
 
 
 def check_project_realise_consistency(p: ProjectLike, tasks: Iterable[TaskLike]) -> None:
-    """INV-18 : projet realise ⇒ toutes ses tâches realise/abandonne."""
+    """INV-18 : projet realise ⇒ toutes ses tâches archive."""
     if p.statut != "realise":
         return
     for t in tasks:
-        if t.statut not in ("realise", "abandonne"):
+        if t.statut != "archive":
             raise InvariantError(
                 "INV-18",
-                f"Project {p.id} realise mais task {t.id} en statut {t.statut!r}",
+                f"Projet {p.nom!r} marqué réalisé alors que la tâche {t.nom!r} est encore ouverte",
             )
 
 

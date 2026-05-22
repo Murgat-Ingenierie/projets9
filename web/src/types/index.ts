@@ -2,7 +2,7 @@ export type UserRole = "admin" | "membre";
 export type EpicStatus = "idee" | "actif" | "realise" | "abandonne";
 export type EpicCategory = "operationnel" | "strategique" | "long_terme";
 export type ProjectStatus = "prevu" | "en_cours" | "realise" | "abandonne";
-export type TaskStatus = "prevu" | "en_cours" | "realise" | "abandonne";
+export type TaskStatus = "ouvert" | "archive";
 export type DependencyType = "FS" | "SS" | "FF";
 
 export interface User {

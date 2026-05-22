@@ -8,10 +8,8 @@ from app.database import Base, TimestampMixin
 
 
 class TaskStatus(str, enum.Enum):
-    prevu = "prevu"
-    en_cours = "en_cours"
-    realise = "realise"
-    abandonne = "abandonne"
+    ouvert = "ouvert"
+    archive = "archive"
 
 
 class Task(Base, TimestampMixin):
@@ -32,7 +30,7 @@ class Task(Base, TimestampMixin):
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     statut: Mapped[TaskStatus] = mapped_column(
-        Enum(TaskStatus, name="task_status"), nullable=False, default=TaskStatus.prevu
+        Enum(TaskStatus, name="task_status"), nullable=False, default=TaskStatus.ouvert
     )
     updated_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

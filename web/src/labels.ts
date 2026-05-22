@@ -21,10 +21,8 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
 };
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
-  prevu: "Prévu",
-  en_cours: "En cours",
-  realise: "Réalisé",
-  abandonne: "Abandonné",
+  ouvert: "Ouverte",
+  archive: "Archivée",
 };
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {

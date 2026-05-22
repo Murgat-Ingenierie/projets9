@@ -6,7 +6,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { TASK_STATUS_LABELS } from "../labels";
 import type { Project, Task, TaskStatus, User } from "../types";
 
-const STATUTS: TaskStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
+const STATUTS: TaskStatus[] = ["ouvert", "archive"];
 
 export default function TaskNewPage() {
   const nav = useNavigate();
@@ -18,7 +18,7 @@ export default function TaskNewPage() {
     date_debut: "",
     date_fin: "",
     avancement: 0,
-    statut: "prevu",
+    statut: "ouvert",
   });
 
   useEffect(() => {

@@ -552,9 +552,14 @@ thead th input[type="text"] {
   color: var(--md-warning);
 }
 .tag.idee,
-.tag.prevu {
+.tag.prevu,
+.tag.ouvert {
   background: var(--md-divider-light);
   color: var(--md-text-secondary);
+}
+.tag.archive {
+  background: var(--md-success-light);
+  color: var(--md-success);
 }
 
 /* =============================================================

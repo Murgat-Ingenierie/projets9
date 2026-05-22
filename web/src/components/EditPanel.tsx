@@ -32,7 +32,7 @@ interface Props {
 const EPIC_STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
 const EPIC_CATEGORIES: EpicCategory[] = ["operationnel", "strategique", "long_terme"];
 const PROJECT_STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
-const TASK_STATUTS: TaskStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
+const TASK_STATUTS: TaskStatus[] = ["ouvert", "archive"];
 
 function PanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
   return (
@@ -342,7 +342,7 @@ function TaskForm({ id, onClose, onSaved }: { id: number; onClose: () => void; o
             </select>
             <label>Statut</label>
             <select
-              value={draft.statut ?? "prevu"}
+              value={draft.statut ?? "ouvert"}
               onChange={(e) => setDraft({ ...draft, statut: e.target.value as TaskStatus })}
             >
               {TASK_STATUTS.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}

@@ -62,7 +62,7 @@ User                              (responsable de Projet ou Tâche)
 | `date_fin` | date | obligatoire |
 | `avancement_%` | int | 0..100 |
 | `responsable_id` | int | FK → User, optionnel |
-| `statut` | enum | `prévu` \| `en_cours` \| `réalisé` \| `abandonné` |
+| `statut` | enum | `ouvert` \| `archive` (le % d'avancement porte l'info de progression) |
 
 #### Jalon
 | Champ | Type | Notes |
@@ -159,8 +159,8 @@ Unité : **jour calendaire**. Toutes les comparaisons sont inclusives.
 | ID | Énoncé |
 |---|---|
 | INV-16 | `Tâche.avancement_%` ∈ [0, 100]. |
-| INV-17 | `Tâche.statut = réalisé` ⇔ `avancement_% = 100`. |
-| INV-18 | `Projet.statut = réalisé` ⇒ toutes ses tâches sont `réalisé` ou `abandonné`. |
+| INV-17 | ~~Supprimé.~~ Le statut tâche (`ouvert`/`archive`) est désormais découplé du `avancement_%`. |
+| INV-18 | `Projet.statut = réalisé` ⇒ toutes ses tâches sont `archive`. |
 | INV-19 | `Epic.statut = réalisé` ⇒ tous ses projets sont `réalisé` ou `abandonné` ET tous ses jalons sont `atteint`. |
 
 ### Mesures

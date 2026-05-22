@@ -6,7 +6,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { TASK_STATUS_LABELS } from "../labels";
 import type { Project, Task, TaskStatus, User } from "../types";
 
-const STATUTS: TaskStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
+const STATUTS: TaskStatus[] = ["ouvert", "archive"];
 
 export default function TaskEditPage() {
   const { id = "" } = useParams();
@@ -124,7 +124,7 @@ export default function TaskEditPage() {
         </select>
         <label>Statut</label>
         <select
-          value={draft.statut ?? "prevu"}
+          value={draft.statut ?? "ouvert"}
           onChange={(e) => setDraft({ ...draft, statut: e.target.value as TaskStatus })}
         >
           {STATUTS.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}

@@ -7,7 +7,7 @@ import { useSortableList } from "../hooks/useSort";
 import { TASK_STATUS_LABELS, fmtDate } from "../labels";
 import type { Project, Task, TaskStatus, User } from "../types";
 
-const STATUTS: TaskStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
+const STATUTS: TaskStatus[] = ["ouvert", "archive"];
 
 export default function TasksPage() {
   const nav = useNavigate();
@@ -147,7 +147,7 @@ export default function TasksPage() {
                 </td>
                 <td>
                   <select
-                    value={editDraft.statut ?? "prevu"}
+                    value={editDraft.statut ?? "ouvert"}
                     onChange={(ev) => setEditDraft({ ...editDraft, statut: ev.target.value as TaskStatus })}
                   >
                     {STATUTS.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
