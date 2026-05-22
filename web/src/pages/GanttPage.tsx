@@ -27,13 +27,6 @@ function stylesFor(color: string) {
   };
 }
 
-const TRANSPARENT_STYLES = {
-  backgroundColor: "transparent",
-  backgroundSelectedColor: "transparent",
-  progressColor: "transparent",
-  progressSelectedColor: "transparent",
-};
-
 const COLUMN_WIDTH_BY_VIEW: Partial<Record<ViewMode, number>> = {
   [ViewMode.Hour]: 30,
   [ViewMode.QuarterDay]: 60,
@@ -62,7 +55,6 @@ function fmtDate(d: Date): string {
 }
 
 function TooltipContent({ task }: { task: GanttTask }) {
-  if (task.id.startsWith("sep-")) return null;
   return (
     <div
       style={{
@@ -171,25 +163,11 @@ export default function GanttPage() {
       const epic = epicByTri.get(tri);
       const epicProjects = byEpic.get(tri)!;
       if (epicProjects.length === 0) continue;
-      const minStart = epicProjects.reduce(
-        (a, p) => (toDate(p.date_debut) < a ? toDate(p.date_debut) : a),
-        toDate(epicProjects[0].date_debut)
-      );
       const color = epic?.couleur ?? DEFAULT_EPIC_COLOR;
 
-      // Séparateur d'epic : tâche transparente avec nom = libellé d'epic
-      out.push({
-        id: `sep-${tri}`,
-        name: epic?.nom ?? tri,
-        type: "task",
-        start: minStart,
-        end: minStart, // 0-durée → invisible dans le timeline
-        progress: 0,
-        isDisabled: true,
-        styles: TRANSPARENT_STYLES,
-      });
-
-      // Projets, triés par date de début
+      // Projets seulement (plus de séparateur d'epic) — triés par date de début.
+      // Le nom et la couleur de l'epic sont restitués via le carré coloré en
+      // début de chaque ligne (cf. CustomTaskListTable).
       const sortedProjects = [...epicProjects].sort((a, b) =>
         a.date_debut.localeCompare(b.date_debut)
       );
@@ -209,6 +187,19 @@ export default function GanttPage() {
     return out;
   }, [epicsList, projectsList, editMode]);
 
+  const projectInfoById = useMemo(() => {
+    const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
+    const m = new Map<number, { color: string; epicName: string }>();
+    for (const p of projectsList) {
+      const epic = epicByTri.get(p.epic_trigramme);
+      m.set(p.id, {
+        color: epic?.couleur ?? DEFAULT_EPIC_COLOR,
+        epicName: epic?.nom ?? p.epic_trigramme,
+      });
+    }
+    return m;
+  }, [epicsList, projectsList]);
+
   function CustomTaskListTable(props: {
     tasks: GanttTask[];
     rowHeight: number;
@@ -217,81 +208,10 @@ export default function GanttPage() {
     return (
       <div style={{ fontFamily: "Roboto, sans-serif", fontSize: 14, width: props.rowWidth }}>
         {props.tasks.map((t) => {
-          const isSeparator = t.id.startsWith("sep-");
-          if (isSeparator) {
-            const tri = t.id.slice(4);
-            const epic = epicsList.find((e) => e.trigramme === tri);
-            const color = epic?.couleur ?? DEFAULT_EPIC_COLOR;
-            return (
-              <div
-                key={t.id}
-                style={{
-                  height: props.rowHeight,
-                  display: "flex",
-                  alignItems: "center",
-                  paddingLeft: 12,
-                  paddingRight: 12,
-                  background: "#fafafa",
-                  borderTop: "1px solid #e0e0e0",
-                  borderBottom: "1px solid #e0e0e0",
-                  boxSizing: "border-box",
-                  fontWeight: 500,
-                  fontSize: 12,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.6px",
-                  color: "#5f6368",
-                  gap: 10,
-                }}
-              >
-                <span
-                  style={{
-                    width: 14,
-                    height: 14,
-                    borderRadius: 3,
-                    background: color,
-                    border: "1px solid rgba(0,0,0,0.08)",
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    flex: 1,
-                  }}
-                >
-                  {t.name}
-                </span>
-                <a
-                  href={`/epics/${tri}/edit`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Ouvrir l'epic en édition"
-                  style={{
-                    display: "inline-flex",
-                    color: "#9aa0a6",
-                    padding: 2,
-                    borderRadius: 4,
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = "#1976d2";
-                    (e.currentTarget as HTMLElement).style.background = "#e3f2fd";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.color = "#9aa0a6";
-                    (e.currentTarget as HTMLElement).style.background = "transparent";
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                    open_in_new
-                  </span>
-                </a>
-              </div>
-            );
-          }
-          // Project row
-          const projId = t.id.slice(5);
+          const projId = Number(t.id.slice(5));
+          const info = projectInfoById.get(projId);
+          const color = info?.color ?? DEFAULT_EPIC_COLOR;
+          const epicName = info?.epicName ?? "";
           return (
             <div
               key={t.id}
@@ -299,13 +219,25 @@ export default function GanttPage() {
                 height: props.rowHeight,
                 display: "flex",
                 alignItems: "center",
-                paddingLeft: 28,
+                paddingLeft: 12,
                 paddingRight: 12,
                 borderBottom: "1px solid #f1f3f4",
                 boxSizing: "border-box",
                 color: "#1f2329",
+                gap: 10,
               }}
             >
+              <span
+                title={epicName}
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 3,
+                  background: color,
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  flexShrink: 0,
+                }}
+              />
               <span
                 style={{
                   whiteSpace: "nowrap",
@@ -322,7 +254,6 @@ export default function GanttPage() {
                 rel="noopener noreferrer"
                 title="Ouvrir le projet en édition"
                 style={{
-                  marginLeft: 6,
                   display: "inline-flex",
                   alignItems: "center",
                   color: "#9aa0a6",
