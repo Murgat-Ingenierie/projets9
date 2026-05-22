@@ -3,7 +3,7 @@ import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { epics, projects, tasks } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
-import type { Epic, Project } from "../types";
+import type { Epic, Project, Task } from "../types";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
 
@@ -104,7 +104,7 @@ function TaskListHeader({
         background: "#fafafa",
       }}
     >
-      Projet
+      Projet · Tâche
     </div>
   );
 }
@@ -112,28 +112,46 @@ function TaskListHeader({
 export default function GanttPage() {
   const [epicsList, setEpics] = useState<Epic[]>([]);
   const [projectsList, setProjects] = useState<Project[]>([]);
+  const [tasksList, setTasks] = useState<Task[]>([]);
   const [err, setErr] = useState<unknown>(null);
   const [view, setView] = useState<ViewMode>(ViewMode.Month);
   const [editMode, setEditMode] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
 
   function load() {
-    Promise.all([epics.list(), projects.list()])
-      .then(([e, p]) => {
+    Promise.all([epics.list(), projects.list(), tasks.list()])
+      .then(([e, p, t]) => {
         setEpics(e);
         setProjects(p);
+        setTasks(t);
       })
       .catch(setErr);
   }
   useEffect(load, []);
 
+  function toggleProject(id: number) {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function handleDateChange(task: GanttTask) {
     setErr(null);
-    if (!task.id.startsWith("proj-")) return;
     try {
-      const id = Number(task.id.slice(5));
       const date_debut = isoDate(task.start);
       const date_fin = isoDate(task.end);
-      await projects.update(id, { date_debut, date_fin });
+      if (task.id.startsWith("proj-")) {
+        const id = Number(task.id.slice(5));
+        await projects.update(id, { date_debut, date_fin });
+      } else if (task.id.startsWith("task-")) {
+        const id = Number(task.id.slice(5));
+        await tasks.update(id, { date_debut, date_fin });
+      } else {
+        return;
+      }
       load();
     } catch (e) {
       setErr(e);
@@ -141,18 +159,29 @@ export default function GanttPage() {
     }
   }
 
+  const tasksByProject = useMemo(() => {
+    const m = new Map<number, Task[]>();
+    for (const t of tasksList) {
+      if (!m.has(t.projet_id)) m.set(t.projet_id, []);
+      m.get(t.projet_id)!.push(t);
+    }
+    // tri par date_debut au sein de chaque projet
+    for (const arr of m.values()) {
+      arr.sort((a, b) => a.date_debut.localeCompare(b.date_debut));
+    }
+    return m;
+  }, [tasksList]);
+
   const ganttTasks: GanttTask[] = useMemo(() => {
     const out: GanttTask[] = [];
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
 
-    // Regroupement projet → par epic
     const byEpic = new Map<string, Project[]>();
     for (const p of projectsList) {
       if (!byEpic.has(p.epic_trigramme)) byEpic.set(p.epic_trigramme, []);
       byEpic.get(p.epic_trigramme)!.push(p);
     }
 
-    // Ordre des epics : par nom de l'epic (alphabétique), pour stabilité
     const sortedTris = Array.from(byEpic.keys()).sort((a, b) => {
       const na = epicByTri.get(a)?.nom ?? a;
       const nb = epicByTri.get(b)?.nom ?? b;
@@ -164,10 +193,8 @@ export default function GanttPage() {
       const epicProjects = byEpic.get(tri)!;
       if (epicProjects.length === 0) continue;
       const color = epic?.couleur ?? DEFAULT_EPIC_COLOR;
+      const taskColor = adjustBrightness(color, 1.6);
 
-      // Projets seulement (plus de séparateur d'epic) — triés par date de début.
-      // Le nom et la couleur de l'epic sont restitués via le carré coloré en
-      // début de chaque ligne (cf. CustomTaskListTable).
       const sortedProjects = [...epicProjects].sort((a, b) =>
         a.date_debut.localeCompare(b.date_debut)
       );
@@ -182,16 +209,31 @@ export default function GanttPage() {
           isDisabled: !editMode,
           styles: stylesFor(color),
         });
+        if (expandedProjects.has(p.id)) {
+          const pTasks = tasksByProject.get(p.id) ?? [];
+          for (const t of pTasks) {
+            out.push({
+              id: `task-${t.id}`,
+              name: t.nom,
+              type: "task",
+              start: toDate(t.date_debut),
+              end: toDate(t.date_fin),
+              progress: 0,
+              isDisabled: !editMode,
+              styles: stylesFor(taskColor),
+            });
+          }
+        }
       }
     }
     return out;
-  }, [epicsList, projectsList, editMode]);
+  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode]);
 
   const projectInfoById = useMemo(() => {
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
     const m = new Map<
       number,
-      { color: string; epicName: string; trigramme: string }
+      { color: string; epicName: string; trigramme: string; tasksCount: number }
     >();
     for (const p of projectsList) {
       const epic = epicByTri.get(p.epic_trigramme);
@@ -199,10 +241,11 @@ export default function GanttPage() {
         color: epic?.couleur ?? DEFAULT_EPIC_COLOR,
         epicName: epic?.nom ?? p.epic_trigramme,
         trigramme: p.epic_trigramme,
+        tasksCount: tasksByProject.get(p.id)?.length ?? 0,
       });
     }
     return m;
-  }, [epicsList, projectsList]);
+  }, [epicsList, projectsList, tasksByProject]);
 
   function textColorFor(hex: string): string {
     const m = /^#([0-9a-f]{6})$/i.exec(hex);
@@ -223,11 +266,44 @@ export default function GanttPage() {
     return (
       <div style={{ fontFamily: "Roboto, sans-serif", fontSize: 14, width: props.rowWidth }}>
         {props.tasks.map((t) => {
+          if (t.id.startsWith("task-")) {
+            // ligne de tâche : indentée, plus discrète
+            return (
+              <div
+                key={t.id}
+                style={{
+                  height: props.rowHeight,
+                  display: "flex",
+                  alignItems: "center",
+                  paddingLeft: 64,
+                  paddingRight: 12,
+                  borderBottom: "1px solid #f1f3f4",
+                  boxSizing: "border-box",
+                  color: "#5f6368",
+                  fontSize: 13,
+                }}
+              >
+                <span
+                  style={{
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    flex: 1,
+                  }}
+                >
+                  {t.name}
+                </span>
+              </div>
+            );
+          }
+          // ligne de projet
           const projId = Number(t.id.slice(5));
           const info = projectInfoById.get(projId);
           const color = info?.color ?? DEFAULT_EPIC_COLOR;
           const epicName = info?.epicName ?? "";
           const trigramme = info?.trigramme ?? "";
+          const tasksCount = info?.tasksCount ?? 0;
+          const isExpanded = expandedProjects.has(projId);
           return (
             <div
               key={t.id}
@@ -271,6 +347,33 @@ export default function GanttPage() {
               >
                 {trigramme}
               </a>
+              {tasksCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => toggleProject(projId)}
+                  title={isExpanded ? "Replier les tâches" : `Voir ${tasksCount} tâche${tasksCount > 1 ? "s" : ""}`}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    padding: 0,
+                    width: 22,
+                    height: 22,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#5f6368",
+                    borderRadius: 4,
+                    flexShrink: 0,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                    {isExpanded ? "expand_more" : "chevron_right"}
+                  </span>
+                </button>
+              ) : (
+                <span style={{ width: 22, flexShrink: 0 }} />
+              )}
               <span
                 style={{
                   whiteSpace: "nowrap",
@@ -351,8 +454,8 @@ export default function GanttPage() {
         </button>
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
           {editMode
-            ? "Glissez une barre pour la déplacer ou redimensionnez ses bords."
-            : "Projets groupés par epic (couleur). Cliquez ↗ pour ouvrir une fiche."}
+            ? "Glissez une barre (projet ou tâche) pour la déplacer ou redimensionner."
+            : "Cliquez ▶ pour voir les tâches d'un projet. ↗ pour ouvrir une fiche."}
         </span>
       </div>
       {ganttTasks.length === 0 ? (
@@ -363,7 +466,7 @@ export default function GanttPage() {
             tasks={ganttTasks}
             viewMode={view}
             locale="fr-FR"
-            listCellWidth="320px"
+            listCellWidth="380px"
             columnWidth={COLUMN_WIDTH_BY_VIEW[view] ?? 100}
             barFill={editMode ? 80 : 60}
             TaskListHeader={TaskListHeader}
