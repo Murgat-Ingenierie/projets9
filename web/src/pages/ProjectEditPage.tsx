@@ -26,8 +26,10 @@ export default function ProjectEditPage() {
   const [allEpics, setAllEpics] = useState<Epic[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
-  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
-  const [taskDraft, setTaskDraft] = useState<Partial<Task>>({});
+
+  // Mode édition global des tâches
+  const [tasksEditMode, setTasksEditMode] = useState(false);
+  const [taskDrafts, setTaskDrafts] = useState<Record<number, Partial<Task>>>({});
 
   const userNameById = useMemo(() => {
     const m = new Map<number, string>();
@@ -75,32 +77,54 @@ export default function ProjectEditPage() {
     }
   }
 
-  // --- Édition inline des tâches ---
-  function startEditTask(t: Task) {
-    setEditingTaskId(t.id);
-    setTaskDraft({ ...t });
+  // --- Mode édition global des tâches ---
+  function enterTasksEdit() {
+    const m: Record<number, Partial<Task>> = {};
+    for (const t of projectTasks) m[t.id] = { ...t };
+    setTaskDrafts(m);
+    setTasksEditMode(true);
     setErr(null);
   }
-  function cancelEditTask() {
-    setEditingTaskId(null);
-    setTaskDraft({});
+  function cancelTasksEdit() {
+    setTasksEditMode(false);
+    setTaskDrafts({});
   }
-  async function saveTask() {
-    if (editingTaskId == null) return;
+  function patchTaskDraft(tid: number, patch: Partial<Task>) {
+    setTaskDrafts((prev) => ({ ...prev, [tid]: { ...prev[tid], ...patch } }));
+  }
+  function isDirty(t: Task, d: Partial<Task>) {
+    return (
+      d.nom !== t.nom ||
+      d.date_debut !== t.date_debut ||
+      d.date_fin !== t.date_fin ||
+      d.avancement !== t.avancement ||
+      d.responsable_id !== t.responsable_id ||
+      d.statut !== t.statut
+    );
+  }
+  async function saveAllTasks() {
     setErr(null);
-    try {
-      await tasks.update(editingTaskId, taskDraft);
-      cancelEditTask();
-      loadAll();
-    } catch (e) {
-      setErr(e);
+    const errors: string[] = [];
+    for (const t of projectTasks) {
+      const d = taskDrafts[t.id];
+      if (!d || !isDirty(t, d)) continue;
+      try {
+        await tasks.update(t.id, d);
+      } catch (e: any) {
+        errors.push(`${t.nom} → ${e.message ?? e}`);
+      }
     }
+    if (errors.length > 0) {
+      setErr(new Error(`Tâches non sauvegardées : ${errors.join(" ; ")}`));
+    } else {
+      cancelTasksEdit();
+    }
+    loadAll();
   }
   async function removeTask(tid: number) {
     if (!confirm("Supprimer cette tâche ?")) return;
     try {
       await tasks.remove(tid);
-      cancelEditTask();
       loadAll();
     } catch (e) {
       setErr(e);
@@ -120,6 +144,7 @@ export default function ProjectEditPage() {
       />
       <h2 style={{ marginBottom: 16 }}>Modifier le projet : {draft.nom}</h2>
       <ErrorBanner error={err} />
+
       <form className="form compact" onSubmit={save}>
         <div className="field">
           <label>Epic</label>
@@ -139,13 +164,14 @@ export default function ProjectEditPage() {
             required
           />
         </div>
-        <div className="field full">
-          <label>Description</label>
-          <textarea
-            rows={2}
-            value={draft.description ?? ""}
-            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-          />
+        <div className="field">
+          <label>Statut</label>
+          <select
+            value={draft.statut ?? "prevu"}
+            onChange={(e) => setDraft({ ...draft, statut: e.target.value as ProjectStatus })}
+          >
+            {STATUTS.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
+          </select>
         </div>
         <div className="field">
           <label>Date de début</label>
@@ -175,14 +201,13 @@ export default function ProjectEditPage() {
             {allUsers.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
           </select>
         </div>
-        <div className="field">
-          <label>Statut</label>
-          <select
-            value={draft.statut ?? "prevu"}
-            onChange={(e) => setDraft({ ...draft, statut: e.target.value as ProjectStatus })}
-          >
-            {STATUTS.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
-          </select>
+        <div className="field full">
+          <label>Description</label>
+          <textarea
+            rows={2}
+            value={draft.description ?? ""}
+            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+          />
         </div>
         <div className="full" style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <button className="btn" type="submit">Enregistrer</button>
@@ -193,9 +218,26 @@ export default function ProjectEditPage() {
 
       <div className="page-header" style={{ marginTop: 24 }}>
         <h3 style={{ margin: 0 }}>Tâches du projet ({projectTasks.length})</h3>
-        <button className="btn" onClick={() => nav("/tasks/new")}>+ Ajouter une tâche</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {!tasksEditMode ? (
+            <>
+              {projectTasks.length > 0 && (
+                <button className="btn secondary" onClick={enterTasksEdit}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, marginRight: 4 }}>edit</span>
+                  Tout éditer
+                </button>
+              )}
+              <button className="btn" onClick={() => nav("/tasks/new")}>+ Ajouter une tâche</button>
+            </>
+          ) : (
+            <>
+              <button className="btn" onClick={saveAllTasks}>Enregistrer tout</button>
+              <button className="btn secondary" onClick={cancelTasksEdit}>Annuler</button>
+            </>
+          )}
+        </div>
       </div>
-      <p className="muted">Cliquez "Éditer" pour modifier une tâche directement ici.</p>
+
       {projectTasks.length === 0 ? (
         <p className="muted">Aucune tâche pour ce projet.</p>
       ) : (
@@ -212,70 +254,73 @@ export default function ProjectEditPage() {
             </tr>
           </thead>
           <tbody>
-            {projectTasks.map((t) =>
-              editingTaskId === t.id ? (
-                <tr key={t.id} className="editing">
-                  <td>
-                    <input
-                      value={taskDraft.nom ?? ""}
-                      onChange={(ev) => setTaskDraft({ ...taskDraft, nom: ev.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="date"
-                      value={taskDraft.date_debut ?? ""}
-                      onChange={(ev) => setTaskDraft({ ...taskDraft, date_debut: ev.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="date"
-                      value={taskDraft.date_fin ?? ""}
-                      onChange={(ev) => setTaskDraft({ ...taskDraft, date_fin: ev.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={taskDraft.avancement ?? 0}
-                      onChange={(ev) => setTaskDraft({ ...taskDraft, avancement: Number(ev.target.value) })}
-                      style={{ width: 70 }}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      value={taskDraft.responsable_id ?? ""}
-                      onChange={(ev) =>
-                        setTaskDraft({
-                          ...taskDraft,
-                          responsable_id: ev.target.value ? Number(ev.target.value) : null,
-                        })
-                      }
-                    >
-                      <option value="">—</option>
-                      {allUsers.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      value={taskDraft.statut ?? "prevu"}
-                      onChange={(ev) => setTaskDraft({ ...taskDraft, statut: ev.target.value as TaskStatus })}
-                    >
-                      {TASK_STATUTS.map((s) => (
-                        <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="row-actions">
-                    <button className="btn" onClick={saveTask}>Enregistrer</button>
-                    <button className="btn secondary" onClick={cancelEditTask}>Annuler</button>
-                    <button className="btn danger" onClick={() => removeTask(t.id)}>Supprimer</button>
-                  </td>
-                </tr>
-              ) : (
+            {projectTasks.map((t) => {
+              if (tasksEditMode) {
+                const d = taskDrafts[t.id] ?? t;
+                return (
+                  <tr key={t.id} className="editing">
+                    <td>
+                      <input
+                        value={d.nom ?? ""}
+                        onChange={(ev) => patchTaskDraft(t.id, { nom: ev.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="date"
+                        value={d.date_debut ?? ""}
+                        onChange={(ev) => patchTaskDraft(t.id, { date_debut: ev.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="date"
+                        value={d.date_fin ?? ""}
+                        onChange={(ev) => patchTaskDraft(t.id, { date_fin: ev.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={d.avancement ?? 0}
+                        onChange={(ev) => patchTaskDraft(t.id, { avancement: Number(ev.target.value) })}
+                        style={{ width: 70 }}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        value={d.responsable_id ?? ""}
+                        onChange={(ev) =>
+                          patchTaskDraft(t.id, {
+                            responsable_id: ev.target.value ? Number(ev.target.value) : null,
+                          })
+                        }
+                      >
+                        <option value="">—</option>
+                        {allUsers.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        value={d.statut ?? "prevu"}
+                        onChange={(ev) =>
+                          patchTaskDraft(t.id, { statut: ev.target.value as TaskStatus })
+                        }
+                      >
+                        {TASK_STATUTS.map((s) => (
+                          <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <button className="btn danger" onClick={() => removeTask(t.id)}>Supprimer</button>
+                    </td>
+                  </tr>
+                );
+              }
+              return (
                 <tr key={t.id}>
                   <td>{t.nom}</td>
                   <td>{fmtDate(t.date_debut)}</td>
@@ -283,12 +328,10 @@ export default function ProjectEditPage() {
                   <td>{t.avancement}%</td>
                   <td>{t.responsable_id ? userNameById.get(t.responsable_id) ?? "—" : "—"}</td>
                   <td><span className={`tag ${t.statut}`}>{TASK_STATUS_LABELS[t.statut]}</span></td>
-                  <td>
-                    <button className="btn secondary" onClick={() => startEditTask(t)}>Éditer</button>
-                  </td>
+                  <td></td>
                 </tr>
-              )
-            )}
+              );
+            })}
           </tbody>
         </table>
       )}
