@@ -189,16 +189,31 @@ export default function GanttPage() {
 
   const projectInfoById = useMemo(() => {
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
-    const m = new Map<number, { color: string; epicName: string }>();
+    const m = new Map<
+      number,
+      { color: string; epicName: string; trigramme: string }
+    >();
     for (const p of projectsList) {
       const epic = epicByTri.get(p.epic_trigramme);
       m.set(p.id, {
         color: epic?.couleur ?? DEFAULT_EPIC_COLOR,
         epicName: epic?.nom ?? p.epic_trigramme,
+        trigramme: p.epic_trigramme,
       });
     }
     return m;
   }, [epicsList, projectsList]);
+
+  function textColorFor(hex: string): string {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return "#ffffff";
+    const n = parseInt(m[1], 16);
+    const r = (n >> 16) & 0xff;
+    const g = (n >> 8) & 0xff;
+    const b = n & 0xff;
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.62 ? "#1f2329" : "#ffffff";
+  }
 
   function CustomTaskListTable(props: {
     tasks: GanttTask[];
@@ -212,6 +227,7 @@ export default function GanttPage() {
           const info = projectInfoById.get(projId);
           const color = info?.color ?? DEFAULT_EPIC_COLOR;
           const epicName = info?.epicName ?? "";
+          const trigramme = info?.trigramme ?? "";
           return (
             <div
               key={t.id}
@@ -227,17 +243,34 @@ export default function GanttPage() {
                 gap: 10,
               }}
             >
-              <span
-                title={epicName}
+              <a
+                href={`/epics/${trigramme}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Ouvrir l'epic : ${epicName}`}
                 style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 3,
                   background: color,
-                  border: "1px solid rgba(0,0,0,0.08)",
+                  color: textColorFor(color),
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.6px",
+                  textDecoration: "none",
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                   flexShrink: 0,
+                  display: "inline-block",
+                  transition: "filter 180ms",
                 }}
-              />
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.filter = "brightness(1.15)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.filter = "none";
+                }}
+              >
+                {trigramme}
+              </a>
               <span
                 style={{
                   whiteSpace: "nowrap",
