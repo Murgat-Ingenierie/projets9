@@ -126,14 +126,17 @@ export default function GanttPage() {
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
   const [allDeps, setAllDeps] = useState<Dependency[]>([]);
 
-  // Mode "Lier" : drag depuis un handle (icône link) sur la barre.
-  const [linkMode, setLinkMode] = useState(false);
+  // Lien : handles visibles uniquement en mode édition. mousedown sur
+  // un handle démarre le drag vers une autre tâche.
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [sourcePos, setSourcePos] = useState<{ x: number; y: number } | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [linkHandles, setLinkHandles] = useState<
     { taskId: string; x: number; y: number }[]
   >([]);
+  const [hoveredTargetRect, setHoveredTargetRect] = useState<
+    { x: number; y: number; w: number; h: number } | null
+  >(null);
   const ganttRef = useRef<HTMLDivElement>(null);
   const ganttTasksRef = useRef<GanttTask[]>([]);
   const linkSourceRefStable = useRef<string | null>(null);
@@ -167,6 +170,7 @@ export default function GanttPage() {
     setLinkSource(null);
     setSourcePos(null);
     setCursorPos(null);
+    setHoveredTargetRect(null);
   }
 
   function startLinkDrag(taskId: string, e: React.MouseEvent) {
@@ -182,17 +186,25 @@ export default function GanttPage() {
   useEffect(() => {
     if (!linkSource) return;
 
-    function findTaskAtPoint(x: number, y: number): string | null {
+    function findTaskAtPoint(
+      x: number,
+      y: number
+    ): { id: string; rect: DOMRect } | null {
       const root = ganttRef.current;
       if (!root) return null;
-      const wrappers = root.querySelectorAll(
-        '[class*="barWrapper"], [class*="taskItem"], [class*="bar_barWrapper"]'
+      let wrappers: NodeListOf<Element> | Element[] = root.querySelectorAll(
+        "svg g[tabindex]"
       );
+      if (wrappers.length === 0) {
+        wrappers = root.querySelectorAll(
+          '[class*="barWrapper"], [class*="taskItem"]'
+        );
+      }
       for (let i = 0; i < wrappers.length; i++) {
-        const r = wrappers[i].getBoundingClientRect();
+        const r = (wrappers[i] as HTMLElement).getBoundingClientRect();
         if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
           const tid = ganttTasksRef.current[i]?.id;
-          if (tid?.startsWith("task-")) return tid;
+          if (tid?.startsWith("task-")) return { id: tid, rect: r };
         }
       }
       return null;
@@ -200,6 +212,17 @@ export default function GanttPage() {
 
     function onMove(e: MouseEvent) {
       setCursorPos({ x: e.clientX, y: e.clientY });
+      const target = findTaskAtPoint(e.clientX, e.clientY);
+      if (target && target.id !== linkSource) {
+        setHoveredTargetRect({
+          x: target.rect.left,
+          y: target.rect.top,
+          w: target.rect.width,
+          h: target.rect.height,
+        });
+      } else {
+        setHoveredTargetRect(null);
+      }
     }
     function onUp(e: MouseEvent) {
       const src = linkSourceRefStable.current;
@@ -208,12 +231,12 @@ export default function GanttPage() {
         return;
       }
       const target = findTaskAtPoint(e.clientX, e.clientY);
-      if (!target || target === src) {
+      if (!target || target.id === src) {
         cancelLink();
         return;
       }
       const amontId = Number(src.slice(5));
-      const avalId = Number(target.slice(5));
+      const avalId = Number(target.id.slice(5));
       depsApi
         .create({ tache_amont_id: amontId, tache_aval_id: avalId, type: "FS" })
         .then(() => {
@@ -433,7 +456,7 @@ export default function GanttPage() {
 
   // Position des handles "Lier" : un par tâche, sur le côté droit de sa barre.
   useEffect(() => {
-    if (!linkMode) {
+    if (!editMode) {
       setLinkHandles([]);
       return;
     }
@@ -476,7 +499,7 @@ export default function GanttPage() {
       window.removeEventListener("scroll", onScrollOrResize, true);
       window.removeEventListener("resize", onScrollOrResize);
     };
-  }, [linkMode, ganttTasks]);
+  }, [editMode, ganttTasks]);
 
   const projectInfoById = useMemo(() => {
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
@@ -770,21 +793,6 @@ export default function GanttPage() {
           </span>
           Édition
         </button>
-        <button
-          type="button"
-          className={`chip ${linkMode ? "active" : ""}`}
-          onClick={() => {
-            setLinkMode((v) => !v);
-            cancelLink();
-          }}
-          title="Crée une dépendance Fin → Début entre deux tâches"
-          style={{ marginLeft: 6 }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 16, marginRight: 4 }}>
-            link
-          </span>
-          Lier
-        </button>
         <span
           style={{
             marginLeft: 12,
@@ -805,13 +813,11 @@ export default function GanttPage() {
           Aujourd'hui : {todayPill}
         </span>
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
-          {linkMode
+          {editMode
             ? linkSource
-              ? "Relâchez sur la tâche aval. Échap pour annuler."
-              : "Drag depuis le rond bleu 🔗 d'une tâche vers la barre d'une autre tâche."
-            : editMode
-            ? "Glissez une barre (projet ou tâche) pour la déplacer ou redimensionner."
-            : "Clic sur un projet = déplier ses tâches. ✏️ = panneau d'édition. Clic sur une tâche = panneau."}
+              ? "Relâchez sur la tâche aval pour lier. Échap pour annuler."
+              : "Glissez une barre pour la décaler · cliquez l'icône 🔗 sur une tâche pour la lier à une autre."
+            : "Clic sur un projet = déplier. ✏️ = panneau d'édition. Clic sur une tâche = panneau."}
         </span>
       </div>
       {ganttTasks.length === 0 ? (
@@ -819,7 +825,7 @@ export default function GanttPage() {
       ) : (
         <div
           ref={ganttRef}
-          className={`gantt-container ${editMode ? "edit-mode" : ""} ${linkMode ? "link-mode" : ""}`}
+          className={`gantt-container ${editMode ? "edit-mode" : ""}`}
         >
           <Gantt
             tasks={ganttTasks}
@@ -839,24 +845,13 @@ export default function GanttPage() {
         </div>
       )}
 
-      {/* FAB : raccourcis Édition / Lier accessibles partout sur le scroll */}
+      {/* FAB unique pour basculer le mode édition (drag + lier) */}
       <div className="fab-stack">
-        <button
-          type="button"
-          className={`fab ${linkMode ? "active" : ""}`}
-          onClick={() => {
-            setLinkMode((v) => !v);
-            cancelLink();
-          }}
-          title={linkMode ? "Quitter le mode Lier" : "Lier deux tâches"}
-        >
-          <span className="material-symbols-outlined">link</span>
-        </button>
         <button
           type="button"
           className={`fab ${editMode ? "active" : ""}`}
           onClick={() => setEditMode((v) => !v)}
-          title={editMode ? "Quitter le mode Édition" : "Mode édition (drag des barres)"}
+          title={editMode ? "Quitter l'édition" : "Mode édition"}
         >
           <span className="material-symbols-outlined">
             {editMode ? "lock_open" : "lock"}
@@ -864,8 +859,9 @@ export default function GanttPage() {
         </button>
       </div>
 
-      {/* Handles de lien : un par barre de tâche en mode Lier */}
-      {linkMode &&
+      {/* Handles de lien : icône link seule (sans rond) sur la droite
+          de chaque barre de tâche, visible en mode édition. */}
+      {editMode &&
         linkHandles.map((h) => (
           <button
             key={h.taskId}
@@ -878,27 +874,49 @@ export default function GanttPage() {
               top: h.y - 9,
               width: 18,
               height: 18,
-              borderRadius: "50%",
-              background: "#1976d2",
+              background: "transparent",
+              border: 0,
               color: "white",
-              border: "2px solid white",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
               padding: 0,
               cursor: "crosshair",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
               zIndex: 50,
+              filter: "drop-shadow(0 0 2px rgba(0,0,0,0.7))",
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: 18, fontWeight: 700 }}
+            >
               link
             </span>
           </button>
         ))}
 
+      {/* Feedback drop-target pendant le drag */}
+      {linkSource && hoveredTargetRect && (
+        <div
+          style={{
+            position: "fixed",
+            left: hoveredTargetRect.x - 3,
+            top: hoveredTargetRect.y - 3,
+            width: hoveredTargetRect.w + 6,
+            height: hoveredTargetRect.h + 6,
+            border: "2px solid #2e7d32",
+            borderRadius: 6,
+            boxShadow: "0 0 0 4px rgba(46, 125, 50, 0.25)",
+            background: "rgba(46, 125, 50, 0.08)",
+            pointerEvents: "none",
+            zIndex: 80,
+            transition: "left 80ms, top 80ms, width 80ms, height 80ms",
+          }}
+        />
+      )}
+
       {/* Overlay : flèche de la barre source vers le curseur */}
-      {linkMode && linkSource && sourcePos && cursorPos && (
+      {linkSource && sourcePos && cursorPos && (
         <svg
           style={{
             position: "fixed",
