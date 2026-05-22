@@ -104,6 +104,9 @@ function TaskListHeader({
         borderBottom: "1px solid #e0e0e0",
         boxSizing: "border-box",
         background: "#fafafa",
+        position: "sticky",
+        top: 0,
+        zIndex: 5,
       }}
     >
       Projet · Tâche
@@ -248,6 +251,45 @@ export default function GanttPage() {
       document.removeEventListener("keydown", onKey);
     };
   }, [linkMode]); // ganttTasks lu via ref pour éviter le re-bind à chaque mousemove
+
+  // Calendrier figé : on translate le <g class="*calendar*"> du SVG vers
+  // le bas quand la page est scrollée plus bas que le haut du Gantt,
+  // de façon à le maintenir au sommet du viewport.
+  useEffect(() => {
+    const root = ganttRef.current;
+    if (!root) return;
+    const calendar = root.querySelector('g[class*="calendar"]') as SVGGElement | null;
+    if (!calendar) return;
+
+    // Fond opaque sous le calendrier pour masquer les barres translatées dessous.
+    if (!calendar.querySelector('[data-stick-bg]')) {
+      const ns = "http://www.w3.org/2000/svg";
+      const bg = document.createElementNS(ns, "rect") as SVGRectElement;
+      bg.setAttribute("data-stick-bg", "true");
+      bg.setAttribute("x", "-2");
+      bg.setAttribute("y", "0");
+      bg.setAttribute("width", "999999");
+      bg.setAttribute("height", "52");
+      bg.setAttribute("fill", "#fafafa");
+      bg.setAttribute("stroke", "#e0e0e0");
+      bg.setAttribute("stroke-width", "1");
+      calendar.insertBefore(bg, calendar.firstChild);
+    }
+
+    function update() {
+      if (!root || !calendar) return;
+      const r = root.getBoundingClientRect();
+      const offset = Math.max(0, -r.top);
+      calendar.setAttribute("transform", `translate(0, ${offset})`);
+    }
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [ganttTasks.length, view]);
 
   function toggleProject(id: number) {
     setExpandedProjects((prev) => {
