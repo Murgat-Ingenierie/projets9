@@ -145,7 +145,7 @@ Unité : **jour calendaire**. Toutes les comparaisons sont inclusives.
 | INV-10 | Si `Epic.date_fin_prévue` est définie : pour tout `Projet` de cet Epic, `Projet.date_fin ≤ Epic.date_fin_prévue`. |
 | INV-11 | Si `Epic.jalon_fin_max` est défini : pour tout `Jalon` rattaché à cet Epic, `Jalon.date ≤ Epic.jalon_fin_max`. |
 | INV-12 | Si `Epic.date_fin_prévue` ET `Epic.jalon_fin_max` sont définies : `date_fin_prévue ≤ jalon_fin_max`. |
-| INV-13 | Pour toute `Dépendance` de type `FS` : `amont.date_fin ≤ aval.date_début`. Pour `SS` : `amont.date_début ≤ aval.date_début`. Pour `FF` : `amont.date_fin ≤ aval.date_fin`. |
+| INV-13 | ~~Supprimé.~~ Les contraintes de dates FS/SS/FF entre tâches dépendantes ont été retirées — une dépendance peut être créée librement, l'ordre chronologique des dates n'est plus imposé. INV-14 (DAG) et INV-15 (pas d'auto-dépendance) restent en vigueur. |
 
 ### Graphe des dépendances
 

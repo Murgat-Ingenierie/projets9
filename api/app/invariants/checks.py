@@ -251,36 +251,14 @@ def check_epic_date_order(e: EpicLike) -> None:
 
 
 def check_dependency_dates(dep: DependencyLike, amont: TaskLike, aval: TaskLike) -> None:
-    """INV-13 : règle FS/SS/FF entre amont et aval."""
-    if dep.type == "FS":
-        if amont.date_fin > aval.date_debut:
-            raise InvariantError(
-                "INV-13",
-                (
-                    f"Dépendance Fin → Début : {amont.nom!r} se termine le {_fr(amont.date_fin)} "
-                    f"après le début de {aval.nom!r} ({_fr(aval.date_debut)})"
-                ),
-            )
-    elif dep.type == "SS":
-        if amont.date_debut > aval.date_debut:
-            raise InvariantError(
-                "INV-13",
-                (
-                    f"Dépendance Début → Début : {amont.nom!r} commence le {_fr(amont.date_debut)} "
-                    f"après le début de {aval.nom!r} ({_fr(aval.date_debut)})"
-                ),
-            )
-    elif dep.type == "FF":
-        if amont.date_fin > aval.date_fin:
-            raise InvariantError(
-                "INV-13",
-                (
-                    f"Dépendance Fin → Fin : {amont.nom!r} se termine le {_fr(amont.date_fin)} "
-                    f"après la fin de {aval.nom!r} ({_fr(aval.date_fin)})"
-                ),
-            )
-    else:
-        raise InvariantError("INV-13", f"Type de dépendance inconnu : {dep.type}")
+    """INV-13 : SUPPRIMÉ.
+
+    Les contraintes de date entre tâches dépendantes ont été retirées —
+    une dépendance peut désormais être créée librement, indépendamment
+    de l'ordre chronologique des dates. Les seules contraintes restantes
+    sur le graphe sont : pas d'auto-dépendance (INV-15), DAG (INV-14).
+    """
+    return  # no-op
 
 
 # -----------------------------------------------------------------------------

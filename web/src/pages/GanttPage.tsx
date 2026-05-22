@@ -687,7 +687,7 @@ export default function GanttPage() {
         </div>
       )}
 
-      {/* Overlay : ligne pointillée de la barre source vers le curseur */}
+      {/* Overlay : flèche de la barre source vers le curseur */}
       {linkMode && linkSource && sourcePos && cursorPos && (
         <svg
           style={{
@@ -700,16 +700,29 @@ export default function GanttPage() {
             zIndex: 90,
           }}
         >
+          <defs>
+            <marker
+              id="link-arrow-head"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#1976d2" />
+            </marker>
+          </defs>
           <line
             x1={sourcePos.x}
             y1={sourcePos.y}
             x2={cursorPos.x}
             y2={cursorPos.y}
             stroke="#1976d2"
-            strokeWidth={2}
+            strokeWidth={2.5}
             strokeDasharray="6 4"
+            markerEnd="url(#link-arrow-head)"
           />
-          <circle cx={cursorPos.x} cy={cursorPos.y} r={5} fill="#1976d2" />
         </svg>
       )}
 
