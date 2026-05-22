@@ -687,6 +687,31 @@ export default function GanttPage() {
         </div>
       )}
 
+      {/* FAB : raccourcis Édition / Lier accessibles partout sur le scroll */}
+      <div className="fab-stack">
+        <button
+          type="button"
+          className={`fab ${linkMode ? "active" : ""}`}
+          onClick={() => {
+            setLinkMode((v) => !v);
+            cancelLink();
+          }}
+          title={linkMode ? "Quitter le mode Lier" : "Lier deux tâches"}
+        >
+          <span className="material-symbols-outlined">link</span>
+        </button>
+        <button
+          type="button"
+          className={`fab ${editMode ? "active" : ""}`}
+          onClick={() => setEditMode((v) => !v)}
+          title={editMode ? "Quitter le mode Édition" : "Mode édition (drag des barres)"}
+        >
+          <span className="material-symbols-outlined">
+            {editMode ? "lock_open" : "lock"}
+          </span>
+        </button>
+      </div>
+
       {/* Overlay : flèche de la barre source vers le curseur */}
       {linkMode && linkSource && sourcePos && cursorPos && (
         <svg
