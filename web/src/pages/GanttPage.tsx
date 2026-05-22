@@ -254,42 +254,42 @@ export default function GanttPage() {
 
   // Calendrier figé : on translate le <g class="*calendar*"> du SVG vers
   // le bas quand la page est scrollée plus bas que le haut du Gantt,
-  // de façon à le maintenir au sommet du viewport.
+  // de façon à le maintenir au sommet du viewport. Le DOM est requêté
+  // à chaque appel pour gérer les re-renders de la lib (changement de
+  // vue ou expand/collapse).
   useEffect(() => {
-    const root = ganttRef.current;
-    if (!root) return;
-    const calendar = root.querySelector('g[class*="calendar"]') as SVGGElement | null;
-    if (!calendar) return;
-
-    // Fond opaque sous le calendrier pour masquer les barres translatées dessous.
-    if (!calendar.querySelector('[data-stick-bg]')) {
-      const ns = "http://www.w3.org/2000/svg";
-      const bg = document.createElementNS(ns, "rect") as SVGRectElement;
-      bg.setAttribute("data-stick-bg", "true");
-      bg.setAttribute("x", "-2");
-      bg.setAttribute("y", "0");
-      bg.setAttribute("width", "999999");
-      bg.setAttribute("height", "52");
-      bg.setAttribute("fill", "#fafafa");
-      bg.setAttribute("stroke", "#e0e0e0");
-      bg.setAttribute("stroke-width", "1");
-      calendar.insertBefore(bg, calendar.firstChild);
-    }
-
     function update() {
-      if (!root || !calendar) return;
+      const root = ganttRef.current;
+      if (!root) return;
+      const calendar = root.querySelector('g[class*="calendar"]') as SVGGElement | null;
+      if (!calendar) return;
+      if (!calendar.querySelector('[data-stick-bg]')) {
+        const ns = "http://www.w3.org/2000/svg";
+        const bg = document.createElementNS(ns, "rect") as SVGRectElement;
+        bg.setAttribute("data-stick-bg", "true");
+        bg.setAttribute("x", "-2");
+        bg.setAttribute("y", "0");
+        bg.setAttribute("width", "999999");
+        bg.setAttribute("height", "52");
+        bg.setAttribute("fill", "#fafafa");
+        bg.setAttribute("stroke", "#e0e0e0");
+        bg.setAttribute("stroke-width", "1");
+        calendar.insertBefore(bg, calendar.firstChild);
+      }
       const r = root.getBoundingClientRect();
       const offset = Math.max(0, -r.top);
       calendar.setAttribute("transform", `translate(0, ${offset})`);
     }
-    update();
+    // raf pour laisser la lib rendre son SVG initial avant qu'on cherche
+    const raf = requestAnimationFrame(update);
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
-  }, [ganttTasks.length, view]);
+  }, []);
 
   function toggleProject(id: number) {
     setExpandedProjects((prev) => {
