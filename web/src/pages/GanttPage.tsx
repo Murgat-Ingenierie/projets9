@@ -123,12 +123,13 @@ export default function GanttPage() {
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
   const [allDeps, setAllDeps] = useState<Dependency[]>([]);
 
-  // Mode "Lier" : crée une dépendance FS entre deux tâches au clic-clic.
+  // Mode "Lier" : crée une dépendance FS entre deux tâches au drag-and-drop.
   const [linkMode, setLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null); // ex: "task-5"
   const [sourcePos, setSourcePos] = useState<{ x: number; y: number } | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const ganttRef = useRef<HTMLDivElement>(null);
+  const ganttTasksRef = useRef<GanttTask[]>([]);
 
   function load() {
     Promise.all([epics.list(), projects.list(), tasks.list(), depsApi.list()])
@@ -153,56 +154,100 @@ export default function GanttPage() {
   }, [allDeps]);
   useEffect(load, []);
 
-  // --- Mode Lier (drag-line entre deux tâches) ---
+  // --- Mode Lier (drag-and-drop entre deux barres de tâches) ---
+  const linkSourceRef = useRef<string | null>(null);
+
   function cancelLink() {
+    linkSourceRef.current = null;
     setLinkSource(null);
     setSourcePos(null);
     setCursorPos(null);
   }
 
-  function handleGanttClick(task: GanttTask) {
-    if (!linkMode) return;
-    if (!task.id.startsWith("task-")) {
-      // On ne lie que des tâches entre elles pour l'instant
-      return;
-    }
-    if (!linkSource) {
-      setLinkSource(task.id);
-      return;
-    }
-    if (task.id === linkSource) {
-      cancelLink();
-      return;
-    }
-    const amontId = Number(linkSource.slice(5));
-    const avalId = Number(task.id.slice(5));
-    depsApi
-      .create({ tache_amont_id: amontId, tache_aval_id: avalId, type: "FS" })
-      .then(() => {
-        cancelLink();
-        load();
-      })
-      .catch((e) => {
-        setErr(e);
-        cancelLink();
-      });
-  }
-
   useEffect(() => {
     if (!linkMode) return;
-    function onMove(e: MouseEvent) {
+
+    function findTaskAtTarget(target: EventTarget | null): {
+      id: string;
+      el: HTMLElement;
+    } | null {
+      const root = ganttRef.current;
+      if (!root) return null;
+      let el = target as HTMLElement | null;
+      while (el && el !== root) {
+        if (
+          el.matches?.(
+            '[class*="barWrapper"], [class*="taskItem"], [class*="bar_barWrapper"]'
+          )
+        ) {
+          const wrappers = root.querySelectorAll(
+            '[class*="barWrapper"], [class*="taskItem"], [class*="bar_barWrapper"]'
+          );
+          const idx = Array.from(wrappers).indexOf(el);
+          if (idx < 0) return null;
+          const tid = ganttTasksRef.current[idx]?.id;
+          if (!tid || !tid.startsWith("task-")) return null;
+          return { id: tid, el };
+        }
+        el = el.parentElement;
+      }
+      return null;
+    }
+
+    function onDown(e: MouseEvent) {
+      const found = findTaskAtTarget(e.target);
+      if (!found) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = found.el.getBoundingClientRect();
+      linkSourceRef.current = found.id;
+      setLinkSource(found.id);
+      setSourcePos({ x: rect.right, y: rect.top + rect.height / 2 });
       setCursorPos({ x: e.clientX, y: e.clientY });
     }
+
+    function onMove(e: MouseEvent) {
+      if (!linkSourceRef.current) return;
+      setCursorPos({ x: e.clientX, y: e.clientY });
+    }
+
+    function onUp(e: MouseEvent) {
+      const src = linkSourceRef.current;
+      if (!src) return;
+      const found = findTaskAtTarget(e.target);
+      if (!found || found.id === src) {
+        cancelLink();
+        return;
+      }
+      const amontId = Number(src.slice(5));
+      const avalId = Number(found.id.slice(5));
+      depsApi
+        .create({ tache_amont_id: amontId, tache_aval_id: avalId, type: "FS" })
+        .then(() => {
+          cancelLink();
+          load();
+        })
+        .catch((err) => {
+          setErr(err);
+          cancelLink();
+        });
+    }
+
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") cancelLink();
     }
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("keydown", onKey);
+
+    document.addEventListener("mousedown", onDown, true);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp, true);
+    document.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown, true);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp, true);
+      document.removeEventListener("keydown", onKey);
     };
-  }, [linkMode]);
+  }, [linkMode]); // ganttTasks lu via ref pour éviter le re-bind à chaque mousemove
 
   function toggleProject(id: number) {
     setExpandedProjects((prev) => {
@@ -295,7 +340,7 @@ export default function GanttPage() {
               start: toDate(t.date_debut),
               end: toDate(t.date_fin),
               progress: 0,
-              isDisabled: !editMode,
+              isDisabled: !editMode || linkMode,
               styles: stylesFor(taskColor),
               dependencies: dependsOn.map((amontId) => `task-${amontId}`),
             });
@@ -304,26 +349,8 @@ export default function GanttPage() {
       }
     }
     return out;
-  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval]);
-
-  // Localise la barre source dans le DOM (la lib utilise des classes
-  // CSS-modules hashées qui contiennent "barWrapper") et place
-  // l'extrémité droite de la barre comme origine de la ligne.
-  useEffect(() => {
-    if (!linkSource) {
-      setSourcePos(null);
-      return;
-    }
-    const idx = ganttTasks.findIndex((t) => t.id === linkSource);
-    if (idx < 0 || !ganttRef.current) return;
-    const wrappers = ganttRef.current.querySelectorAll(
-      '[class*="barWrapper"], [class*="taskItem"]'
-    );
-    const el = wrappers[idx] as HTMLElement | undefined;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setSourcePos({ x: rect.right, y: rect.top + rect.height / 2 });
-  }, [linkSource, ganttTasks]);
+  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, linkMode, depsByAval]);
+  ganttTasksRef.current = ganttTasks;
 
   const projectInfoById = useMemo(() => {
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
@@ -654,8 +681,8 @@ export default function GanttPage() {
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
           {linkMode
             ? linkSource
-              ? "Cliquez sur la tâche aval. Échap pour annuler."
-              : "Cliquez sur la tâche AMONT (la précédente)."
+              ? "Relâchez sur la tâche aval pour créer la dépendance. Échap pour annuler."
+              : "Cliquez et glissez d'une tâche amont vers une tâche aval."
             : editMode
             ? "Glissez une barre (projet ou tâche) pour la déplacer ou redimensionner."
             : "Clic sur un projet = déplier ses tâches. ✏️ = panneau d'édition. Clic sur une tâche = panneau."}
@@ -682,7 +709,6 @@ export default function GanttPage() {
             TaskListTable={CustomTaskListTable}
             TooltipContent={TooltipContent}
             onDateChange={handleDateChange}
-            onClick={handleGanttClick}
           />
         </div>
       )}
