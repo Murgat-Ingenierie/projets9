@@ -31,6 +31,10 @@ class InvariantError(Exception):
         super().__init__(f"[{code}] {detail}")
 
 
+def _fr(d: date) -> str:
+    return d.strftime("%d/%m/%Y")
+
+
 # -----------------------------------------------------------------------------
 # Protocols : décrivent le minimum attendu de chaque entité pour le check.
 # Ça permet aux tests de passer des objets simples (dataclasses) sans charger
@@ -54,6 +58,7 @@ class EpicLike(Protocol):
 
 class ProjectLike(Protocol):
     id: int
+    nom: str
     epic_trigramme: str
     date_debut: date
     date_fin: date
@@ -62,6 +67,7 @@ class ProjectLike(Protocol):
 
 class TaskLike(Protocol):
     id: int
+    nom: str
     projet_id: int
     date_debut: date
     date_fin: date
@@ -162,13 +168,19 @@ def check_milestone_xor_parent(m: MilestoneLike) -> None:
 def check_task_dates(t: TaskLike) -> None:
     """INV-7 : task.date_début ≤ task.date_fin."""
     if t.date_debut > t.date_fin:
-        raise InvariantError("INV-7", f"Task {t.id}: date_début > date_fin")
+        raise InvariantError(
+            "INV-7",
+            f"Tâche {t.nom!r} : date de début ({_fr(t.date_debut)}) après date de fin ({_fr(t.date_fin)})",
+        )
 
 
 def check_project_dates(p: ProjectLike) -> None:
     """INV-8 : project.date_début ≤ project.date_fin."""
     if p.date_debut > p.date_fin:
-        raise InvariantError("INV-8", f"Project {p.id}: date_début > date_fin")
+        raise InvariantError(
+            "INV-8",
+            f"Projet {p.nom!r} : date de début ({_fr(p.date_debut)}) après date de fin ({_fr(p.date_fin)})",
+        )
 
 
 # -----------------------------------------------------------------------------
@@ -181,7 +193,11 @@ def check_task_dates_within_project(t: TaskLike, p: ProjectLike) -> None:
     if t.date_debut < p.date_debut or t.date_fin > p.date_fin:
         raise InvariantError(
             "INV-9",
-            f"Task {t.id} hors fenêtre du projet {p.id}",
+            (
+                f"Tâche {t.nom!r} ({_fr(t.date_debut)} → {_fr(t.date_fin)}) "
+                f"hors de la fenêtre du projet {p.nom!r} "
+                f"({_fr(p.date_debut)} → {_fr(p.date_fin)})"
+            ),
         )
 
 
@@ -190,7 +206,10 @@ def check_project_dates_within_epic(p: ProjectLike, e: EpicLike) -> None:
     if e.date_fin_prevue is not None and p.date_fin > e.date_fin_prevue:
         raise InvariantError(
             "INV-10",
-            f"Project {p.id}: date_fin > Epic.date_fin_prevue",
+            (
+                f"Projet {p.nom!r} se termine le {_fr(p.date_fin)} "
+                f"après la date de fin prévue de l'epic {e.trigramme} ({_fr(e.date_fin_prevue)})"
+            ),
         )
 
 
@@ -202,7 +221,11 @@ def check_milestone_within_epic_max(m: MilestoneLike, e: EpicLike) -> None:
         and m.date > e.jalon_fin_max
     ):
         raise InvariantError(
-            "INV-11", f"Jalon {m.nom!r}: date > Epic.jalon_fin_max"
+            "INV-11",
+            (
+                f"Jalon {m.nom!r} prévu le {_fr(m.date)} "
+                f"après le jalon de fin maximum de l'epic {e.trigramme} ({_fr(e.jalon_fin_max)})"
+            ),
         )
 
 
@@ -214,7 +237,11 @@ def check_epic_date_order(e: EpicLike) -> None:
         and e.date_fin_prevue > e.jalon_fin_max
     ):
         raise InvariantError(
-            "INV-12", f"Epic {e.trigramme}: date_fin_prevue > jalon_fin_max"
+            "INV-12",
+            (
+                f"Epic {e.trigramme} : date de fin prévue ({_fr(e.date_fin_prevue)}) "
+                f"après jalon de fin maximum ({_fr(e.jalon_fin_max)})"
+            ),
         )
 
 
@@ -229,22 +256,31 @@ def check_dependency_dates(dep: DependencyLike, amont: TaskLike, aval: TaskLike)
         if amont.date_fin > aval.date_debut:
             raise InvariantError(
                 "INV-13",
-                f"FS: amont.date_fin > aval.date_début ({amont.id} → {aval.id})",
+                (
+                    f"Dépendance Fin → Début : {amont.nom!r} se termine le {_fr(amont.date_fin)} "
+                    f"après le début de {aval.nom!r} ({_fr(aval.date_debut)})"
+                ),
             )
     elif dep.type == "SS":
         if amont.date_debut > aval.date_debut:
             raise InvariantError(
                 "INV-13",
-                f"SS: amont.date_début > aval.date_début ({amont.id} → {aval.id})",
+                (
+                    f"Dépendance Début → Début : {amont.nom!r} commence le {_fr(amont.date_debut)} "
+                    f"après le début de {aval.nom!r} ({_fr(aval.date_debut)})"
+                ),
             )
     elif dep.type == "FF":
         if amont.date_fin > aval.date_fin:
             raise InvariantError(
                 "INV-13",
-                f"FF: amont.date_fin > aval.date_fin ({amont.id} → {aval.id})",
+                (
+                    f"Dépendance Fin → Fin : {amont.nom!r} se termine le {_fr(amont.date_fin)} "
+                    f"après la fin de {aval.nom!r} ({_fr(aval.date_fin)})"
+                ),
             )
     else:
-        raise InvariantError("INV-13", f"Type de dépendance inconnu: {dep.type}")
+        raise InvariantError("INV-13", f"Type de dépendance inconnu : {dep.type}")
 
 
 # -----------------------------------------------------------------------------
