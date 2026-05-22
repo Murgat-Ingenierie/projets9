@@ -186,25 +186,6 @@ export default function GanttPage() {
       });
   }
 
-  // Localise la barre source dans le DOM (la lib utilise des classes
-  // CSS-modules hashées qui contiennent "barWrapper") et place
-  // l'extrémité droite de la barre comme origine de la ligne.
-  useEffect(() => {
-    if (!linkSource) {
-      setSourcePos(null);
-      return;
-    }
-    const idx = ganttTasks.findIndex((t) => t.id === linkSource);
-    if (idx < 0 || !ganttRef.current) return;
-    const wrappers = ganttRef.current.querySelectorAll(
-      '[class*="barWrapper"], [class*="taskItem"]'
-    );
-    const el = wrappers[idx] as HTMLElement | undefined;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setSourcePos({ x: rect.right, y: rect.top + rect.height / 2 });
-  }, [linkSource, ganttTasks]);
-
   useEffect(() => {
     if (!linkMode) return;
     function onMove(e: MouseEvent) {
@@ -321,7 +302,26 @@ export default function GanttPage() {
       }
     }
     return out;
-  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode]);
+  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval]);
+
+  // Localise la barre source dans le DOM (la lib utilise des classes
+  // CSS-modules hashées qui contiennent "barWrapper") et place
+  // l'extrémité droite de la barre comme origine de la ligne.
+  useEffect(() => {
+    if (!linkSource) {
+      setSourcePos(null);
+      return;
+    }
+    const idx = ganttTasks.findIndex((t) => t.id === linkSource);
+    if (idx < 0 || !ganttRef.current) return;
+    const wrappers = ganttRef.current.querySelectorAll(
+      '[class*="barWrapper"], [class*="taskItem"]'
+    );
+    const el = wrappers[idx] as HTMLElement | undefined;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setSourcePos({ x: rect.right, y: rect.top + rect.height / 2 });
+  }, [linkSource, ganttTasks]);
 
   const projectInfoById = useMemo(() => {
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
