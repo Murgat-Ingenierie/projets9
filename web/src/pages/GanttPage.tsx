@@ -267,7 +267,7 @@ export default function GanttPage() {
       <div style={{ fontFamily: "Roboto, sans-serif", fontSize: 14, width: props.rowWidth }}>
         {props.tasks.map((t) => {
           if (t.id.startsWith("task-")) {
-            // ligne de tâche : indentée, plus discrète
+            const taskId = Number(t.id.slice(5));
             return (
               <div
                 key={t.id}
@@ -281,6 +281,7 @@ export default function GanttPage() {
                   boxSizing: "border-box",
                   color: "#5f6368",
                   fontSize: 13,
+                  gap: 6,
                 }}
               >
                 <span
@@ -293,6 +294,32 @@ export default function GanttPage() {
                 >
                   {t.name}
                 </span>
+                <a
+                  href={`/tasks/${taskId}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ouvrir la tâche en édition"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    color: "#9aa0a6",
+                    padding: 2,
+                    borderRadius: 4,
+                    transition: "color 180ms, background 180ms",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.color = "#1976d2";
+                    (e.currentTarget as HTMLElement).style.background = "#e3f2fd";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.color = "#9aa0a6";
+                    (e.currentTarget as HTMLElement).style.background = "transparent";
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                    open_in_new
+                  </span>
+                </a>
               </div>
             );
           }

@@ -11,6 +11,7 @@ import ProjectNewPage from "./pages/ProjectNewPage";
 import ProjectEditPage from "./pages/ProjectEditPage";
 import TasksPage from "./pages/TasksPage";
 import TaskNewPage from "./pages/TaskNewPage";
+import TaskEditPage from "./pages/TaskEditPage";
 import MilestonesPage from "./pages/MilestonesPage";
 import MilestoneNewPage from "./pages/MilestoneNewPage";
 import DependenciesPage from "./pages/DependenciesPage";
@@ -116,6 +117,7 @@ export default function App() {
 
         <Route path="/tasks" element={<Protected><TasksPage /></Protected>} />
         <Route path="/tasks/new" element={<Protected><TaskNewPage /></Protected>} />
+        <Route path="/tasks/:id/edit" element={<Protected><TaskEditPage /></Protected>} />
 
         <Route path="/milestones" element={<Protected><MilestonesPage /></Protected>} />
         <Route path="/milestones/new" element={<Protected><MilestoneNewPage /></Protected>} />
