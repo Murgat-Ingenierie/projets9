@@ -829,6 +829,15 @@ dl.kv dd textarea {
 }
 
 
+/* En mode édition : les flèches de dépendance sont cliquables pour
+   être supprimées. On les met en rouge au survol pour l'indiquer. */
+.gantt-container.edit-mode g[class*="arrow"] {
+  cursor: pointer;
+}
+.gantt-container.edit-mode g[class*="arrow"]:hover path {
+  fill: #d32f2f !important;
+}
+
 /* Masque les libellés affichés sur les barres : le nom est déjà dans le
    panneau de gauche, l'afficher en plus sur la barre fait doublon.
    La lib gantt-task-react utilise des classes CSS-modules hashées —

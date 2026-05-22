@@ -162,6 +162,15 @@ export default function GanttPage() {
     }
     return m;
   }, [allDeps]);
+
+  // Recherche d'une dépendance par paire (amont, aval) — utilisé pour la
+  // suppression au clic sur une flèche du Gantt.
+  function findDepIdByPair(amontId: number, avalId: number): number | null {
+    const d = allDeps.find(
+      (x) => x.tache_amont_id === amontId && x.tache_aval_id === avalId && x.type === "FS"
+    );
+    return d?.id ?? null;
+  }
   useEffect(load, []);
 
   // --- Mode Lier (drag depuis un handle visible sur chaque barre) ---
@@ -454,6 +463,61 @@ export default function GanttPage() {
     return out;
   }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval]);
   ganttTasksRef.current = ganttTasks;
+
+  // Liste des flèches dans l'ordre où la lib les rend (pour les clics
+  // sur la flèche → trouver la dépendance correspondante).
+  const arrowPairs = useMemo(() => {
+    const pairs: { depId: number; amontId: number; avalId: number }[] = [];
+    for (const t of ganttTasks) {
+      if (!t.id.startsWith("task-") || !t.dependencies) continue;
+      const avalId = Number(t.id.slice(5));
+      for (const amontIdRaw of t.dependencies) {
+        if (!amontIdRaw.startsWith("task-")) continue;
+        const amontId = Number(amontIdRaw.slice(5));
+        const depId = findDepIdByPair(amontId, avalId);
+        if (depId != null) pairs.push({ depId, amontId, avalId });
+      }
+    }
+    return pairs;
+  }, [ganttTasks, allDeps]);
+
+  // Clic sur une flèche en mode édition → confirmation + suppression.
+  useEffect(() => {
+    if (!editMode) return;
+    const root = ganttRef.current;
+    if (!root) return;
+
+    function onClick(e: MouseEvent) {
+      let el = e.target as Element | null;
+      let arrowEl: SVGGElement | null = null;
+      while (el && el !== root) {
+        if (
+          (el as HTMLElement).tagName?.toLowerCase() === "g" &&
+          (el as HTMLElement).getAttribute("class")?.includes("arrow")
+        ) {
+          arrowEl = el as unknown as SVGGElement;
+          break;
+        }
+        el = el.parentElement;
+      }
+      if (!arrowEl) return;
+      const arrows = root!.querySelectorAll('g[class*="arrow"]');
+      const idx = Array.from(arrows).indexOf(arrowEl);
+      if (idx < 0) return;
+      const pair = arrowPairs[idx];
+      if (!pair) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!confirm("Supprimer cette dépendance ?")) return;
+      depsApi
+        .remove(pair.depId)
+        .then(load)
+        .catch(setErr);
+    }
+
+    root.addEventListener("click", onClick);
+    return () => root.removeEventListener("click", onClick);
+  }, [editMode, arrowPairs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Position des handles "Lier" : un par tâche, sur le côté droit de sa barre.
   useEffect(() => {
@@ -817,7 +881,7 @@ export default function GanttPage() {
           {editMode
             ? linkSource
               ? "Relâchez sur la tâche aval pour lier. Échap pour annuler."
-              : "Glissez une barre pour la décaler · cliquez l'icône 🔗 sur une tâche pour la lier à une autre."
+              : "Glissez les barres · 🔗 pour lier · cliquez sur une flèche pour la supprimer."
             : "Clic sur un projet = déplier. ✏️ = panneau d'édition. Clic sur une tâche = panneau."}
         </span>
       </div>
