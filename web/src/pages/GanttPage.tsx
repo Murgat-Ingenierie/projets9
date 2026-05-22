@@ -239,13 +239,14 @@ export default function GanttPage() {
     };
   }, [linkSource]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Calendrier figé en haut du viewport au scroll.
-  // En prod la classe "calendar" est hashée → fallback : on identifie
-  // le bon <g> par son contenu (texte qui ressemble à un mois ou à
-  // l'année courante).
+  // Calendrier figé : on clone le <g class="calendar"> du SVG dans un
+  // overlay SVG position:fixed quand l'original passe au-dessus du viewport.
+  // L'approche transform sur place ne marchait pas (la lib re-render et/ou
+  // un parent overflow nous coince) — la duplication contourne tout ça.
+  const stickyOverlayRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const MONTH_RE = /20\d\d|janv|f[ée]v|mars|avr|mai|juin|juil|ao[ûu]t|sept|oct|nov|d[ée]c/i;
-
     function findCalendar(root: HTMLElement): SVGGElement | null {
       const byClass = root.querySelector(
         'g[class*="calendar"], g[class*="Calendar"]'
@@ -263,56 +264,66 @@ export default function GanttPage() {
 
     function update() {
       const root = ganttRef.current;
-      if (!root) return;
+      const overlay = stickyOverlayRef.current;
+      if (!root || !overlay) return;
+
       const calendar = findCalendar(root);
       if (!calendar) return;
       const svg = calendar.ownerSVGElement;
       if (!svg) return;
 
-      if (calendar.dataset.origTransform === undefined) {
-        calendar.dataset.origTransform = calendar.getAttribute("transform") || "";
-      }
-      if (!calendar.querySelector('[data-stick-bg]')) {
-        const ns = "http://www.w3.org/2000/svg";
-        const bg = document.createElementNS(ns, "rect") as SVGRectElement;
-        bg.setAttribute("data-stick-bg", "true");
-        bg.setAttribute("x", "-2");
-        bg.setAttribute("y", "-2");
-        bg.setAttribute("width", "999999");
-        bg.setAttribute("height", "54");
-        bg.setAttribute("fill", "#fafafa");
-        bg.setAttribute("stroke", "#e0e0e0");
-        bg.setAttribute("stroke-width", "1");
-        calendar.insertBefore(bg, calendar.firstChild);
-      }
-
-      // svg.getBoundingClientRect() prend en compte le scroll de tous les
-      // conteneurs ancêtres (window + internes). svgRect.top négatif → SVG
-      // au-dessus du viewport → on translate le calendrier vers le bas.
+      const calRect = calendar.getBoundingClientRect();
       const svgRect = svg.getBoundingClientRect();
-      const offset = Math.max(0, -svgRect.top);
-      const orig = calendar.dataset.origTransform || "";
-      calendar.setAttribute("transform", `${orig} translate(0, ${offset})`.trim());
 
-      // Le calendrier est rendu en premier dans le SVG → les barres
-      // (rendues après) passent devant quand on le translate dans la
-      // zone du graphique. On le déplace en dernier dans les enfants
-      // du SVG pour qu'il soit dessiné en dernier (= au-dessus).
-      if (offset > 0 && svg.lastElementChild !== calendar) {
-        svg.appendChild(calendar);
+      // Si la barre du bas du calendrier original est passée au-dessus
+      // du viewport, on affiche le clone.
+      if (calRect.bottom >= 0) {
+        overlay.style.display = "none";
+        return;
       }
+
+      const ganttRect = root.getBoundingClientRect();
+      overlay.style.display = "block";
+      overlay.style.left = `${ganttRect.left}px`;
+      overlay.style.width = `${ganttRect.width}px`;
+
+      // Reconstruit un SVG clone en interne
+      overlay.innerHTML = "";
+      const ns = "http://www.w3.org/2000/svg";
+      const cloneSvg = document.createElementNS(ns, "svg");
+      cloneSvg.setAttribute("width", String(svgRect.width));
+      cloneSvg.setAttribute("height", "50");
+      cloneSvg.setAttribute("style", "display:block");
+      const calClone = calendar.cloneNode(true) as SVGGElement;
+      // On retire notre rect de fond éventuelle (si présente) — on
+      // reposera celle de l'overlay.
+      calClone.querySelector("[data-stick-bg]")?.remove();
+      // Add background
+      const bg = document.createElementNS(ns, "rect");
+      bg.setAttribute("x", "0");
+      bg.setAttribute("y", "0");
+      bg.setAttribute("width", "100%");
+      bg.setAttribute("height", "50");
+      bg.setAttribute("fill", "#fafafa");
+      bg.setAttribute("stroke", "#e0e0e0");
+      bg.setAttribute("stroke-width", "1");
+      cloneSvg.appendChild(bg);
+      cloneSvg.appendChild(calClone);
+      overlay.appendChild(cloneSvg);
     }
 
     let raf = requestAnimationFrame(update);
     const interval = setInterval(update, 250);
-    // capture: true pour catcher les events scroll sur des conteneurs
-    // internes (la lib gantt-task-react peut avoir son propre overflow).
     document.addEventListener("scroll", update, { capture: true, passive: true });
     window.addEventListener("resize", update);
     return () => {
       cancelAnimationFrame(raf);
       clearInterval(interval);
-      document.removeEventListener("scroll", update, { capture: true } as EventListenerOptions);
+      document.removeEventListener(
+        "scroll",
+        update,
+        { capture: true } as EventListenerOptions
+      );
       window.removeEventListener("resize", update);
     };
   }, []);
@@ -925,6 +936,19 @@ export default function GanttPage() {
         </svg>
       )}
 
+      {/* Overlay calendrier figé en haut quand l'original est au-dessus du viewport */}
+      <div
+        ref={stickyOverlayRef}
+        style={{
+          position: "fixed",
+          top: 0,
+          height: 50,
+          zIndex: 30,
+          pointerEvents: "none",
+          display: "none",
+          overflow: "hidden",
+        }}
+      />
       <EditPanel target={panelTarget} onClose={() => setPanelTarget(null)} onSaved={load} />
     </>
   );
