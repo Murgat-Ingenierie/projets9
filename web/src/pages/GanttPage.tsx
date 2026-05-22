@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
-import { epics, projects, tasks } from "../api/endpoints";
+import { dependencies as depsApi, epics, projects, tasks } from "../api/endpoints";
 import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import { ErrorBanner } from "../components/ErrorBanner";
-import type { Epic, Project, Task } from "../types";
+import type { Dependency, Epic, Project, Task } from "../types";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
 
@@ -119,17 +119,107 @@ export default function GanttPage() {
   const [editMode, setEditMode] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
+  const [allDeps, setAllDeps] = useState<Dependency[]>([]);
+
+  // Mode "Lier" : crée une dépendance FS entre deux tâches au clic-clic.
+  const [linkMode, setLinkMode] = useState(false);
+  const [linkSource, setLinkSource] = useState<string | null>(null); // ex: "task-5"
+  const [sourcePos, setSourcePos] = useState<{ x: number; y: number } | null>(null);
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
+  const ganttRef = useRef<HTMLDivElement>(null);
 
   function load() {
-    Promise.all([epics.list(), projects.list(), tasks.list()])
-      .then(([e, p, t]) => {
+    Promise.all([epics.list(), projects.list(), tasks.list(), depsApi.list()])
+      .then(([e, p, t, d]) => {
         setEpics(e);
         setProjects(p);
         setTasks(t);
+        setAllDeps(d);
       })
       .catch(setErr);
   }
+
+  // Map aval_task_id → [amont_task_ids] pour piloter task.dependencies
+  const depsByAval = useMemo(() => {
+    const m = new Map<number, number[]>();
+    for (const d of allDeps) {
+      if (d.type !== "FS") continue;
+      if (!m.has(d.tache_aval_id)) m.set(d.tache_aval_id, []);
+      m.get(d.tache_aval_id)!.push(d.tache_amont_id);
+    }
+    return m;
+  }, [allDeps]);
   useEffect(load, []);
+
+  // --- Mode Lier (drag-line entre deux tâches) ---
+  function cancelLink() {
+    setLinkSource(null);
+    setSourcePos(null);
+    setCursorPos(null);
+  }
+
+  function handleGanttClick(task: GanttTask) {
+    if (!linkMode) return;
+    if (!task.id.startsWith("task-")) {
+      // On ne lie que des tâches entre elles pour l'instant
+      return;
+    }
+    if (!linkSource) {
+      setLinkSource(task.id);
+      return;
+    }
+    if (task.id === linkSource) {
+      cancelLink();
+      return;
+    }
+    const amontId = Number(linkSource.slice(5));
+    const avalId = Number(task.id.slice(5));
+    depsApi
+      .create({ tache_amont_id: amontId, tache_aval_id: avalId, type: "FS" })
+      .then(() => {
+        cancelLink();
+        load();
+      })
+      .catch((e) => {
+        setErr(e);
+        cancelLink();
+      });
+  }
+
+  // Localise la barre source dans le DOM (la lib utilise des classes
+  // CSS-modules hashées qui contiennent "barWrapper") et place
+  // l'extrémité droite de la barre comme origine de la ligne.
+  useEffect(() => {
+    if (!linkSource) {
+      setSourcePos(null);
+      return;
+    }
+    const idx = ganttTasks.findIndex((t) => t.id === linkSource);
+    if (idx < 0 || !ganttRef.current) return;
+    const wrappers = ganttRef.current.querySelectorAll(
+      '[class*="barWrapper"], [class*="taskItem"]'
+    );
+    const el = wrappers[idx] as HTMLElement | undefined;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setSourcePos({ x: rect.right, y: rect.top + rect.height / 2 });
+  }, [linkSource, ganttTasks]);
+
+  useEffect(() => {
+    if (!linkMode) return;
+    function onMove(e: MouseEvent) {
+      setCursorPos({ x: e.clientX, y: e.clientY });
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") cancelLink();
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [linkMode]);
 
   function toggleProject(id: number) {
     setExpandedProjects((prev) => {
@@ -214,6 +304,7 @@ export default function GanttPage() {
         if (expandedProjects.has(p.id)) {
           const pTasks = tasksByProject.get(p.id) ?? [];
           for (const t of pTasks) {
+            const dependsOn = depsByAval.get(t.id) ?? [];
             out.push({
               id: `task-${t.id}`,
               name: t.nom,
@@ -223,6 +314,7 @@ export default function GanttPage() {
               progress: 0,
               isDisabled: !editMode,
               styles: stylesFor(taskColor),
+              dependencies: dependsOn.map((amontId) => `task-${amontId}`),
             });
           }
         }
@@ -523,6 +615,21 @@ export default function GanttPage() {
           </span>
           Édition
         </button>
+        <button
+          type="button"
+          className={`chip ${linkMode ? "active" : ""}`}
+          onClick={() => {
+            setLinkMode((v) => !v);
+            cancelLink();
+          }}
+          title="Crée une dépendance Fin → Début entre deux tâches"
+          style={{ marginLeft: 6 }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16, marginRight: 4 }}>
+            link
+          </span>
+          Lier
+        </button>
         <span
           style={{
             marginLeft: 12,
@@ -543,15 +650,22 @@ export default function GanttPage() {
           Aujourd'hui : {todayPill}
         </span>
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
-          {editMode
+          {linkMode
+            ? linkSource
+              ? "Cliquez sur la tâche aval. Échap pour annuler."
+              : "Cliquez sur la tâche AMONT (la précédente)."
+            : editMode
             ? "Glissez une barre (projet ou tâche) pour la déplacer ou redimensionner."
-            : "Clic sur un projet = déplier ses tâches. ✏️ = éditer dans le panneau. Clic sur une tâche = panneau."}
+            : "Clic sur un projet = déplier ses tâches. ✏️ = panneau d'édition. Clic sur une tâche = panneau."}
         </span>
       </div>
       {ganttTasks.length === 0 ? (
         <p>Aucun projet planifié.</p>
       ) : (
-        <div className={`gantt-container ${editMode ? "edit-mode" : ""}`}>
+        <div
+          ref={ganttRef}
+          className={`gantt-container ${editMode ? "edit-mode" : ""} ${linkMode ? "link-mode" : ""}`}
+        >
           <Gantt
             tasks={ganttTasks}
             viewMode={view}
@@ -560,13 +674,43 @@ export default function GanttPage() {
             columnWidth={COLUMN_WIDTH_BY_VIEW[view] ?? 100}
             barFill={editMode ? 80 : 60}
             todayColor="rgba(255, 152, 0, 0.18)"
+            arrowColor="#1976d2"
+            arrowIndent={20}
             TaskListHeader={TaskListHeader}
             TaskListTable={CustomTaskListTable}
             TooltipContent={TooltipContent}
             onDateChange={handleDateChange}
+            onClick={handleGanttClick}
           />
         </div>
       )}
+
+      {/* Overlay : ligne pointillée de la barre source vers le curseur */}
+      {linkMode && linkSource && sourcePos && cursorPos && (
+        <svg
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            pointerEvents: "none",
+            zIndex: 90,
+          }}
+        >
+          <line
+            x1={sourcePos.x}
+            y1={sourcePos.y}
+            x2={cursorPos.x}
+            y2={cursorPos.y}
+            stroke="#1976d2"
+            strokeWidth={2}
+            strokeDasharray="6 4"
+          />
+          <circle cx={cursorPos.x} cy={cursorPos.y} r={5} fill="#1976d2" />
+        </svg>
+      )}
+
       <EditPanel target={panelTarget} onClose={() => setPanelTarget(null)} onSaved={load} />
     </>
   );

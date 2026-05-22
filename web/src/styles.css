@@ -783,6 +783,15 @@ dl.kv dd textarea {
   font-family: "Roboto", sans-serif !important;
 }
 
+/* En mode "Lier", curseur crosshair partout sur la zone Gantt */
+.gantt-container.link-mode {
+  cursor: crosshair;
+}
+.gantt-container.link-mode [class*="barWrapper"],
+.gantt-container.link-mode [class*="taskItem"] {
+  cursor: crosshair !important;
+}
+
 /* Masque les libellés affichés sur les barres : le nom est déjà dans le
    panneau de gauche, l'afficher en plus sur la barre fait doublon.
    La lib gantt-task-react utilise des classes CSS-modules hashées —
