@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { epics, projects, tasks } from "../api/endpoints";
+import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Epic, Project, Task } from "../types";
 
@@ -117,6 +118,7 @@ export default function GanttPage() {
   const [view, setView] = useState<ViewMode>(ViewMode.Month);
   const [editMode, setEditMode] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
+  const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
 
   function load() {
     Promise.all([epics.list(), projects.list(), tasks.list()])
@@ -294,12 +296,14 @@ export default function GanttPage() {
                 >
                   {t.name}
                 </span>
-                <a
-                  href={`/tasks/${taskId}/edit`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Ouvrir la tâche en édition"
+                <button
+                  type="button"
+                  onClick={() => setPanelTarget({ type: "task", id: taskId })}
+                  title="Éditer la tâche dans le panneau latéral"
                   style={{
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
                     display: "inline-flex",
                     alignItems: "center",
                     color: "#9aa0a6",
@@ -317,9 +321,9 @@ export default function GanttPage() {
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                    open_in_new
+                    edit
                   </span>
-                </a>
+                </button>
               </div>
             );
           }
@@ -346,20 +350,20 @@ export default function GanttPage() {
                 gap: 10,
               }}
             >
-              <a
-                href={`/epics/${trigramme}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`Ouvrir l'epic : ${epicName}`}
+              <button
+                type="button"
+                onClick={() => setPanelTarget({ type: "epic", trigramme })}
+                title={`Éditer l'epic : ${epicName}`}
                 style={{
                   background: color,
                   color: textColorFor(color),
                   padding: "3px 8px",
+                  border: 0,
                   borderRadius: 4,
                   fontSize: 11,
                   fontWeight: 600,
                   letterSpacing: "0.6px",
-                  textDecoration: "none",
+                  cursor: "pointer",
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                   flexShrink: 0,
                   display: "inline-block",
@@ -373,7 +377,7 @@ export default function GanttPage() {
                 }}
               >
                 {trigramme}
-              </a>
+              </button>
               {tasksCount > 0 ? (
                 <button
                   type="button"
@@ -411,12 +415,14 @@ export default function GanttPage() {
               >
                 {t.name}
               </span>
-              <a
-                href={`/projects/${projId}/edit`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Ouvrir le projet en édition"
+              <button
+                type="button"
+                onClick={() => setPanelTarget({ type: "project", id: projId })}
+                title="Éditer le projet dans le panneau latéral"
                 style={{
+                  background: "transparent",
+                  border: 0,
+                  cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
                   color: "#9aa0a6",
@@ -434,9 +440,9 @@ export default function GanttPage() {
                 }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                  open_in_new
+                  edit
                 </span>
-              </a>
+              </button>
             </div>
           );
         })}
@@ -482,7 +488,7 @@ export default function GanttPage() {
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
           {editMode
             ? "Glissez une barre (projet ou tâche) pour la déplacer ou redimensionner."
-            : "Cliquez ▶ pour voir les tâches d'un projet. ↗ pour ouvrir une fiche."}
+            : "Cliquez ▶ pour voir les tâches d'un projet. ✏️ pour ouvrir l'édition dans le panneau."}
         </span>
       </div>
       {ganttTasks.length === 0 ? (
@@ -503,6 +509,7 @@ export default function GanttPage() {
           />
         </div>
       )}
+      <EditPanel target={panelTarget} onClose={() => setPanelTarget(null)} onSaved={load} />
     </>
   );
 }
