@@ -235,7 +235,7 @@ export default function GanttPage() {
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
     const m = new Map<
       number,
-      { color: string; epicName: string; trigramme: string; tasksCount: number }
+      { color: string; epicName: string; trigramme: string; tasksCount: number; statut: string }
     >();
     for (const p of projectsList) {
       const epic = epicByTri.get(p.epic_trigramme);
@@ -244,10 +244,17 @@ export default function GanttPage() {
         epicName: epic?.nom ?? p.epic_trigramme,
         trigramme: p.epic_trigramme,
         tasksCount: tasksByProject.get(p.id)?.length ?? 0,
+        statut: p.statut,
       });
     }
     return m;
   }, [epicsList, projectsList, tasksByProject]);
+
+  const taskStatutById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const t of tasksList) m.set(t.id, t.statut);
+    return m;
+  }, [tasksList]);
 
   function textColorFor(hex: string): string {
     const m = /^#([0-9a-f]{6})$/i.exec(hex);
@@ -270,6 +277,7 @@ export default function GanttPage() {
         {props.tasks.map((t) => {
           if (t.id.startsWith("task-")) {
             const taskId = Number(t.id.slice(5));
+            const isDone = taskStatutById.get(taskId) === "realise";
             return (
               <div
                 key={t.id}
@@ -286,12 +294,22 @@ export default function GanttPage() {
                   gap: 6,
                 }}
               >
+                {isDone && (
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: 16, color: "#2e7d32" }}
+                    title="Tâche réalisée"
+                  >
+                    check_circle
+                  </span>
+                )}
                 <span
                   style={{
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     flex: 1,
+                    textDecoration: isDone ? "line-through" : "none",
                   }}
                 >
                   {t.name}
@@ -335,6 +353,7 @@ export default function GanttPage() {
           const trigramme = info?.trigramme ?? "";
           const tasksCount = info?.tasksCount ?? 0;
           const isExpanded = expandedProjects.has(projId);
+          const isProjectDone = info?.statut === "realise";
           return (
             <div
               key={t.id}
@@ -405,12 +424,22 @@ export default function GanttPage() {
               ) : (
                 <span style={{ width: 22, flexShrink: 0 }} />
               )}
+              {isProjectDone && (
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: 18, color: "#2e7d32" }}
+                  title="Projet réalisé"
+                >
+                  check_circle
+                </span>
+              )}
               <span
                 style={{
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   flex: 1,
+                  textDecoration: isProjectDone ? "line-through" : "none",
                 }}
               >
                 {t.name}
@@ -456,6 +485,8 @@ export default function GanttPage() {
     { value: ViewMode.Month, label: "Mois" },
   ];
 
+  const todayPill = fmtDate(new Date());
+
   return (
     <>
       <h2>Planning Gantt</h2>
@@ -485,6 +516,25 @@ export default function GanttPage() {
           </span>
           Édition
         </button>
+        <span
+          style={{
+            marginLeft: 12,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 12px",
+            background: "rgba(255, 152, 0, 0.15)",
+            color: "#b75d00",
+            borderRadius: 999,
+            fontSize: 12,
+            fontWeight: 500,
+            letterSpacing: "0.3px",
+          }}
+          title="La colonne du jour est surlignée en orange clair sur le Gantt"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>today</span>
+          Aujourd'hui : {todayPill}
+        </span>
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
           {editMode
             ? "Glissez une barre (projet ou tâche) pour la déplacer ou redimensionner."
@@ -502,6 +552,7 @@ export default function GanttPage() {
             listCellWidth="380px"
             columnWidth={COLUMN_WIDTH_BY_VIEW[view] ?? 100}
             barFill={editMode ? 80 : 60}
+            todayColor="rgba(255, 152, 0, 0.18)"
             TaskListHeader={TaskListHeader}
             TaskListTable={CustomTaskListTable}
             TooltipContent={TooltipContent}
