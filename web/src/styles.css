@@ -404,12 +404,28 @@ h3 {
   border-radius: var(--md-radius);
   box-shadow: var(--md-elev-1);
 }
+.form.compact {
+  max-width: 920px;
+  gap: 12px 20px;
+  grid-template-columns: 1fr 1fr;
+}
+.form.compact .full {
+  grid-column: 1 / -1;
+}
+.form.compact .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .form label {
   font-size: 12px;
   font-weight: 500;
   color: var(--md-text-secondary);
   letter-spacing: 0.4px;
   margin-bottom: -8px;
+}
+.form.compact label {
+  margin-bottom: 0;
 }
 .form input,
 .form select,

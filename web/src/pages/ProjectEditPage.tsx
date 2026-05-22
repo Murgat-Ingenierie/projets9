@@ -118,64 +118,84 @@ export default function ProjectEditPage() {
           { label: draft.nom ?? "Projet" },
         ]}
       />
-      <h2>Modifier le projet : {draft.nom}</h2>
+      <h2 style={{ marginBottom: 16 }}>Modifier le projet : {draft.nom}</h2>
       <ErrorBanner error={err} />
-      <form className="form" onSubmit={save}>
-        <label>Epic</label>
-        <select
-          value={draft.epic_trigramme ?? ""}
-          onChange={(e) => setDraft({ ...draft, epic_trigramme: e.target.value })}
-          required
-        >
-          {allEpics.map((e) => <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>)}
-        </select>
-        <label>Nom</label>
-        <input value={draft.nom ?? ""} onChange={(e) => setDraft({ ...draft, nom: e.target.value })} required />
-        <label>Description</label>
-        <textarea
-          value={draft.description ?? ""}
-          onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-        />
-        <label>Date de début</label>
-        <input
-          type="date"
-          value={draft.date_debut ?? ""}
-          onChange={(e) => setDraft({ ...draft, date_debut: e.target.value })}
-          required
-        />
-        <label>Date de fin</label>
-        <input
-          type="date"
-          value={draft.date_fin ?? ""}
-          onChange={(e) => setDraft({ ...draft, date_fin: e.target.value })}
-          required
-        />
-        <label>Responsable</label>
-        <select
-          value={draft.responsable_id ?? ""}
-          onChange={(e) => setDraft({ ...draft, responsable_id: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value="">—</option>
-          {allUsers.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
-        </select>
-        <label>Statut</label>
-        <select
-          value={draft.statut ?? "prevu"}
-          onChange={(e) => setDraft({ ...draft, statut: e.target.value as ProjectStatus })}
-        >
-          {STATUTS.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
-        </select>
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <form className="form compact" onSubmit={save}>
+        <div className="field">
+          <label>Epic</label>
+          <select
+            value={draft.epic_trigramme ?? ""}
+            onChange={(e) => setDraft({ ...draft, epic_trigramme: e.target.value })}
+            required
+          >
+            {allEpics.map((e) => <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>Nom</label>
+          <input
+            value={draft.nom ?? ""}
+            onChange={(e) => setDraft({ ...draft, nom: e.target.value })}
+            required
+          />
+        </div>
+        <div className="field full">
+          <label>Description</label>
+          <textarea
+            rows={2}
+            value={draft.description ?? ""}
+            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Date de début</label>
+          <input
+            type="date"
+            value={draft.date_debut ?? ""}
+            onChange={(e) => setDraft({ ...draft, date_debut: e.target.value })}
+            required
+          />
+        </div>
+        <div className="field">
+          <label>Date de fin</label>
+          <input
+            type="date"
+            value={draft.date_fin ?? ""}
+            onChange={(e) => setDraft({ ...draft, date_fin: e.target.value })}
+            required
+          />
+        </div>
+        <div className="field">
+          <label>Responsable</label>
+          <select
+            value={draft.responsable_id ?? ""}
+            onChange={(e) => setDraft({ ...draft, responsable_id: e.target.value ? Number(e.target.value) : null })}
+          >
+            <option value="">—</option>
+            {allUsers.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>Statut</label>
+          <select
+            value={draft.statut ?? "prevu"}
+            onChange={(e) => setDraft({ ...draft, statut: e.target.value as ProjectStatus })}
+          >
+            {STATUTS.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
+          </select>
+        </div>
+        <div className="full" style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <button className="btn" type="submit">Enregistrer</button>
           <button type="button" className="btn secondary" onClick={() => nav("/projects")}>Annuler</button>
           <button type="button" className="btn danger" onClick={remove}>Supprimer</button>
         </div>
       </form>
 
-      <div className="page-header" style={{ marginTop: 32 }}>
+      <div className="page-header" style={{ marginTop: 24 }}>
         <h3 style={{ margin: 0 }}>Tâches du projet ({projectTasks.length})</h3>
         <button className="btn" onClick={() => nav("/tasks/new")}>+ Ajouter une tâche</button>
       </div>
+      <p className="muted">Cliquez "Éditer" pour modifier une tâche directement ici.</p>
       {projectTasks.length === 0 ? (
         <p className="muted">Aucune tâche pour ce projet.</p>
       ) : (
