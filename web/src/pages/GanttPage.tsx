@@ -293,6 +293,14 @@ export default function GanttPage() {
       const offset = Math.max(0, -svgRect.top);
       const orig = calendar.dataset.origTransform || "";
       calendar.setAttribute("transform", `${orig} translate(0, ${offset})`.trim());
+
+      // Le calendrier est rendu en premier dans le SVG → les barres
+      // (rendues après) passent devant quand on le translate dans la
+      // zone du graphique. On le déplace en dernier dans les enfants
+      // du SVG pour qu'il soit dessiné en dernier (= au-dessus).
+      if (offset > 0 && svg.lastElementChild !== calendar) {
+        svg.appendChild(calendar);
+      }
     }
 
     let raf = requestAnimationFrame(update);
@@ -421,14 +429,19 @@ export default function GanttPage() {
     function computeHandles() {
       const root = ganttRef.current;
       if (!root) return;
-      const bars = root.querySelectorAll(
-        '[class*="barWrapper"], [class*="taskItem"], [class*="bar_barWrapper"]'
-      );
+      // Les barres sont les <g> focusables du SVG (tabindex présent).
+      // Fallback class si jamais.
+      let bars: NodeListOf<Element> | Element[] = root.querySelectorAll("svg g[tabindex]");
+      if (bars.length === 0) {
+        bars = root.querySelectorAll(
+          'g[class*="barWrapper"], g[class*="taskItem"], g.barWrapper, g.taskItem'
+        );
+      }
       const out: { taskId: string; x: number; y: number }[] = [];
-      bars.forEach((bar, i) => {
+      Array.from(bars).forEach((bar, i) => {
         const id = ganttTasksRef.current[i]?.id;
         if (!id || !id.startsWith("task-")) return;
-        const r = bar.getBoundingClientRect();
+        const r = (bar as HTMLElement).getBoundingClientRect();
         if (r.width < 4 || r.height < 4) return;
         out.push({
           taskId: id,
