@@ -830,11 +830,13 @@ dl.kv dd textarea {
 
 
 /* En mode édition : les flèches de dépendance sont cliquables pour
-   être supprimées. On les met en rouge au survol pour l'indiquer. */
-.gantt-container.edit-mode g[class*="arrow"] {
+   être supprimées. On les met en rouge au survol pour l'indiquer.
+   `class~="arrow"` = mot entier (évite de matcher "arrows" qui est
+   le groupe parent contenant TOUTES les flèches). */
+.gantt-container.edit-mode g[class~="arrow"] {
   cursor: pointer;
 }
-.gantt-container.edit-mode g[class*="arrow"]:hover path {
+.gantt-container.edit-mode g[class~="arrow"]:hover path {
   fill: #d32f2f !important;
 }
 

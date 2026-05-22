@@ -490,18 +490,21 @@ export default function GanttPage() {
     function onClick(e: MouseEvent) {
       let el = e.target as Element | null;
       let arrowEl: SVGGElement | null = null;
+      // On cherche le PREMIER ancêtre <g> dont la classe contient
+      // exactement "arrow" comme mot (pas "arrows" qui est le parent).
       while (el && el !== root) {
-        if (
-          (el as HTMLElement).tagName?.toLowerCase() === "g" &&
-          (el as HTMLElement).getAttribute("class")?.includes("arrow")
-        ) {
-          arrowEl = el as unknown as SVGGElement;
-          break;
+        if ((el as HTMLElement).tagName?.toLowerCase() === "g") {
+          const cls = (el as HTMLElement).getAttribute("class") || "";
+          const words = cls.split(/\s+/);
+          if (words.includes("arrow")) {
+            arrowEl = el as unknown as SVGGElement;
+            break;
+          }
         }
         el = el.parentElement;
       }
       if (!arrowEl) return;
-      const arrows = root!.querySelectorAll('g[class*="arrow"]');
+      const arrows = root!.querySelectorAll('g[class~="arrow"]');
       const idx = Array.from(arrows).indexOf(arrowEl);
       if (idx < 0) return;
       const pair = arrowPairs[idx];
