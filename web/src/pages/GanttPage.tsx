@@ -165,9 +165,10 @@ export default function GanttPage() {
       if (!m.has(t.projet_id)) m.set(t.projet_id, []);
       m.get(t.projet_id)!.push(t);
     }
-    // tri par date_debut au sein de chaque projet
+    // Ordre stable par id (= ordre de création) pour ne pas permuter
+    // les lignes quand l'utilisateur drag une barre.
     for (const arr of m.values()) {
-      arr.sort((a, b) => a.date_debut.localeCompare(b.date_debut));
+      arr.sort((a, b) => a.id - b.id);
     }
     return m;
   }, [tasksList]);
@@ -195,9 +196,8 @@ export default function GanttPage() {
       const color = epic?.couleur ?? DEFAULT_EPIC_COLOR;
       const taskColor = adjustBrightness(color, 1.6);
 
-      const sortedProjects = [...epicProjects].sort((a, b) =>
-        a.date_debut.localeCompare(b.date_debut)
-      );
+      // Ordre stable par id pour ne pas permuter quand on drag une barre.
+      const sortedProjects = [...epicProjects].sort((a, b) => a.id - b.id);
       for (const p of sortedProjects) {
         out.push({
           id: `proj-${p.id}`,
