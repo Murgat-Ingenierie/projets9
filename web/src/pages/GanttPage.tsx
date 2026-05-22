@@ -266,8 +266,9 @@ export default function GanttPage() {
       if (!root) return;
       const calendar = findCalendar(root);
       if (!calendar) return;
-      // Mémorise le transform original du groupe (la lib peut l'utiliser
-      // pour offset horizontal — il faut le préserver)
+      const svg = calendar.ownerSVGElement;
+      if (!svg) return;
+
       if (calendar.dataset.origTransform === undefined) {
         calendar.dataset.origTransform = calendar.getAttribute("transform") || "";
       }
@@ -284,20 +285,26 @@ export default function GanttPage() {
         bg.setAttribute("stroke-width", "1");
         calendar.insertBefore(bg, calendar.firstChild);
       }
-      const r = root.getBoundingClientRect();
-      const offset = Math.max(0, -r.top);
+
+      // svg.getBoundingClientRect() prend en compte le scroll de tous les
+      // conteneurs ancêtres (window + internes). svgRect.top négatif → SVG
+      // au-dessus du viewport → on translate le calendrier vers le bas.
+      const svgRect = svg.getBoundingClientRect();
+      const offset = Math.max(0, -svgRect.top);
       const orig = calendar.dataset.origTransform || "";
       calendar.setAttribute("transform", `${orig} translate(0, ${offset})`.trim());
     }
 
     let raf = requestAnimationFrame(update);
-    const interval = setInterval(update, 250); // catche les re-renders de la lib
-    window.addEventListener("scroll", update, { passive: true });
+    const interval = setInterval(update, 250);
+    // capture: true pour catcher les events scroll sur des conteneurs
+    // internes (la lib gantt-task-react peut avoir son propre overflow).
+    document.addEventListener("scroll", update, { capture: true, passive: true });
     window.addEventListener("resize", update);
     return () => {
       cancelAnimationFrame(raf);
       clearInterval(interval);
-      window.removeEventListener("scroll", update);
+      document.removeEventListener("scroll", update, { capture: true } as EventListenerOptions);
       window.removeEventListener("resize", update);
     };
   }, []);
