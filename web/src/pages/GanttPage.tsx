@@ -239,25 +239,46 @@ export default function GanttPage() {
     };
   }, [linkSource]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Calendrier figé : on translate le <g class="*calendar*"> du SVG vers
-  // le bas quand la page est scrollée plus bas que le haut du Gantt,
-  // de façon à le maintenir au sommet du viewport. Le DOM est requêté
-  // à chaque appel pour gérer les re-renders de la lib (changement de
-  // vue ou expand/collapse).
+  // Calendrier figé en haut du viewport au scroll.
+  // En prod la classe "calendar" est hashée → fallback : on identifie
+  // le bon <g> par son contenu (texte qui ressemble à un mois ou à
+  // l'année courante).
   useEffect(() => {
+    const MONTH_RE = /20\d\d|janv|f[ée]v|mars|avr|mai|juin|juil|ao[ûu]t|sept|oct|nov|d[ée]c/i;
+
+    function findCalendar(root: HTMLElement): SVGGElement | null {
+      const byClass = root.querySelector(
+        'g[class*="calendar"], g[class*="Calendar"]'
+      ) as SVGGElement | null;
+      if (byClass) return byClass;
+      const svg = root.querySelector("svg");
+      if (!svg) return null;
+      const gs = svg.querySelectorAll(":scope > g");
+      for (const g of Array.from(gs)) {
+        const text = (g.textContent || "").trim();
+        if (text && MONTH_RE.test(text)) return g as SVGGElement;
+      }
+      return null;
+    }
+
     function update() {
       const root = ganttRef.current;
       if (!root) return;
-      const calendar = root.querySelector('g[class*="calendar"]') as SVGGElement | null;
+      const calendar = findCalendar(root);
       if (!calendar) return;
+      // Mémorise le transform original du groupe (la lib peut l'utiliser
+      // pour offset horizontal — il faut le préserver)
+      if (calendar.dataset.origTransform === undefined) {
+        calendar.dataset.origTransform = calendar.getAttribute("transform") || "";
+      }
       if (!calendar.querySelector('[data-stick-bg]')) {
         const ns = "http://www.w3.org/2000/svg";
         const bg = document.createElementNS(ns, "rect") as SVGRectElement;
         bg.setAttribute("data-stick-bg", "true");
         bg.setAttribute("x", "-2");
-        bg.setAttribute("y", "0");
+        bg.setAttribute("y", "-2");
         bg.setAttribute("width", "999999");
-        bg.setAttribute("height", "52");
+        bg.setAttribute("height", "54");
         bg.setAttribute("fill", "#fafafa");
         bg.setAttribute("stroke", "#e0e0e0");
         bg.setAttribute("stroke-width", "1");
@@ -265,14 +286,17 @@ export default function GanttPage() {
       }
       const r = root.getBoundingClientRect();
       const offset = Math.max(0, -r.top);
-      calendar.setAttribute("transform", `translate(0, ${offset})`);
+      const orig = calendar.dataset.origTransform || "";
+      calendar.setAttribute("transform", `${orig} translate(0, ${offset})`.trim());
     }
-    // raf pour laisser la lib rendre son SVG initial avant qu'on cherche
-    const raf = requestAnimationFrame(update);
+
+    let raf = requestAnimationFrame(update);
+    const interval = setInterval(update, 250); // catche les re-renders de la lib
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
     return () => {
       cancelAnimationFrame(raf);
+      clearInterval(interval);
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
