@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import { dependencies as depsApi, epics, projects, tasks } from "../api/endpoints";
@@ -111,6 +112,7 @@ function TaskListHeader({
 }
 
 export default function GanttPage() {
+  const nav = useNavigate();
   const [epicsList, setEpics] = useState<Epic[]>([]);
   const [projectsList, setProjects] = useState<Project[]>([]);
   const [tasksList, setTasks] = useState<Task[]>([]);
@@ -544,8 +546,8 @@ export default function GanttPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setPanelTarget({ type: "project", id: projId })}
-                title="Éditer le projet"
+                onClick={() => nav(`/projects/${projId}/edit`)}
+                title="Ouvrir la page complète du projet"
                 style={{
                   background: "transparent",
                   border: 0,
