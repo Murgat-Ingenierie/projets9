@@ -305,10 +305,11 @@ export default function GanttPage() {
         return;
       }
 
-      const ganttRect = root.getBoundingClientRect();
+      // L'overlay doit s'aligner sur le SVG du chart, PAS sur la
+      // gantt-container (qui inclut aussi le panneau de gauche).
       overlay.style.display = "block";
-      overlay.style.left = `${ganttRect.left}px`;
-      overlay.style.width = `${ganttRect.width}px`;
+      overlay.style.left = `${svgRect.left}px`;
+      overlay.style.width = `${svgRect.width}px`;
 
       // Reconstruit un SVG clone en interne
       overlay.innerHTML = "";
