@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { epics } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { EPIC_CATEGORY_LABELS, EPIC_STATUS_LABELS } from "../labels";
@@ -56,6 +57,7 @@ export default function EpicsPage() {
 
   return (
     <>
+      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Epics" }]} />
       <div className="page-header">
         <h2>Epics</h2>
         <button className="btn" onClick={() => nav("/epics/new")}>+ Ajouter</button>

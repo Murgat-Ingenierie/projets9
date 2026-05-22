@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { projects, tasks, users } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { TASK_STATUS_LABELS } from "../labels";
 import type { Project, Task, TaskStatus, User } from "../types";
@@ -42,6 +43,13 @@ export default function TaskNewPage() {
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Planning", to: "/" },
+          { label: "Tâches", to: "/tasks" },
+          { label: "Nouvelle tâche" },
+        ]}
+      />
       <h2>Nouvelle tâche</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

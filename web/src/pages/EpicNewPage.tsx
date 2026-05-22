@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { EPIC_CATEGORY_LABELS, EPIC_STATUS_LABELS } from "../labels";
 import type { Epic, EpicCategory, EpicStatus } from "../types";
@@ -33,6 +34,13 @@ export default function EpicNewPage() {
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Planning", to: "/" },
+          { label: "Epics", to: "/epics" },
+          { label: "Nouvel epic" },
+        ]}
+      />
       <h2>Nouvel epic</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

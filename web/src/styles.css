@@ -273,6 +273,38 @@ h3 {
   letter-spacing: 0.4px;
 }
 
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  font-size: 13px;
+  margin: 0 0 16px;
+  color: var(--md-text-secondary);
+}
+.breadcrumb a {
+  color: var(--md-text-secondary);
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background var(--md-trans), color var(--md-trans);
+}
+.breadcrumb a:hover {
+  background: var(--md-surface-2);
+  color: var(--md-primary);
+  text-decoration: none;
+}
+.breadcrumb .separator {
+  font-size: 18px;
+  color: var(--md-text-disabled);
+  user-select: none;
+}
+.breadcrumb .current {
+  color: var(--md-text);
+  font-weight: 500;
+  padding: 4px 8px;
+}
+
 /* =============================================================
    Page header
    ============================================================= */

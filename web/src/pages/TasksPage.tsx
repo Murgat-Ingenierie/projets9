@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { projects, tasks, users } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { TASK_STATUS_LABELS, fmtDate } from "../labels";
@@ -74,6 +75,7 @@ export default function TasksPage() {
 
   return (
     <>
+      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Tâches" }]} />
       <div className="page-header">
         <h2>Tâches</h2>
         <button className="btn" onClick={() => nav("/tasks/new")}>+ Ajouter</button>

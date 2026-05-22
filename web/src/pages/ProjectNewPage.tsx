@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics, projects, users } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { PROJECT_STATUS_LABELS } from "../labels";
 import type { Epic, Project, ProjectStatus, User } from "../types";
@@ -42,6 +43,13 @@ export default function ProjectNewPage() {
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Planning", to: "/" },
+          { label: "Projets", to: "/projects" },
+          { label: "Nouveau projet" },
+        ]}
+      />
       <h2>Nouveau projet</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

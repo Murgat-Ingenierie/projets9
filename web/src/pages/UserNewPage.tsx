@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { users as usersApi } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { USER_ROLE_LABELS } from "../labels";
 import type { UserRole } from "../types";
@@ -31,6 +32,13 @@ export default function UserNewPage() {
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Planning", to: "/" },
+          { label: "Utilisateurs", to: "/users" },
+          { label: "Nouvel utilisateur" },
+        ]}
+      />
       <h2>Nouvel utilisateur</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

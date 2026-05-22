@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics, milestones, projects } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Epic, Milestone, Project } from "../types";
 
@@ -47,6 +48,13 @@ export default function MilestoneNewPage() {
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Planning", to: "/" },
+          { label: "Jalons", to: "/milestones" },
+          { label: "Nouveau jalon" },
+        ]}
+      />
       <h2>Nouveau jalon</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

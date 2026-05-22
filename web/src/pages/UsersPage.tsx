@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { users as usersApi } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { USER_ROLE_LABELS } from "../labels";
@@ -68,6 +69,7 @@ export default function UsersPage() {
 
   return (
     <>
+      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Utilisateurs" }]} />
       <div className="page-header">
         <h2>Utilisateurs</h2>
         <button className="btn" onClick={() => nav("/users/new")}>+ Ajouter</button>

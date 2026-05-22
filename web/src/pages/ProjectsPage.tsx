@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics, projects, users } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { PROJECT_STATUS_LABELS, fmtDate } from "../labels";
@@ -74,6 +75,7 @@ export default function ProjectsPage() {
 
   return (
     <>
+      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Projets" }]} />
       <div className="page-header">
         <h2>Projets</h2>
         <button className="btn" onClick={() => nav("/projects/new")}>+ Ajouter</button>

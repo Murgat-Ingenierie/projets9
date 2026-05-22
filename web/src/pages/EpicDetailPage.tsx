@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { epics, measures, milestones, projects, users } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import {
   EPIC_CATEGORY_LABELS,
@@ -281,6 +282,13 @@ export default function EpicDetailPage() {
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Planning", to: "/" },
+          { label: "Epics", to: "/epics" },
+          { label: epic.nom },
+        ]}
+      />
       <div className="page-header">
         <h2>{epic.nom}</h2>
         {!editingEpic ? (

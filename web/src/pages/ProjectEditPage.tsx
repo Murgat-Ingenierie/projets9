@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { epics, projects, users } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { PROJECT_STATUS_LABELS } from "../labels";
 import type { Epic, Project, ProjectStatus, User } from "../types";
@@ -59,6 +60,13 @@ export default function ProjectEditPage() {
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Planning", to: "/" },
+          { label: "Projets", to: "/projects" },
+          { label: draft.nom ?? "Projet" },
+        ]}
+      />
       <h2>Modifier le projet : {draft.nom}</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={save}>

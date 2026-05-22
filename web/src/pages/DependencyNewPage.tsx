@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dependencies, tasks } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Dependency, DependencyType, Task } from "../types";
 
@@ -34,6 +35,13 @@ export default function DependencyNewPage() {
 
   return (
     <>
+      <Breadcrumb
+        items={[
+          { label: "Planning", to: "/" },
+          { label: "Dépendances", to: "/dependencies" },
+          { label: "Nouvelle dépendance" },
+        ]}
+      />
       <h2>Nouvelle dépendance</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

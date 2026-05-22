@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dependencies, tasks } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import type { Dependency, DependencyType, Task } from "../types";
@@ -47,6 +48,7 @@ export default function DependenciesPage() {
 
   return (
     <>
+      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Dépendances" }]} />
       <div className="page-header">
         <h2>Dépendances</h2>
         <button className="btn" onClick={() => nav("/dependencies/new")}>+ Ajouter</button>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics, milestones, projects } from "../api/endpoints";
+import { Breadcrumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { fmtDate } from "../labels";
@@ -81,6 +82,7 @@ export default function MilestonesPage() {
 
   return (
     <>
+      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Jalons" }]} />
       <div className="page-header">
         <h2>Jalons</h2>
         <button className="btn" onClick={() => nav("/milestones/new")}>+ Ajouter</button>
