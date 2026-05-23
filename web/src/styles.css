@@ -834,8 +834,8 @@ dl.kv dd textarea {
    place le stroke en-dessous du fill pour ne pas le décolorer. La
    zone cliquable correspond à fill + stroke. */
 .gantt-container g[class~="arrow"] path {
-  stroke: rgba(25, 118, 210, 0.35);
-  stroke-width: 8;
+  stroke: rgba(25, 118, 210, 0.3);
+  stroke-width: 4;
   paint-order: stroke fill;
 }
 
