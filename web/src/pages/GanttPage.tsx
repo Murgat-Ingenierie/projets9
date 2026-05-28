@@ -625,14 +625,13 @@ export default function GanttPage() {
       if (!svg) return;
       const ns = "http://www.w3.org/2000/svg";
 
-      const MIN_W = 28; // sous cette largeur on n'applique aucune décoration
+      const MIN_W = 28; // seuil purement esthétique pour le stroke vert
       const bars = root.querySelectorAll("svg g[tabindex]");
       bars.forEach((bar, i) => {
         const isDone = doneByIndexRef.current[i];
         const mainRect = bar.querySelector("rect");
         if (!mainRect) return;
         let check = bar.querySelector('[data-done-check]') as SVGGElement | null;
-        // Migration : ancienne version (<text>) à jeter
         if (check && check.tagName.toLowerCase() !== "g") {
           check.remove();
           check = null;
@@ -642,46 +641,87 @@ export default function GanttPage() {
         const x = parseFloat(mainRect.getAttribute("x") || "0");
         const y = parseFloat(mainRect.getAttribute("y") || "0");
         const h = parseFloat(mainRect.getAttribute("height") || "0");
-        const applyStyling = isDone && w >= MIN_W;
 
-        // Bar : fade + stroke vert uniquement si assez large
-        if (applyStyling) {
+        // Fade sur toutes les barres terminées ; stroke vert si assez large
+        if (isDone) {
           mainRect.setAttribute("fill-opacity", "0.4");
-          mainRect.setAttribute("stroke", GREEN);
-          mainRect.setAttribute("stroke-width", "2");
+          if (w >= MIN_W) {
+            mainRect.setAttribute("stroke", GREEN);
+            mainRect.setAttribute("stroke-width", "2");
+          } else {
+            mainRect.removeAttribute("stroke");
+            mainRect.removeAttribute("stroke-width");
+          }
         } else {
           mainRect.setAttribute("fill-opacity", "1");
           mainRect.removeAttribute("stroke");
           mainRect.removeAttribute("stroke-width");
         }
 
-        // Pastille check_circle : toujours présente si la tâche est finie,
-        // même sur les barres très étroites — elle est posée à gauche
-        // du début de la barre et peut déborder légèrement.
+        // Label rendu par la lib : <text> frère du <g[tabindex]>, pas enfant
+        const parent = bar.parentElement;
+        const libLabels = parent
+          ? (Array.from(parent.children).filter(
+              (c) => c.tagName.toLowerCase() === "text"
+            ) as SVGTextElement[])
+          : [];
+        libLabels.forEach((lbl) => lbl.setAttribute("dominant-baseline", "central"));
+
+        // Mesure si le label de la lib est rendu À DROITE de la barre (hors barre)
+        // ou À L'INTÉRIEUR. Critère = position naturelle du label vs fin de la barre.
+        const lbl0 = libLabels[0];
+        let labelOutsideRight = false;
+        if (lbl0) {
+          const lb = lbl0.getBoundingClientRect();
+          const rb = mainRect.getBoundingClientRect();
+          // Soustrais le translate qu'on a peut-être posé au tick précédent
+          let trDx = 0;
+          const tr = lbl0.getAttribute("transform");
+          if (tr) {
+            const m = /translate\(\s*(-?[\d.]+)/.exec(tr);
+            if (m) trDx = parseFloat(m[1]);
+          }
+          labelOutsideRight = lb.left - trDx >= rb.right - 1;
+        }
+        const placeInside = !labelOutsideRight;
+
         if (isDone) {
-          if (!check || check.tagName.toLowerCase() !== "text") {
-            if (check) check.remove();
-            check = document.createElementNS(ns, "text") as SVGGElement;
+          if (!check) {
+            check = document.createElementNS(ns, "g") as SVGGElement;
             check.setAttribute("data-done-check", "true");
-            check.setAttribute("font-family", "Material Symbols Outlined");
-            check.setAttribute("font-weight", "400");
-            check.setAttribute("fill", GREEN);
-            check.setAttribute("text-anchor", "middle");
-            check.setAttribute("dominant-baseline", "central");
             check.setAttribute("pointer-events", "none");
-            check.textContent = "check_circle";
+
+            const txt = document.createElementNS(ns, "text");
+            txt.setAttribute("font-family", "Material Symbols Outlined");
+            txt.setAttribute("font-weight", "500");
+            txt.setAttribute("fill", GREEN);
+            txt.setAttribute("text-anchor", "middle");
+            txt.setAttribute("dominant-baseline", "central");
+            txt.setAttribute("font-size", "20");
+            txt.textContent = "check_circle";
+            check.appendChild(txt);
             bar.appendChild(check);
           }
-          const size = Math.max(14, Math.min(h * 0.85, 22));
-          // Sur une barre large, on pose la pastille à l'intérieur, à
-          // gauche. Sur une barre étroite, on la pose à DROITE (du même
-          // côté que le label que la lib rend hors-barre).
-          const cx = w >= size + 8 ? x + size / 2 + 4 : x + w + size / 2 + 2;
-          check.setAttribute("x", String(cx));
-          check.setAttribute("y", String(y + h / 2));
-          check.setAttribute("font-size", String(size));
-        } else if (check) {
-          check.remove();
+
+          const size = placeInside
+            ? Math.max(12, Math.min(h * 0.85, 22))
+            : Math.max(12, Math.min(h * 0.85, 16));
+          const scale = size / 20;
+          const cy = y + h / 2;
+          const cx = placeInside ? x + size / 2 + 4 : x + w + size / 2 + 3;
+          check.setAttribute("transform", `translate(${cx}, ${cy}) scale(${scale})`);
+
+          // Décalage du label seulement quand il est rendu DEHORS, pour ménager la coche
+          libLabels.forEach((lbl) => {
+            if (!placeInside) {
+              lbl.setAttribute("transform", `translate(${size + 6}, 0)`);
+            } else {
+              lbl.removeAttribute("transform");
+            }
+          });
+        } else {
+          if (check) check.remove();
+          libLabels.forEach((lbl) => lbl.removeAttribute("transform"));
         }
       });
     }
