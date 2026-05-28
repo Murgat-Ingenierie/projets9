@@ -650,35 +650,26 @@ export default function GanttPage() {
           const y = parseFloat(mainRect.getAttribute("y") || "0");
           const h = parseFloat(mainRect.getAttribute("height") || "0");
 
-          if (!check) {
-            // Pastille outlined (cercle vert + check vert sur fond blanc),
-            // calquée sur le check_circle de la colonne de gauche.
-            check = document.createElementNS(ns, "g") as SVGGElement;
+          // On reprend strictement la ressource du panneau de gauche :
+          // glyph "check_circle" de la police Material Symbols Outlined,
+          // posée dans un <text> SVG.
+          if (!check || check.tagName.toLowerCase() !== "text") {
+            if (check) check.remove();
+            check = document.createElementNS(ns, "text") as SVGGElement;
             check.setAttribute("data-done-check", "true");
+            check.setAttribute("font-family", "Material Symbols Outlined");
+            check.setAttribute("font-weight", "400");
+            check.setAttribute("fill", GREEN);
+            check.setAttribute("text-anchor", "middle");
+            check.setAttribute("dominant-baseline", "central");
             check.setAttribute("pointer-events", "none");
-            const circle = document.createElementNS(ns, "circle");
-            circle.setAttribute("cx", "0");
-            circle.setAttribute("cy", "0");
-            circle.setAttribute("r", "9");
-            circle.setAttribute("fill", "white");
-            circle.setAttribute("stroke", GREEN);
-            circle.setAttribute("stroke-width", "1.7");
-            check.appendChild(circle);
-            const path = document.createElementNS(ns, "path");
-            path.setAttribute("d", "M -4 0 L -1 3.5 L 4.5 -3.5");
-            path.setAttribute("stroke", GREEN);
-            path.setAttribute("stroke-width", "2");
-            path.setAttribute("stroke-linecap", "round");
-            path.setAttribute("stroke-linejoin", "round");
-            path.setAttribute("fill", "none");
-            check.appendChild(path);
+            check.textContent = "check_circle";
             bar.appendChild(check);
           }
-          const r = Math.max(7, Math.min(h * 0.4, 11));
-          const cx = x + r + 4;
-          const cy = y + h / 2;
-          const scale = r / 9;
-          check.setAttribute("transform", `translate(${cx}, ${cy}) scale(${scale})`);
+          const size = Math.max(14, Math.min(h * 0.85, 22));
+          check.setAttribute("x", String(x + size / 2 + 4));
+          check.setAttribute("y", String(y + h / 2));
+          check.setAttribute("font-size", String(size));
         } else {
           // Barre trop étroite OU pas finie : on remet tout au neutre
           mainRect.setAttribute("fill-opacity", "1");
