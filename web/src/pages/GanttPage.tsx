@@ -594,6 +594,96 @@ export default function GanttPage() {
     return m;
   }, [tasksList]);
 
+  // Tableau parallèle à ganttTasks indiquant si chaque ligne est "finie".
+  // Tâche : statut = archive OU avancement = 100. Projet : statut = realise.
+  const doneByIndex = useMemo(() => {
+    return ganttTasks.map((t) => {
+      if (t.id.startsWith("task-")) {
+        const info = taskInfoById.get(Number(t.id.slice(5)));
+        return info?.statut === "archive" || info?.avancement === 100;
+      }
+      if (t.id.startsWith("proj-")) {
+        const info = projectInfoById.get(Number(t.id.slice(5)));
+        return info?.statut === "realise";
+      }
+      return false;
+    });
+  }, [ganttTasks, taskInfoById, projectInfoById]);
+  const doneByIndexRef = useRef<boolean[]>([]);
+  doneByIndexRef.current = doneByIndex;
+
+  // Overlay de hachures diagonales sur les barres des items finis.
+  // Pattern SVG défini une fois dans <defs>, puis un <rect> avec
+  // fill="url(#done-stripes)" est ajouté par-dessus chaque barre.
+  useEffect(() => {
+    function update() {
+      const root = ganttRef.current;
+      if (!root) return;
+      const svg = root.querySelector("svg");
+      if (!svg) return;
+      const ns = "http://www.w3.org/2000/svg";
+
+      let defs = svg.querySelector("defs");
+      if (!defs) {
+        defs = document.createElementNS(ns, "defs");
+        svg.insertBefore(defs, svg.firstChild);
+      }
+      if (!defs.querySelector("#done-stripes")) {
+        const pattern = document.createElementNS(ns, "pattern");
+        pattern.setAttribute("id", "done-stripes");
+        pattern.setAttribute("patternUnits", "userSpaceOnUse");
+        pattern.setAttribute("width", "8");
+        pattern.setAttribute("height", "8");
+        pattern.setAttribute("patternTransform", "rotate(45)");
+        const line = document.createElementNS(ns, "line");
+        line.setAttribute("x1", "0");
+        line.setAttribute("y1", "0");
+        line.setAttribute("x2", "0");
+        line.setAttribute("y2", "8");
+        line.setAttribute("stroke", "white");
+        line.setAttribute("stroke-width", "3");
+        line.setAttribute("stroke-opacity", "0.75");
+        pattern.appendChild(line);
+        defs.appendChild(pattern);
+      }
+
+      const bars = root.querySelectorAll("svg g[tabindex]");
+      bars.forEach((bar, i) => {
+        const isDone = doneByIndexRef.current[i];
+        const existing = bar.querySelector('[data-done-overlay]');
+        const mainRect = bar.querySelector("rect");
+        if (!mainRect) return;
+        if (isDone) {
+          if (!existing) {
+            const ov = document.createElementNS(ns, "rect");
+            ov.setAttribute("data-done-overlay", "true");
+            ov.setAttribute("fill", "url(#done-stripes)");
+            ov.setAttribute("pointer-events", "none");
+            bar.appendChild(ov);
+            ["x", "y", "width", "height", "rx", "ry"].forEach((attr) => {
+              const v = mainRect.getAttribute(attr);
+              if (v) ov.setAttribute(attr, v);
+            });
+          } else {
+            ["x", "y", "width", "height", "rx", "ry"].forEach((attr) => {
+              const v = mainRect.getAttribute(attr);
+              if (v) existing.setAttribute(attr, v);
+            });
+          }
+        } else if (existing) {
+          existing.remove();
+        }
+      });
+    }
+
+    const interval = setInterval(update, 300);
+    const raf = requestAnimationFrame(update);
+    return () => {
+      clearInterval(interval);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   function textColorFor(hex: string): string {
     const m = /^#([0-9a-f]{6})$/i.exec(hex);
     if (!m) return "#ffffff";
