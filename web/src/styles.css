@@ -856,12 +856,12 @@ dl.kv dd textarea {
    panneau de gauche, l'afficher en plus sur la barre fait doublon.
    La lib gantt-task-react utilise des classes CSS-modules hashées —
    on cible large pour s'assurer de matcher peu importe le hash. */
-.gantt-container svg text[class*="barLabel"],
-.gantt-container svg text[class*="projectLabel"],
-.gantt-container svg text[class*="taskLabel"],
-.gantt-container svg g[class*="barWrapper"] > text,
-.gantt-container svg g[class*="projectWrapper"] > text,
-.gantt-container svg g[tabindex] > text {
+.gantt-container svg text[class*="barLabel"]:not([data-done-check]),
+.gantt-container svg text[class*="projectLabel"]:not([data-done-check]),
+.gantt-container svg text[class*="taskLabel"]:not([data-done-check]),
+.gantt-container svg g[class*="barWrapper"] > text:not([data-done-check]),
+.gantt-container svg g[class*="projectWrapper"] > text:not([data-done-check]),
+.gantt-container svg g[tabindex] > text:not([data-done-check]) {
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
