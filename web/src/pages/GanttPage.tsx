@@ -673,9 +673,10 @@ export default function GanttPage() {
             bar.appendChild(check);
           }
           const size = Math.max(14, Math.min(h * 0.85, 22));
-          // Pour les barres étroites, on pose la pastille juste avant
-          // le début de la barre (elle déborde un peu à gauche).
-          const cx = w >= size + 8 ? x + size / 2 + 4 : x - size / 2 - 2;
+          // Sur une barre large, on pose la pastille à l'intérieur, à
+          // gauche. Sur une barre étroite, on la pose à DROITE (du même
+          // côté que le label que la lib rend hors-barre).
+          const cx = w >= size + 8 ? x + size / 2 + 4 : x + w + size / 2 + 2;
           check.setAttribute("x", String(cx));
           check.setAttribute("y", String(y + h / 2));
           check.setAttribute("font-size", String(size));
