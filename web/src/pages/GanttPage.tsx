@@ -630,7 +630,12 @@ export default function GanttPage() {
         const isDone = doneByIndexRef.current[i];
         const mainRect = bar.querySelector("rect");
         if (!mainRect) return;
-        let check = bar.querySelector('[data-done-check]') as SVGTextElement | null;
+        let check = bar.querySelector('[data-done-check]') as SVGGElement | null;
+        // Migration : si on a une ancienne version (<text>), on la jette
+        if (check && check.tagName.toLowerCase() !== "g") {
+          check.remove();
+          check = null;
+        }
 
         if (isDone) {
           mainRect.setAttribute("fill-opacity", "0.4");
@@ -643,29 +648,39 @@ export default function GanttPage() {
           const h = parseFloat(mainRect.getAttribute("height") || "0");
 
           if (!check) {
-            check = document.createElementNS(ns, "text") as SVGTextElement;
+            // Pastille Material : cercle vert plein + ✓ blanc
+            check = document.createElementNS(ns, "g") as SVGGElement;
             check.setAttribute("data-done-check", "true");
-            check.setAttribute("fill", GREEN);
-            check.setAttribute("font-weight", "900");
-            check.setAttribute("text-anchor", "middle");
-            check.setAttribute("dominant-baseline", "central");
             check.setAttribute("pointer-events", "none");
-            check.setAttribute("paint-order", "stroke");
-            check.setAttribute("stroke", "white");
-            check.setAttribute("stroke-width", "3");
-            check.setAttribute("stroke-linejoin", "round");
-            check.textContent = "✓";
+            const circle = document.createElementNS(ns, "circle");
+            circle.setAttribute("cx", "0");
+            circle.setAttribute("cy", "0");
+            circle.setAttribute("r", "9");
+            circle.setAttribute("fill", GREEN);
+            circle.setAttribute("stroke", "white");
+            circle.setAttribute("stroke-width", "1.5");
+            check.appendChild(circle);
+            const path = document.createElementNS(ns, "path");
+            path.setAttribute("d", "M -4.5 0 L -1 3.5 L 4.5 -3");
+            path.setAttribute("stroke", "white");
+            path.setAttribute("stroke-width", "2");
+            path.setAttribute("stroke-linecap", "round");
+            path.setAttribute("stroke-linejoin", "round");
+            path.setAttribute("fill", "none");
+            check.appendChild(path);
             bar.appendChild(check);
           }
-          // Barre étroite : on cache le ✓ pour ne pas déborder.
-          if (w < 22) {
-            check.setAttribute("opacity", "0");
-          } else {
-            check.setAttribute("opacity", "1");
-          }
-          check.setAttribute("x", String(x + h * 0.55));
-          check.setAttribute("y", String(y + h / 2));
-          check.setAttribute("font-size", String(Math.min(h * 0.9, 22)));
+
+          // Radius proportionnel à la hauteur, capé à 11
+          const r = Math.max(6, Math.min(h * 0.4, 11));
+          const cx = x + r + 4;
+          const cy = y + h / 2;
+          const scale = r / 9; // 9 = rayon de base du path/circle
+          check.setAttribute("transform", `translate(${cx}, ${cy}) scale(${scale})`);
+
+          // Caché si la barre est trop étroite — le ✓ du panneau de
+          // gauche suffit à signaler que la tâche est finie.
+          check.setAttribute("opacity", w < 2 * r + 8 ? "0" : "1");
         } else {
           mainRect.setAttribute("fill-opacity", "1");
           mainRect.removeAttribute("stroke");
