@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dependencies, tasks } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useParentCrumbs } from "../hooks/useBreadcrumbState";
 import type { Dependency, DependencyType, Task } from "../types";
 
 const TYPES: DependencyType[] = ["FS", "SS", "FF"];
@@ -12,8 +13,14 @@ const TYPE_LABELS: Record<DependencyType, string> = {
   FF: "Fin → Fin (FF)",
 };
 
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Dépendances", to: "/dependencies" },
+];
+
 export default function DependencyNewPage() {
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [draft, setDraft] = useState<Partial<Dependency>>({ type: "FS" });
@@ -35,13 +42,7 @@ export default function DependencyNewPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Dépendances", to: "/dependencies" },
-          { label: "Nouvelle dépendance" },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: "Nouvelle dépendance" }]} />
       <h2>Nouvelle dépendance</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

@@ -5,6 +5,7 @@ import "gantt-task-react/dist/index.css";
 import { dependencies as depsApi, epics, projects, tasks } from "../api/endpoints";
 import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { navState } from "../hooks/useBreadcrumbState";
 import type { Dependency, Epic, Project, Task } from "../types";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
@@ -930,7 +931,12 @@ export default function GanttPage() {
               </button>
               <button
                 type="button"
-                onClick={() => nav(`/projects/${projId}/edit`)}
+                onClick={() =>
+                  nav(
+                    `/projects/${projId}/edit`,
+                    navState([], { label: "Planning", to: "/" })
+                  )
+                }
                 title="Ouvrir la page complète du projet"
                 style={{
                   background: "transparent",

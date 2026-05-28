@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dependencies, tasks } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
+import { navState } from "../hooks/useBreadcrumbState";
 import type { Dependency, DependencyType, Task } from "../types";
+
+const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
+const SELF: Crumb = { label: "Dépendances", to: "/dependencies" };
 
 const TYPE_LABELS: Record<DependencyType, string> = {
   FS: "Fin → Début (FS)",
@@ -48,10 +52,10 @@ export default function DependenciesPage() {
 
   return (
     <>
-      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Dépendances" }]} />
+      <Breadcrumb items={[...PARENT, { label: SELF.label }]} />
       <div className="page-header">
         <h2>Dépendances</h2>
-        <button className="btn" onClick={() => nav("/dependencies/new")}>+ Ajouter</button>
+        <button className="btn" onClick={() => nav("/dependencies/new", navState(PARENT, SELF))}>+ Ajouter</button>
       </div>
       <ErrorBanner error={err} />
       <p className="muted">

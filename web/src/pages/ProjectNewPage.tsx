@@ -1,15 +1,22 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics, projects, users } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useParentCrumbs } from "../hooks/useBreadcrumbState";
 import { PROJECT_STATUS_LABELS } from "../labels";
 import type { Epic, Project, ProjectStatus, User } from "../types";
 
 const STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
 
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Projets", to: "/projects" },
+];
+
 export default function ProjectNewPage() {
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
   const [allEpics, setAllEpics] = useState<Epic[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -43,13 +50,7 @@ export default function ProjectNewPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Projets", to: "/projects" },
-          { label: "Nouveau projet" },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: "Nouveau projet" }]} />
       <h2>Nouveau projet</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

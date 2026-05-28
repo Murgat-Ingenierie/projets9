@@ -1,16 +1,23 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useParentCrumbs } from "../hooks/useBreadcrumbState";
 import { EPIC_CATEGORY_LABELS, EPIC_STATUS_LABELS } from "../labels";
 import type { Epic, EpicCategory, EpicStatus } from "../types";
 
 const STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
 const CATEGORIES: EpicCategory[] = ["operationnel", "strategique", "long_terme"];
 
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Epics", to: "/epics" },
+];
+
 export default function EpicNewPage() {
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
   const [draft, setDraft] = useState<Partial<Epic>>({
     trigramme: "",
@@ -34,13 +41,7 @@ export default function EpicNewPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Epics", to: "/epics" },
-          { label: "Nouvel epic" },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: "Nouvel epic" }]} />
       <h2>Nouvel epic</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

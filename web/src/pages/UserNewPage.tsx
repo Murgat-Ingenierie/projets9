@@ -1,15 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { users as usersApi } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useParentCrumbs } from "../hooks/useBreadcrumbState";
 import { USER_ROLE_LABELS } from "../labels";
 import type { UserRole } from "../types";
 
 const ROLES: UserRole[] = ["admin", "membre"];
 
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Utilisateurs", to: "/users" },
+];
+
 export default function UserNewPage() {
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
   const [draft, setDraft] = useState({
     nom: "",
@@ -32,13 +39,7 @@ export default function UserNewPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Utilisateurs", to: "/users" },
-          { label: "Nouvel utilisateur" },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: "Nouvel utilisateur" }]} />
       <h2>Nouvel utilisateur</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

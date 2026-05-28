@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics, milestones, projects } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
+import { navState } from "../hooks/useBreadcrumbState";
 import { fmtDate } from "../labels";
 import type { Epic, Milestone, Project } from "../types";
+
+const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
+const SELF: Crumb = { label: "Jalons", to: "/milestones" };
 
 export default function MilestonesPage() {
   const nav = useNavigate();
@@ -82,10 +86,10 @@ export default function MilestonesPage() {
 
   return (
     <>
-      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Jalons" }]} />
+      <Breadcrumb items={[...PARENT, { label: SELF.label }]} />
       <div className="page-header">
         <h2>Jalons</h2>
-        <button className="btn" onClick={() => nav("/milestones/new")}>+ Ajouter</button>
+        <button className="btn" onClick={() => nav("/milestones/new", navState(PARENT, SELF))}>+ Ajouter</button>
       </div>
       <ErrorBanner error={err} />
       <p className="muted">{filteredCount} sur {totalCount}</p>

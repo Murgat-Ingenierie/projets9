@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { users as usersApi } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
+import { navState } from "../hooks/useBreadcrumbState";
 import { USER_ROLE_LABELS } from "../labels";
 import type { User, UserRole } from "../types";
 
 const ROLES: UserRole[] = ["admin", "membre"];
+
+const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
+const SELF: Crumb = { label: "Utilisateurs", to: "/users" };
 
 export default function UsersPage() {
   const nav = useNavigate();
@@ -69,10 +73,10 @@ export default function UsersPage() {
 
   return (
     <>
-      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Utilisateurs" }]} />
+      <Breadcrumb items={[...PARENT, { label: SELF.label }]} />
       <div className="page-header">
         <h2>Utilisateurs</h2>
-        <button className="btn" onClick={() => nav("/users/new")}>+ Ajouter</button>
+        <button className="btn" onClick={() => nav("/users/new", navState(PARENT, SELF))}>+ Ajouter</button>
       </div>
       <ErrorBanner error={err} />
       <p className="muted">{filteredCount} sur {totalCount}</p>

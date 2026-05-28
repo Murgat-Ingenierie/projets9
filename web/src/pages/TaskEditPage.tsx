@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { projects, tasks, users } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useParentCrumbs } from "../hooks/useBreadcrumbState";
 import { TASK_STATUS_LABELS } from "../labels";
 import type { Project, Task, TaskStatus, User } from "../types";
 
 const STATUTS: TaskStatus[] = ["ouvert", "archive"];
 
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Tâches", to: "/tasks" },
+];
+
 export default function TaskEditPage() {
   const { id = "" } = useParams();
   const taskId = Number(id);
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState<Partial<Task>>({});
@@ -60,13 +67,7 @@ export default function TaskEditPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Tâches", to: "/tasks" },
-          { label: draft.nom ?? "Tâche" },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: draft.nom ?? "Tâche" }]} />
       <h2>Modifier la tâche : {draft.nom}</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={save}>

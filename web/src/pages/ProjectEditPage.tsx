@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { epics, projects, tasks, users } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { navState, useParentCrumbs } from "../hooks/useBreadcrumbState";
 import { PROJECT_STATUS_LABELS, TASK_STATUS_LABELS, fmtDate } from "../labels";
 import type {
   Epic,
@@ -16,10 +17,16 @@ import type {
 const STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
 const TASK_STATUTS: TaskStatus[] = ["ouvert", "archive"];
 
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Projets", to: "/projects" },
+];
+
 export default function ProjectEditPage() {
   const { id = "" } = useParams();
   const projectId = Number(id);
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState<Partial<Project>>({});
@@ -135,13 +142,7 @@ export default function ProjectEditPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Projets", to: "/projects" },
-          { label: draft.nom ?? "Projet" },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: draft.nom ?? "Projet" }]} />
       <h2 style={{ marginBottom: 16 }}>Modifier le projet : {draft.nom}</h2>
       <ErrorBanner error={err} />
 
@@ -227,7 +228,20 @@ export default function ProjectEditPage() {
                   Tout éditer
                 </button>
               )}
-              <button className="btn" onClick={() => nav("/tasks/new")}>+ Ajouter une tâche</button>
+              <button
+                className="btn"
+                onClick={() =>
+                  nav(
+                    `/tasks/new?projet_id=${projectId}`,
+                    navState(parentCrumbs, {
+                      label: draft.nom ?? "Projet",
+                      to: `/projects/${projectId}/edit`,
+                    })
+                  )
+                }
+              >
+                + Ajouter une tâche
+              </button>
             </>
           ) : (
             <>

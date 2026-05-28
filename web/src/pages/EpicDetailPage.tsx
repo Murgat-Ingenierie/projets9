@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { epics, measures, milestones, projects, users } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { navState, useParentCrumbs } from "../hooks/useBreadcrumbState";
 import {
   EPIC_CATEGORY_LABELS,
   EPIC_STATUS_LABELS,
@@ -24,10 +25,16 @@ const EPIC_STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
 const EPIC_CATEGORIES: EpicCategory[] = ["operationnel", "strategique", "long_terme"];
 const PROJECT_STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
 
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Epics", to: "/epics" },
+];
+
 export default function EpicDetailPage() {
   const { trigramme = "" } = useParams();
   const location = useLocation();
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const startInEditMode = location.pathname.endsWith("/edit");
 
   const [epic, setEpic] = useState<Epic | null>(null);
@@ -282,13 +289,7 @@ export default function EpicDetailPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Epics", to: "/epics" },
-          { label: epic.nom },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: epic.nom }]} />
       <div className="page-header">
         <h2>{epic.nom}</h2>
         {!editingEpic ? (
@@ -316,7 +317,12 @@ export default function EpicDetailPage() {
         <h3 style={{ margin: 0 }}>Projets ({projs.length})</h3>
         <button
           className="btn"
-          onClick={() => nav(`/projects/new?epic=${trigramme}`)}
+          onClick={() =>
+            nav(
+              `/projects/new?epic=${trigramme}`,
+              navState(parentCrumbs, { label: epic.nom, to: `/epics/${trigramme}` })
+            )
+          }
         >
           + Ajouter un projet
         </button>
@@ -420,7 +426,17 @@ export default function EpicDetailPage() {
 
       <div className="page-header" style={{ marginTop: 32 }}>
         <h3 style={{ margin: 0 }}>Jalons ({jalons.length})</h3>
-        <button className="btn" onClick={() => nav("/milestones/new")}>+ Ajouter un jalon</button>
+        <button
+          className="btn"
+          onClick={() =>
+            nav(
+              "/milestones/new",
+              navState(parentCrumbs, { label: epic.nom, to: `/epics/${trigramme}` })
+            )
+          }
+        >
+          + Ajouter un jalon
+        </button>
       </div>
       <table>
         <thead>

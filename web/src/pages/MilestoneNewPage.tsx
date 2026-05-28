@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics, milestones, projects } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useParentCrumbs } from "../hooks/useBreadcrumbState";
 import type { Epic, Milestone, Project } from "../types";
+
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Jalons", to: "/milestones" },
+];
 
 export default function MilestoneNewPage() {
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
   const [allEpics, setAllEpics] = useState<Epic[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -48,13 +55,7 @@ export default function MilestoneNewPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Jalons", to: "/milestones" },
-          { label: "Nouveau jalon" },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: "Nouveau jalon" }]} />
       <h2>Nouveau jalon</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>

@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { epics, projects, users } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
+import { navState } from "../hooks/useBreadcrumbState";
 import { PROJECT_STATUS_LABELS, fmtDate } from "../labels";
 import type { Epic, Project, User } from "../types";
+
+const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
+const SELF: Crumb = { label: "Projets", to: "/projects" };
 
 export default function ProjectsPage() {
   const nav = useNavigate();
@@ -40,10 +44,10 @@ export default function ProjectsPage() {
 
   return (
     <>
-      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Projets" }]} />
+      <Breadcrumb items={[...PARENT, { label: SELF.label }]} />
       <div className="page-header">
         <h2>Projets</h2>
-        <button className="btn" onClick={() => nav("/projects/new")}>+ Ajouter</button>
+        <button className="btn" onClick={() => nav("/projects/new", navState(PARENT, SELF))}>+ Ajouter</button>
       </div>
       <ErrorBanner error={err} />
       <p className="muted">{filteredCount} sur {totalCount}</p>
@@ -70,7 +74,10 @@ export default function ProjectsPage() {
               <td>{p.responsable_id ? userNameById.get(p.responsable_id) ?? "—" : "—"}</td>
               <td><span className={`tag ${p.statut}`}>{PROJECT_STATUS_LABELS[p.statut]}</span></td>
               <td>
-                <button className="btn secondary" onClick={() => nav(`/projects/${p.id}/edit`)}>
+                <button
+                  className="btn secondary"
+                  onClick={() => nav(`/projects/${p.id}/edit`, navState(PARENT, SELF))}
+                >
                   Ouvrir
                 </button>
               </td>

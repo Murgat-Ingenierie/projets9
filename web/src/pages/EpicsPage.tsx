@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { epics } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
+import { navState } from "../hooks/useBreadcrumbState";
 import { EPIC_CATEGORY_LABELS, EPIC_STATUS_LABELS } from "../labels";
 import type { Epic, EpicCategory, EpicStatus } from "../types";
 
 const STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
 const CATEGORIES: EpicCategory[] = ["operationnel", "strategique", "long_terme"];
+
+const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
+const SELF: Crumb = { label: "Epics", to: "/epics" };
 
 export default function EpicsPage() {
   const nav = useNavigate();
@@ -57,10 +61,10 @@ export default function EpicsPage() {
 
   return (
     <>
-      <Breadcrumb items={[{ label: "Planning", to: "/" }, { label: "Epics" }]} />
+      <Breadcrumb items={[...PARENT, { label: SELF.label }]} />
       <div className="page-header">
         <h2>Epics</h2>
-        <button className="btn" onClick={() => nav("/epics/new")}>+ Ajouter</button>
+        <button className="btn" onClick={() => nav("/epics/new", navState(PARENT, SELF))}>+ Ajouter</button>
       </div>
       <ErrorBanner error={err} />
       <p className="muted">{filteredCount} sur {totalCount}</p>
@@ -129,7 +133,7 @@ export default function EpicsPage() {
                         flexShrink: 0,
                       }}
                     />
-                    <Link to={`/epics/${e.trigramme}`}>{e.nom}</Link>
+                    <Link to={`/epics/${e.trigramme}`} state={navState(PARENT, SELF).state}>{e.nom}</Link>
                   </div>
                 </td>
                 <td>{e.critere_reussite}</td>

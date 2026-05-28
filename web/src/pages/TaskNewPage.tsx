@@ -1,15 +1,24 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { projects, tasks, users } from "../api/endpoints";
-import { Breadcrumb } from "../components/Breadcrumb";
+import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useParentCrumbs } from "../hooks/useBreadcrumbState";
 import { TASK_STATUS_LABELS } from "../labels";
 import type { Project, Task, TaskStatus, User } from "../types";
 
 const STATUTS: TaskStatus[] = ["ouvert", "archive"];
 
+const DEFAULT_PARENT: Crumb[] = [
+  { label: "Planning", to: "/" },
+  { label: "Tâches", to: "/tasks" },
+];
+
 export default function TaskNewPage() {
   const nav = useNavigate();
+  const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
+  const [searchParams] = useSearchParams();
+  const initialProjetId = Number(searchParams.get("projet_id")) || undefined;
   const [err, setErr] = useState<unknown>(null);
   const [projs, setProjs] = useState<Project[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -19,6 +28,7 @@ export default function TaskNewPage() {
     date_fin: "",
     avancement: 0,
     statut: "ouvert",
+    projet_id: initialProjetId,
   });
 
   useEffect(() => {
@@ -43,13 +53,7 @@ export default function TaskNewPage() {
 
   return (
     <>
-      <Breadcrumb
-        items={[
-          { label: "Planning", to: "/" },
-          { label: "Tâches", to: "/tasks" },
-          { label: "Nouvelle tâche" },
-        ]}
-      />
+      <Breadcrumb items={[...parentCrumbs, { label: "Nouvelle tâche" }]} />
       <h2>Nouvelle tâche</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>
