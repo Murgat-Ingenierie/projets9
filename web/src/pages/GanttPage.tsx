@@ -612,10 +612,12 @@ export default function GanttPage() {
   const doneByIndexRef = useRef<boolean[]>([]);
   doneByIndexRef.current = doneByIndex;
 
-  // Overlay de hachures diagonales sur les barres des items finis.
-  // Pattern SVG défini une fois dans <defs>, puis un <rect> avec
-  // fill="url(#done-stripes)" est ajouté par-dessus chaque barre.
+  // Mise en valeur des items finis (option C) :
+  //  - fond de la barre à 40 % d'opacité (aplatissement visuel)
+  //  - contour vert success 2 px
+  //  - gros ✓ blanc au début de la barre
   useEffect(() => {
+    const GREEN = "#2e7d32";
     function update() {
       const root = ganttRef.current;
       if (!root) return;
@@ -623,55 +625,52 @@ export default function GanttPage() {
       if (!svg) return;
       const ns = "http://www.w3.org/2000/svg";
 
-      let defs = svg.querySelector("defs");
-      if (!defs) {
-        defs = document.createElementNS(ns, "defs");
-        svg.insertBefore(defs, svg.firstChild);
-      }
-      if (!defs.querySelector("#done-stripes")) {
-        const pattern = document.createElementNS(ns, "pattern");
-        pattern.setAttribute("id", "done-stripes");
-        pattern.setAttribute("patternUnits", "userSpaceOnUse");
-        pattern.setAttribute("width", "8");
-        pattern.setAttribute("height", "8");
-        pattern.setAttribute("patternTransform", "rotate(45)");
-        const line = document.createElementNS(ns, "line");
-        line.setAttribute("x1", "0");
-        line.setAttribute("y1", "0");
-        line.setAttribute("x2", "0");
-        line.setAttribute("y2", "8");
-        line.setAttribute("stroke", "white");
-        line.setAttribute("stroke-width", "3");
-        line.setAttribute("stroke-opacity", "0.75");
-        pattern.appendChild(line);
-        defs.appendChild(pattern);
-      }
-
       const bars = root.querySelectorAll("svg g[tabindex]");
       bars.forEach((bar, i) => {
         const isDone = doneByIndexRef.current[i];
-        const existing = bar.querySelector('[data-done-overlay]');
         const mainRect = bar.querySelector("rect");
         if (!mainRect) return;
+        let check = bar.querySelector('[data-done-check]') as SVGTextElement | null;
+
         if (isDone) {
-          if (!existing) {
-            const ov = document.createElementNS(ns, "rect");
-            ov.setAttribute("data-done-overlay", "true");
-            ov.setAttribute("fill", "url(#done-stripes)");
-            ov.setAttribute("pointer-events", "none");
-            bar.appendChild(ov);
-            ["x", "y", "width", "height", "rx", "ry"].forEach((attr) => {
-              const v = mainRect.getAttribute(attr);
-              if (v) ov.setAttribute(attr, v);
-            });
-          } else {
-            ["x", "y", "width", "height", "rx", "ry"].forEach((attr) => {
-              const v = mainRect.getAttribute(attr);
-              if (v) existing.setAttribute(attr, v);
-            });
+          mainRect.setAttribute("fill-opacity", "0.4");
+          mainRect.setAttribute("stroke", GREEN);
+          mainRect.setAttribute("stroke-width", "2");
+
+          const x = parseFloat(mainRect.getAttribute("x") || "0");
+          const y = parseFloat(mainRect.getAttribute("y") || "0");
+          const w = parseFloat(mainRect.getAttribute("width") || "0");
+          const h = parseFloat(mainRect.getAttribute("height") || "0");
+
+          if (!check) {
+            check = document.createElementNS(ns, "text") as SVGTextElement;
+            check.setAttribute("data-done-check", "true");
+            check.setAttribute("fill", GREEN);
+            check.setAttribute("font-weight", "900");
+            check.setAttribute("text-anchor", "middle");
+            check.setAttribute("dominant-baseline", "central");
+            check.setAttribute("pointer-events", "none");
+            check.setAttribute("paint-order", "stroke");
+            check.setAttribute("stroke", "white");
+            check.setAttribute("stroke-width", "3");
+            check.setAttribute("stroke-linejoin", "round");
+            check.textContent = "✓";
+            bar.appendChild(check);
           }
-        } else if (existing) {
-          existing.remove();
+          // Barre étroite : on cache le ✓ pour ne pas déborder.
+          if (w < 22) {
+            check.setAttribute("opacity", "0");
+          } else {
+            check.setAttribute("opacity", "1");
+          }
+          check.setAttribute("x", String(x + h * 0.55));
+          check.setAttribute("y", String(y + h / 2));
+          check.setAttribute("font-size", String(Math.min(h * 0.9, 22)));
+        } else {
+          mainRect.setAttribute("fill-opacity", "1");
+          mainRect.removeAttribute("stroke");
+          mainRect.removeAttribute("stroke-width");
+          if (check) check.remove();
         }
       });
     }
