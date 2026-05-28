@@ -639,20 +639,26 @@ export default function GanttPage() {
         }
 
         const w = parseFloat(mainRect.getAttribute("width") || "0");
-        const apply = isDone && w >= MIN_W;
+        const x = parseFloat(mainRect.getAttribute("x") || "0");
+        const y = parseFloat(mainRect.getAttribute("y") || "0");
+        const h = parseFloat(mainRect.getAttribute("height") || "0");
+        const applyStyling = isDone && w >= MIN_W;
 
-        if (apply) {
+        // Bar : fade + stroke vert uniquement si assez large
+        if (applyStyling) {
           mainRect.setAttribute("fill-opacity", "0.4");
           mainRect.setAttribute("stroke", GREEN);
           mainRect.setAttribute("stroke-width", "2");
+        } else {
+          mainRect.setAttribute("fill-opacity", "1");
+          mainRect.removeAttribute("stroke");
+          mainRect.removeAttribute("stroke-width");
+        }
 
-          const x = parseFloat(mainRect.getAttribute("x") || "0");
-          const y = parseFloat(mainRect.getAttribute("y") || "0");
-          const h = parseFloat(mainRect.getAttribute("height") || "0");
-
-          // On reprend strictement la ressource du panneau de gauche :
-          // glyph "check_circle" de la police Material Symbols Outlined,
-          // posée dans un <text> SVG.
+        // Pastille check_circle : toujours présente si la tâche est finie,
+        // même sur les barres très étroites — elle est posée à gauche
+        // du début de la barre et peut déborder légèrement.
+        if (isDone) {
           if (!check || check.tagName.toLowerCase() !== "text") {
             if (check) check.remove();
             check = document.createElementNS(ns, "text") as SVGGElement;
@@ -667,15 +673,14 @@ export default function GanttPage() {
             bar.appendChild(check);
           }
           const size = Math.max(14, Math.min(h * 0.85, 22));
-          check.setAttribute("x", String(x + size / 2 + 4));
+          // Pour les barres étroites, on pose la pastille juste avant
+          // le début de la barre (elle déborde un peu à gauche).
+          const cx = w >= size + 8 ? x + size / 2 + 4 : x - size / 2 - 2;
+          check.setAttribute("x", String(cx));
           check.setAttribute("y", String(y + h / 2));
           check.setAttribute("font-size", String(size));
-        } else {
-          // Barre trop étroite OU pas finie : on remet tout au neutre
-          mainRect.setAttribute("fill-opacity", "1");
-          mainRect.removeAttribute("stroke");
-          mainRect.removeAttribute("stroke-width");
-          if (check) check.remove();
+        } else if (check) {
+          check.remove();
         }
       });
     }
