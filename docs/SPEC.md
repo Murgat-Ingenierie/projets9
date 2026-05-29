@@ -19,7 +19,7 @@ d'endpoint d'import dans l'application).
 
 ```
 Epic ──< Projet ──< Tâche
-   └─< Jalon              (Jalon attaché soit à Epic, soit à Projet — XOR)
+Epic >── Jalon ──< Epic      (relation N-N : un jalon peut être rattaché à plusieurs epics)
 Tâche >── Dépendance ──< Tâche   (DAG global, cross-projet et cross-epic autorisé)
 Epic ──< Mesure                  (suivi du critère de réussite)
 User                              (responsable de Projet ou Tâche)
@@ -60,19 +60,19 @@ User                              (responsable de Projet ou Tâche)
 | `nom` | str | obligatoire |
 | `date_début` | date | obligatoire |
 | `date_fin` | date | obligatoire |
-| `avancement_%` | int | 0..100 |
 | `responsable_id` | int | FK → User, optionnel |
-| `statut` | enum | `ouvert` \| `archive` (le % d'avancement porte l'info de progression) |
+| `statut` | enum | `ouvert` \| `archive` (binaire « pas fini » / « fini ») |
 
 #### Jalon
 | Champ | Type | Notes |
 |---|---|---|
 | `id` | int | PK |
-| `epic_trigramme` | str(3) | FK → Epic, nullable (XOR avec projet_id) |
-| `projet_id` | int | FK → Projet, nullable (XOR avec epic_trigramme) |
 | `nom` | str | obligatoire |
 | `date` | date | obligatoire |
 | `atteint` | bool | défaut false |
+| `epics` | list[Epic] | relation N-N via `milestone_epic`, au moins 1 |
+
+Un jalon peut être rattaché à plusieurs epics simultanément (révision 0006, suppression du concept de « jalon transverse projet »).
 
 #### Dépendance
 | Champ | Type | Notes |
@@ -131,7 +131,7 @@ de la base*. Une tentative de mutation qui violerait un invariant doit être
 |---|---|
 | INV-4 | Toute `Tâche` référence un `Projet` existant. |
 | INV-5 | Tout `Projet` référence un `Epic` existant. |
-| INV-6 | Tout `Jalon` est rattaché à exactement un `Epic` OU un `Projet` (XOR). |
+| INV-6 | Tout `Jalon` est rattaché à au moins un `Epic` (relation N-N). Le concept de « jalon transverse projet » a été retiré en migration 0006. |
 
 ### Dates (cascade)
 
@@ -141,7 +141,7 @@ Unité : **jour calendaire**. Toutes les comparaisons sont inclusives.
 |---|---|
 | INV-7 | `Tâche.date_début ≤ Tâche.date_fin`. |
 | INV-8 | `Projet.date_début ≤ Projet.date_fin`. |
-| INV-9 | Pour toute `Tâche` : `[date_début, date_fin] ⊆ [Projet.date_début, Projet.date_fin]`. |
+| INV-9 | ~~Supprimé.~~ Une tâche peut désormais sortir de la fenêtre de son projet. Le planning Gantt affiche une hachure rouge sur la barre concernée pour signaler la situation, mais l'API ne refuse plus la mutation. |
 | INV-10 | Si `Epic.date_fin_prévue` est définie : pour tout `Projet` de cet Epic, `Projet.date_fin ≤ Epic.date_fin_prévue`. |
 | INV-11 | Si `Epic.jalon_fin_max` est défini : pour tout `Jalon` rattaché à cet Epic, `Jalon.date ≤ Epic.jalon_fin_max`. |
 | INV-12 | Si `Epic.date_fin_prévue` ET `Epic.jalon_fin_max` sont définies : `date_fin_prévue ≤ jalon_fin_max`. |
@@ -158,8 +158,8 @@ Unité : **jour calendaire**. Toutes les comparaisons sont inclusives.
 
 | ID | Énoncé |
 |---|---|
-| INV-16 | `Tâche.avancement_%` ∈ [0, 100]. |
-| INV-17 | ~~Supprimé.~~ Le statut tâche (`ouvert`/`archive`) est désormais découplé du `avancement_%`. |
+| INV-16 | ~~Supprimé.~~ Le champ `avancement_%` a été retiré (migration 0007) — la complétion d'une tâche est portée par son seul `statut`. |
+| INV-17 | ~~Supprimé.~~ Voir INV-16. |
 | INV-18 | `Projet.statut = réalisé` ⇒ toutes ses tâches sont `archive`. |
 | INV-19 | `Epic.statut = réalisé` ⇒ tous ses projets sont `réalisé` ou `abandonné` ET tous ses jalons sont `atteint`. |
 

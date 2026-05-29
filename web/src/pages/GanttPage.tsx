@@ -2,11 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
-import { dependencies as depsApi, epics, projects, tasks } from "../api/endpoints";
+import {
+  dependencies as depsApi,
+  epics,
+  milestones as milestonesApi,
+  projects,
+  tasks,
+} from "../api/endpoints";
 import { EditPanel, type PanelTarget } from "../components/EditPanel";
+import { IconButton } from "../components/IconButton";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { navState } from "../hooks/useBreadcrumbState";
-import type { Dependency, Epic, Project, Task } from "../types";
+import type { Dependency, Epic, Milestone, Project, Task } from "../types";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
 
@@ -122,10 +129,19 @@ export default function GanttPage() {
   const [tasksList, setTasks] = useState<Task[]>([]);
   const [err, setErr] = useState<unknown>(null);
   const [view, setView] = useState<ViewMode>(ViewMode.Month);
+  const viewRef = useRef<ViewMode>(ViewMode.Month);
+  useEffect(() => { viewRef.current = view; }, [view]);
   const [editMode, setEditMode] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
   const [allDeps, setAllDeps] = useState<Dependency[]>([]);
+  const [allMilestones, setAllMilestones] = useState<Milestone[]>([]);
+  const allMilestonesRef = useRef<Milestone[]>([]);
+  allMilestonesRef.current = allMilestones;
+  const projectsListRef = useRef<Project[]>([]);
+  projectsListRef.current = projectsList;
+  const tasksListRef = useRef<Task[]>([]);
+  tasksListRef.current = tasksList;
 
   // Lien : handles visibles uniquement en mode édition. mousedown sur
   // un handle démarre le drag vers une autre tâche.
@@ -143,12 +159,19 @@ export default function GanttPage() {
   const linkSourceRefStable = useRef<string | null>(null);
 
   function load() {
-    Promise.all([epics.list(), projects.list(), tasks.list(), depsApi.list()])
-      .then(([e, p, t, d]) => {
+    Promise.all([
+      epics.list(),
+      projects.list(),
+      tasks.list(),
+      depsApi.list(),
+      milestonesApi.list(),
+    ])
+      .then(([e, p, t, d, m]) => {
         setEpics(e);
         setProjects(p);
         setTasks(t);
         setAllDeps(d);
+        setAllMilestones(m);
       })
       .catch(setErr);
   }
@@ -277,6 +300,7 @@ export default function GanttPage() {
   // L'approche transform sur place ne marchait pas (la lib re-render et/ou
   // un parent overflow nous coince) — la duplication contourne tout ça.
   const stickyOverlayRef = useRef<HTMLDivElement>(null);
+  const milestoneTooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const MONTH_RE = /20\d\d|janv|f[ée]v|mars|avr|mai|juin|juil|ao[ûu]t|sept|oct|nov|d[ée]c/i;
@@ -410,6 +434,30 @@ export default function GanttPage() {
     const out: GanttTask[] = [];
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
 
+    // Swimlane jalons : UNE seule ligne d'ancre (anchor = jalon le plus tôt),
+    // les autres jalons sont rendus manuellement via update() à leur x calculé
+    // depuis columnWidth + viewMode. Permet une swimlane unique avec collision
+    // detection sur les noms.
+    const sortedMs = [...allMilestones].sort((a, b) => a.date.localeCompare(b.date));
+    const MILESTONE_COLOR = "#f57c00";
+    if (sortedMs.length > 0) {
+      out.push({
+        id: "milestone-anchor",
+        name: "Jalons",
+        type: "milestone",
+        start: toDate(sortedMs[0].date),
+        end: toDate(sortedMs[0].date),
+        progress: 0,
+        isDisabled: true,
+        styles: {
+          backgroundColor: MILESTONE_COLOR,
+          backgroundSelectedColor: MILESTONE_COLOR,
+          progressColor: MILESTONE_COLOR,
+          progressSelectedColor: MILESTONE_COLOR,
+        },
+      });
+    }
+
     const byEpic = new Map<string, Project[]>();
     for (const p of projectsList) {
       if (!byEpic.has(p.epic_trigramme)) byEpic.set(p.epic_trigramme, []);
@@ -462,7 +510,7 @@ export default function GanttPage() {
       }
     }
     return out;
-  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval]);
+  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval, allMilestones]);
   ganttTasksRef.current = ganttTasks;
 
   // Liste des flèches dans l'ordre où la lib les rend (pour les clics
@@ -590,18 +638,18 @@ export default function GanttPage() {
   }, [epicsList, projectsList, tasksByProject]);
 
   const taskInfoById = useMemo(() => {
-    const m = new Map<number, { statut: string; avancement: number }>();
-    for (const t of tasksList) m.set(t.id, { statut: t.statut, avancement: t.avancement });
+    const m = new Map<number, { statut: string }>();
+    for (const t of tasksList) m.set(t.id, { statut: t.statut });
     return m;
   }, [tasksList]);
 
   // Tableau parallèle à ganttTasks indiquant si chaque ligne est "finie".
-  // Tâche : statut = archive OU avancement = 100. Projet : statut = realise.
+  // Tâche : statut = archive. Projet : statut = realise.
   const doneByIndex = useMemo(() => {
     return ganttTasks.map((t) => {
       if (t.id.startsWith("task-")) {
         const info = taskInfoById.get(Number(t.id.slice(5)));
-        return info?.statut === "archive" || info?.avancement === 100;
+        return info?.statut === "archive";
       }
       if (t.id.startsWith("proj-")) {
         const info = projectInfoById.get(Number(t.id.slice(5)));
@@ -613,6 +661,58 @@ export default function GanttPage() {
   const doneByIndexRef = useRef<boolean[]>([]);
   doneByIndexRef.current = doneByIndex;
 
+  // Tableau parallèle indiquant si une barre de PROJET a au moins une tâche
+  // sortant de sa fenêtre. INV-9 a été retiré : on signale visuellement par
+  // une hachure rouge sur le projet (pas sur la tâche), sans bloquer.
+  const outsideProjectByIndex = useMemo(() => {
+    const projById = new Map<number, Project>();
+    for (const p of projectsList) projById.set(p.id, p);
+    const projMismatch = new Set<number>();
+    for (const t of tasksList) {
+      const proj = projById.get(t.projet_id);
+      if (!proj) continue;
+      if (t.date_debut < proj.date_debut || t.date_fin > proj.date_fin) {
+        projMismatch.add(t.projet_id);
+      }
+    }
+    return ganttTasks.map((g) => {
+      if (!g.id.startsWith("proj-")) return false;
+      return projMismatch.has(Number(g.id.slice(5)));
+    });
+  }, [ganttTasks, projectsList, tasksList]);
+  const outsideProjectByIndexRef = useRef<boolean[]>([]);
+  outsideProjectByIndexRef.current = outsideProjectByIndex;
+
+  // Au premier rendu après chargement, scroll la fenêtre planning sur le mois
+  // courant (today). On lit la position x du rect "today" injecté par la lib.
+  const initialScrollDoneRef = useRef(false);
+  useEffect(() => {
+    if (initialScrollDoneRef.current) return;
+    if (ganttTasks.length === 0) return;
+    const t = setTimeout(() => {
+      const root = ganttRef.current;
+      if (!root) return;
+      const scroller = Array.from(root.querySelectorAll<HTMLElement>("div")).find(
+        (d) => {
+          const s = getComputedStyle(d);
+          return (
+            (s.overflowX === "auto" || s.overflowX === "scroll") &&
+            d.scrollWidth > d.clientWidth
+          );
+        }
+      );
+      if (!scroller) return;
+      const todayRect = Array.from(
+        root.querySelectorAll<SVGRectElement>("svg rect")
+      ).find((r) => (r.getAttribute("fill") || "").includes("255, 152, 0"));
+      if (!todayRect) return;
+      const tx = parseFloat(todayRect.getAttribute("x") || "0");
+      scroller.scrollLeft = Math.max(0, tx - 20);
+      initialScrollDoneRef.current = true;
+    }, 300);
+    return () => clearTimeout(t);
+  }, [ganttTasks]);
+
   // Mise en valeur des items finis (option C) :
   //  - fond de la barre à 40 % d'opacité (aplatissement visuel)
   //  - contour vert success 2 px
@@ -622,14 +722,43 @@ export default function GanttPage() {
     function update() {
       const root = ganttRef.current;
       if (!root) return;
-      const svg = root.querySelector("svg");
+      // gantt-task-react rend 2 svgs : header calendrier (petit) et chart (grand).
+      // On cible le chart : celui qui contient les barres g[tabindex].
+      const svgs = Array.from(root.querySelectorAll("svg"));
+      const svg = svgs.find((s) => s.querySelector("g[tabindex]")) ?? svgs[0];
       if (!svg) return;
       const ns = "http://www.w3.org/2000/svg";
+
+      // Pattern de hachure rouge pour signaler les tâches hors-fenêtre projet
+      let defs = svg.querySelector("defs");
+      if (!defs) {
+        defs = document.createElementNS(ns, "defs");
+        svg.insertBefore(defs, svg.firstChild);
+      }
+      if (!defs.querySelector("#hatch-red")) {
+        const pattern = document.createElementNS(ns, "pattern");
+        pattern.setAttribute("id", "hatch-red");
+        pattern.setAttribute("patternUnits", "userSpaceOnUse");
+        pattern.setAttribute("width", "6");
+        pattern.setAttribute("height", "6");
+        pattern.setAttribute("patternTransform", "rotate(45)");
+        const line = document.createElementNS(ns, "line");
+        line.setAttribute("x1", "0");
+        line.setAttribute("y1", "0");
+        line.setAttribute("x2", "0");
+        line.setAttribute("y2", "6");
+        line.setAttribute("stroke", "#d32f2f");
+        line.setAttribute("stroke-width", "2.5");
+        line.setAttribute("opacity", "0.85");
+        pattern.appendChild(line);
+        defs.appendChild(pattern);
+      }
 
       const MIN_W = 28; // seuil purement esthétique pour le stroke vert
       const bars = root.querySelectorAll("svg g[tabindex]");
       bars.forEach((bar, i) => {
         const isDone = doneByIndexRef.current[i];
+        const isOutside = outsideProjectByIndexRef.current[i];
         const mainRect = bar.querySelector("rect");
         if (!mainRect) return;
         let check = bar.querySelector('[data-done-check]') as SVGGElement | null;
@@ -642,6 +771,28 @@ export default function GanttPage() {
         const x = parseFloat(mainRect.getAttribute("x") || "0");
         const y = parseFloat(mainRect.getAttribute("y") || "0");
         const h = parseFloat(mainRect.getAttribute("height") || "0");
+
+        // Hachure rouge si la tâche sort de la fenêtre de son projet
+        let hatch = bar.querySelector('[data-outside-hatch]') as SVGRectElement | null;
+        if (isOutside) {
+          if (!hatch) {
+            hatch = document.createElementNS(ns, "rect") as SVGRectElement;
+            hatch.setAttribute("data-outside-hatch", "true");
+            hatch.setAttribute("fill", "url(#hatch-red)");
+            hatch.setAttribute("pointer-events", "none");
+            hatch.setAttribute("rx", "3");
+            hatch.setAttribute("ry", "3");
+            // Insère AVANT la coche done éventuelle pour que celle-ci reste au-dessus
+            if (check) bar.insertBefore(hatch, check);
+            else bar.appendChild(hatch);
+          }
+          hatch.setAttribute("x", String(x));
+          hatch.setAttribute("y", String(y));
+          hatch.setAttribute("width", String(w));
+          hatch.setAttribute("height", String(h));
+        } else if (hatch) {
+          hatch.remove();
+        }
 
         // Fade sur toutes les barres terminées ; stroke vert si assez large
         if (isDone) {
@@ -725,6 +876,299 @@ export default function GanttPage() {
           libLabels.forEach((lbl) => lbl.removeAttribute("transform"));
         }
       });
+
+      // === Swimlane jalons unique + lignes verticales avec tooltip ===
+      const ms = allMilestonesRef.current.slice().sort((a, b) => a.date.localeCompare(b.date));
+      const anchorIdx = ganttTasksRef.current.findIndex((t) => t.id === "milestone-anchor");
+      const anchorBar = anchorIdx >= 0 ? (bars[anchorIdx] as SVGGElement | undefined) : undefined;
+      const anchorRect = anchorBar?.querySelector("rect") ?? null;
+
+      const svgH =
+        parseFloat(svg.getAttribute("height") || "0") ||
+        svg.getBoundingClientRect().height ||
+        0;
+
+      // Cleanup si pas de jalons
+      if (!anchorRect || ms.length === 0) {
+        svg.querySelector("[data-milestone-lane]")?.remove();
+        svg.querySelector("[data-milestone-lines]")?.remove();
+      } else {
+        // Masque le diamant rendu par la lib (anchor)
+        (anchorRect as SVGRectElement).style.display = "none";
+
+        const anchorX = parseFloat(anchorRect.getAttribute("x") || "0");
+        const anchorY = parseFloat(anchorRect.getAttribute("y") || "0");
+        const anchorH = parseFloat(anchorRect.getAttribute("height") || "0");
+
+        // Centre Y de la swimlane = centre Y de la ligne où le diamant aurait été placé
+        // (anchor est un milestone -> rect placé au centre vertical de la ligne).
+        // On reprend la position telle quelle.
+        const rowMidY = anchorY + anchorH / 2;
+        // rowHeight estimée depuis la barre suivante (différence d'y) si dispo,
+        // sinon valeur par défaut de gantt-task-react.
+        let rowHeight = 50;
+        const nextBar = bars[anchorIdx + 1];
+        const nextRect = nextBar?.querySelector("rect");
+        if (nextRect) {
+          const nextY = parseFloat(nextRect.getAttribute("y") || "0");
+          // Pour une milestone, anchorY est le top du diamant ;
+          // pour une tâche, y est le top du bar avec un petit padding.
+          // L'écart entre les centres = rowHeight.
+          const nextH = parseFloat(nextRect.getAttribute("height") || "0");
+          const dy = nextY + nextH / 2 - rowMidY;
+          if (dy > 10) rowHeight = dy;
+        }
+        const laneTop = rowMidY - rowHeight / 2;
+
+        // Conversion date → x via columnWidth + viewMode
+        const currentView = viewRef.current;
+        const columnW = COLUMN_WIDTH_BY_VIEW[currentView] ?? 100;
+        const ppd = (() => {
+          switch (currentView) {
+            case ViewMode.Hour: return columnW * 24;
+            case ViewMode.QuarterDay: return columnW * 4;
+            case ViewMode.HalfDay: return columnW * 2;
+            case ViewMode.Day: return columnW;
+            case ViewMode.Week: return columnW / 7;
+            case ViewMode.Month: return columnW / 30.4375;
+            case ViewMode.Year: return columnW / 365.25;
+            default: return columnW;
+          }
+        })();
+        const anchorDateMs = new Date(ms[0].date + "T00:00:00").getTime();
+        const xOf = (iso: string) =>
+          anchorX + ((new Date(iso + "T00:00:00").getTime() - anchorDateMs) / 86400000) * ppd;
+
+        // Lane group (background + diamants + noms) avec fingerprint :
+        // on évite de wipe à chaque tick (ce qui détruirait le hover state)
+        let lane = svg.querySelector("[data-milestone-lane]") as SVGGElement | null;
+        if (!lane) {
+          lane = document.createElementNS(ns, "g") as SVGGElement;
+          lane.setAttribute("data-milestone-lane", "true");
+          svg.appendChild(lane);
+        }
+        const fp =
+          ms.map((m) => `${m.id}|${m.date}|${m.nom}|${(m.epic_trigrammes ?? []).join("+")}`).join(",") +
+          `:${currentView}:${anchorX.toFixed(2)}:${rowMidY.toFixed(2)}:${rowHeight.toFixed(2)}:${bars.length}`;
+        if (lane.getAttribute("data-fp") === fp && lane.children.length > 0) {
+          // Aucun changement de jalons / vue / anchor → on ne touche à rien
+          // (préserve le hover pill éventuellement présent)
+          return;
+        }
+        lane.setAttribute("data-fp", fp);
+        lane.innerHTML = "";
+
+        // Background bandeau swimlane
+        const svgW =
+          parseFloat(svg.getAttribute("width") || "0") ||
+          svg.getBoundingClientRect().width ||
+          0;
+        const bg = document.createElementNS(ns, "rect");
+        bg.setAttribute("x", "0");
+        bg.setAttribute("y", String(laneTop));
+        bg.setAttribute("width", String(svgW));
+        bg.setAttribute("height", String(rowHeight));
+        bg.setAttribute("fill", "#fff3e0");
+        bg.setAttribute("pointer-events", "none");
+        lane.appendChild(bg);
+
+        // Lignes verticales (groupe séparé pour z-order propre)
+        let linesG = svg.querySelector("[data-milestone-lines]") as SVGGElement | null;
+        if (!linesG) {
+          linesG = document.createElementNS(ns, "g") as SVGGElement;
+          linesG.setAttribute("data-milestone-lines", "true");
+          svg.appendChild(linesG);
+        }
+        linesG.innerHTML = "";
+
+        // Index des positions y de chaque barre ganttTask, par id
+        const rowGeomById = new Map<string, { y: number; bottom: number }>();
+        bars.forEach((bar, i) => {
+          const id = ganttTasksRef.current[i]?.id;
+          if (!id) return;
+          const r = bar.querySelector("rect");
+          if (!r) return;
+          const ry = parseFloat(r.getAttribute("y") || "0");
+          const rh = parseFloat(r.getAttribute("height") || "0");
+          // Pour une milestone, le rect est centré dans la ligne (petit) ; pour project/task
+          // le rect prend quasi toute la ligne. On élargit donc à la hauteur de ligne pour
+          // ne pas tronquer la ligne au milieu d'une barre.
+          const rowTop = id.startsWith("milestone-") ? ry + rh / 2 - rowHeight / 2 : ry;
+          const rowBot = rowTop + rowHeight;
+          rowGeomById.set(id, { y: rowTop, bottom: rowBot });
+        });
+
+        // Pour un jalon : liste des ids ganttTask concernés (projet + ses tâches dépliées,
+        // OU tous les projets d'un epic + leurs tâches dépliées)
+        const projectsByEpic = new Map<string, Project[]>();
+        for (const p of projectsListRef.current) {
+          if (!projectsByEpic.has(p.epic_trigramme))
+            projectsByEpic.set(p.epic_trigramme, []);
+          projectsByEpic.get(p.epic_trigramme)!.push(p);
+        }
+        const tasksByProj = new Map<number, Task[]>();
+        for (const t of tasksListRef.current) {
+          if (!tasksByProj.has(t.projet_id)) tasksByProj.set(t.projet_id, []);
+          tasksByProj.get(t.projet_id)!.push(t);
+        }
+        function concernedIds(mil: Milestone): string[] {
+          const out: string[] = [];
+          const seen = new Set<string>();
+          for (const tri of mil.epic_trigrammes ?? []) {
+            for (const p of projectsByEpic.get(tri) ?? []) {
+              const pid = `proj-${p.id}`;
+              if (!seen.has(pid)) {
+                seen.add(pid);
+                out.push(pid);
+              }
+              for (const t of tasksByProj.get(p.id) ?? []) {
+                const tid = `task-${t.id}`;
+                if (!seen.has(tid)) {
+                  seen.add(tid);
+                  out.push(tid);
+                }
+              }
+            }
+          }
+          return out;
+        }
+
+        // Diamants + noms avec collision detection (ordre x croissant)
+        let lastNameRight = -Infinity;
+        for (const m of ms) {
+          const mx = xOf(m.date);
+
+          // Diamant (rect rotated 45°) — cliquable pour ouvrir le panel
+          const ds = 12;
+          const diamond = document.createElementNS(ns, "rect");
+          diamond.setAttribute("x", String(mx - ds / 2));
+          diamond.setAttribute("y", String(rowMidY - ds / 2));
+          diamond.setAttribute("width", String(ds));
+          diamond.setAttribute("height", String(ds));
+          diamond.setAttribute("fill", "#f57c00");
+          diamond.setAttribute("transform", `rotate(45 ${mx} ${rowMidY})`);
+          diamond.style.cursor = "pointer";
+          const openMs = () => setPanelTarget({ type: "milestone", id: m.id });
+          diamond.addEventListener("click", openMs);
+          lane.appendChild(diamond);
+
+          // Nom à droite du diamant (cliquable → ouvre le panel d'édition)
+          const text = document.createElementNS(ns, "text");
+          text.setAttribute("x", String(mx + 10));
+          text.setAttribute("y", String(rowMidY));
+          text.setAttribute("dominant-baseline", "central");
+          text.setAttribute("font-family", "Roboto, sans-serif");
+          text.setAttribute("font-size", "12");
+          text.setAttribute("font-weight", "500");
+          text.setAttribute("fill", "#e65100");
+          text.style.cursor = "pointer";
+          text.setAttribute("data-milestone-id", String(m.id));
+          text.textContent = m.nom;
+          text.addEventListener("click", openMs);
+          let bgPill: SVGRectElement | null = null;
+          text.addEventListener("mouseenter", () => {
+            const bb = text.getBBox();
+            bgPill = document.createElementNS(ns, "rect") as SVGRectElement;
+            bgPill.setAttribute("x", String(bb.x - 5));
+            bgPill.setAttribute("y", String(bb.y - 2));
+            bgPill.setAttribute("width", String(bb.width + 10));
+            bgPill.setAttribute("height", String(bb.height + 4));
+            bgPill.setAttribute("rx", "3");
+            bgPill.setAttribute("fill", "#f57c00");
+            bgPill.setAttribute("pointer-events", "none");
+            text.parentNode?.insertBefore(bgPill, text);
+            text.setAttribute("fill", "white");
+          });
+          text.addEventListener("mouseleave", () => {
+            bgPill?.remove();
+            bgPill = null;
+            text.setAttribute("fill", "#e65100");
+          });
+          lane.appendChild(text);
+
+          // Collision : si le nom chevauche le précédent, on le masque (mais on garde le diamant)
+          let bb: DOMRect | { x: number; width: number } = { x: mx + 10, width: 0 };
+          try { bb = text.getBBox(); } catch { /* offscreen */ }
+          if (bb.x < lastNameRight) {
+            (text as SVGTextElement).style.display = "none";
+          } else {
+            lastNameRight = bb.x + bb.width + 8;
+          }
+
+          // Périmètre : on tronque la ligne aux barres concernées
+          const laneBottom = laneTop + rowHeight;
+          const concerned = concernedIds(m)
+            .map((id) => rowGeomById.get(id))
+            .filter((g): g is { y: number; bottom: number } => !!g);
+          let mainY1: number, mainY2: number;
+          let leaderActive = false;
+          if (concerned.length > 0) {
+            mainY1 = Math.min(...concerned.map((g) => g.y));
+            mainY2 = Math.max(...concerned.map((g) => g.bottom));
+            leaderActive = mainY1 > laneBottom + 1;
+          } else {
+            // Jalon orphelin (rattachement inexistant ou projet/tâches non chargées)
+            mainY1 = laneBottom;
+            mainY2 = svgH;
+          }
+
+          // Leader : segment estompé entre la swimlane et la zone concernée
+          if (leaderActive) {
+            const leader = document.createElementNS(ns, "line");
+            leader.setAttribute("x1", String(mx));
+            leader.setAttribute("x2", String(mx));
+            leader.setAttribute("y1", String(laneBottom));
+            leader.setAttribute("y2", String(mainY1));
+            leader.setAttribute("stroke", "#f57c00");
+            leader.setAttribute("stroke-width", "1");
+            leader.setAttribute("stroke-dasharray", "2 4");
+            leader.setAttribute("opacity", "0.25");
+            leader.setAttribute("pointer-events", "none");
+            linesG.appendChild(leader);
+          }
+
+          // Ligne principale visible (zone concernée)
+          const line = document.createElementNS(ns, "line");
+          line.setAttribute("x1", String(mx));
+          line.setAttribute("x2", String(mx));
+          line.setAttribute("y1", String(mainY1));
+          line.setAttribute("y2", String(mainY2));
+          line.setAttribute("stroke", "#f57c00");
+          line.setAttribute("stroke-width", "1.5");
+          line.setAttribute("stroke-dasharray", "5 4");
+          line.setAttribute("opacity", "0.55");
+          line.setAttribute("pointer-events", "none");
+          linesG.appendChild(line);
+
+          // Hit area large (transparent) sur toute la portée pour tooltip + hover
+          const hit = document.createElementNS(ns, "line");
+          hit.setAttribute("x1", String(mx));
+          hit.setAttribute("x2", String(mx));
+          hit.setAttribute("y1", String(laneBottom));
+          hit.setAttribute("y2", String(mainY2));
+          hit.setAttribute("stroke", "transparent");
+          hit.setAttribute("stroke-width", "12");
+          hit.setAttribute("pointer-events", "stroke");
+          hit.style.cursor = "help";
+          const tooltipText = `${m.nom} — ${fmtDate(toDate(m.date))}`;
+          const showTooltip = (ev: MouseEvent) => {
+            const tt = milestoneTooltipRef.current;
+            if (!tt) return;
+            tt.textContent = tooltipText;
+            tt.style.display = "block";
+            tt.style.left = `${ev.clientX + 12}px`;
+            tt.style.top = `${ev.clientY + 12}px`;
+          };
+          const hideTooltip = () => {
+            const tt = milestoneTooltipRef.current;
+            if (tt) tt.style.display = "none";
+          };
+          hit.addEventListener("mouseenter", showTooltip as EventListener);
+          hit.addEventListener("mousemove", showTooltip as EventListener);
+          hit.addEventListener("mouseleave", hideTooltip);
+          linesG.appendChild(hit);
+        }
+      }
     }
 
     const interval = setInterval(update, 300);
@@ -754,11 +1198,39 @@ export default function GanttPage() {
     return (
       <div style={{ fontFamily: "Roboto, sans-serif", fontSize: 14, width: props.rowWidth }}>
         {props.tasks.map((t) => {
+          if (t.id === "milestone-anchor") {
+            return (
+              <div
+                key={t.id}
+                style={{
+                  height: props.rowHeight,
+                  display: "flex",
+                  alignItems: "center",
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                  borderBottom: "1px solid #f1f3f4",
+                  boxSizing: "border-box",
+                  background: "#fff3e0",
+                  color: "#e65100",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  letterSpacing: "0.4px",
+                  gap: 6,
+                }}
+                title={`${allMilestones.length} jalon${allMilestones.length > 1 ? "s" : ""}`}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                  flag
+                </span>
+                Jalons
+              </div>
+            );
+          }
           if (t.id.startsWith("task-")) {
             const taskId = Number(t.id.slice(5));
             const tinfo = taskInfoById.get(taskId);
-            // Coche verte + barré si archivée OU à 100 % d'avancement
-            const isDone = tinfo?.statut === "archive" || tinfo?.avancement === 100;
+            // Coche verte + barré si statut = archive (« fini »)
+            const isDone = tinfo?.statut === "archive";
             return (
               <div
                 key={t.id}
@@ -929,40 +1401,16 @@ export default function GanttPage() {
               >
                 {t.name}
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  nav(
-                    `/projects/${projId}/edit`,
-                    navState([], { label: "Planning", to: "/" })
-                  )
-                }
-                title="Ouvrir la page complète du projet"
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  color: "#9aa0a6",
-                  padding: 2,
-                  borderRadius: 4,
-                  transition: "color 180ms, background 180ms",
-                  flexShrink: 0,
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.color = "#1976d2";
-                  (e.currentTarget as HTMLElement).style.background = "#e3f2fd";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.color = "#9aa0a6";
-                  (e.currentTarget as HTMLElement).style.background = "transparent";
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                  edit
-                </span>
-              </button>
+              <IconButton
+                icon="add"
+                title="Ajouter une tâche à ce projet"
+                onClick={() => setPanelTarget({ type: "task-new", projet_id: projId })}
+              />
+              <IconButton
+                icon="edit"
+                title="Éditer le projet"
+                onClick={() => setPanelTarget({ type: "project", id: projId })}
+              />
             </div>
           );
         })}
@@ -1179,6 +1627,25 @@ export default function GanttPage() {
           pointerEvents: "none",
           display: "none",
           overflow: "hidden",
+        }}
+      />
+      {/* Tooltip qui suit le curseur au survol des lignes verticales de jalons */}
+      <div
+        ref={milestoneTooltipRef}
+        style={{
+          position: "fixed",
+          display: "none",
+          pointerEvents: "none",
+          zIndex: 100,
+          background: "#1f2329",
+          color: "white",
+          padding: "5px 9px",
+          borderRadius: 4,
+          fontSize: 12,
+          fontFamily: "Roboto, sans-serif",
+          fontWeight: 500,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          whiteSpace: "nowrap",
         }}
       />
       <EditPanel target={panelTarget} onClose={() => setPanelTarget(null)} onSaved={load} />

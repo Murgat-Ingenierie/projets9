@@ -7,9 +7,11 @@ from app.routes import (
     auth,
     dependencies,
     epics,
+    equipes,
     measures,
     milestones,
     projects,
+    tache_equipe,
     tasks,
     users,
 )
@@ -34,6 +36,8 @@ app.include_router(tasks.router)
 app.include_router(milestones.router)
 app.include_router(dependencies.router)
 app.include_router(measures.router)
+app.include_router(equipes.router)
+app.include_router(tache_equipe.router)
 
 
 @app.get("/api/health")

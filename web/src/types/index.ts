@@ -48,7 +48,6 @@ export interface Task {
   nom: string;
   date_debut: string;
   date_fin: string;
-  avancement: number;
   responsable_id: number | null;
   statut: TaskStatus;
   created_at: string;
@@ -57,8 +56,7 @@ export interface Task {
 
 export interface Milestone {
   id: number;
-  epic_trigramme: string | null;
-  project_id: number | null;
+  epic_trigrammes: string[];
   nom: string;
   date: string;
   atteint: boolean;
@@ -80,6 +78,21 @@ export interface Measure {
   valeur: number;
   unite: string;
   commentaire: string | null;
+}
+
+export interface Equipe {
+  id: number;
+  nom: string;
+  temps_dispo_hebdo: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TacheEquipe {
+  id: number;
+  tache_id: number;
+  equipe_id: number;
+  heures_allouees: number;
 }
 
 export interface LoginResponse {

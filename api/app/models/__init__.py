@@ -1,5 +1,6 @@
 from app.models.dependency import Dependency, DependencyType
 from app.models.epic import Epic, EpicCategory, EpicStatus
+from app.models.equipe import Equipe, TacheEquipe
 from app.models.measure import Measure
 from app.models.milestone import Milestone
 from app.models.project import Project, ProjectStatus
@@ -12,10 +13,12 @@ __all__ = [
     "Epic",
     "EpicCategory",
     "EpicStatus",
+    "Equipe",
     "Measure",
     "Milestone",
     "Project",
     "ProjectStatus",
+    "TacheEquipe",
     "Task",
     "TaskStatus",
     "User",

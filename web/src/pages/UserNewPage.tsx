@@ -4,10 +4,8 @@ import { users as usersApi } from "../api/endpoints";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useParentCrumbs } from "../hooks/useBreadcrumbState";
-import { USER_ROLE_LABELS } from "../labels";
+import { USER_ROLE_LABELS, USER_ROLES } from "../labels";
 import type { UserRole } from "../types";
-
-const ROLES: UserRole[] = ["admin", "membre"];
 
 const DEFAULT_PARENT: Crumb[] = [
   { label: "Planning", to: "/" },
@@ -62,7 +60,7 @@ export default function UserNewPage() {
         />
         <label>Rôle</label>
         <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value as UserRole })}>
-          {ROLES.map((r) => <option key={r} value={r}>{USER_ROLE_LABELS[r]}</option>)}
+          {USER_ROLES.map((r) => <option key={r} value={r}>{USER_ROLE_LABELS[r]}</option>)}
         </select>
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <button className="btn" type="submit">Créer</button>

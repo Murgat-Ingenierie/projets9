@@ -41,7 +41,12 @@ export function useSortableList<T>(items: T[]) {
     return out;
   }, [items, sort, filters]);
 
-  function sortHeader(label: ReactNode, key: string, getter: Getter<T>): ReactNode {
+  function sortHeader(
+    label: ReactNode,
+    key: string,
+    getter: Getter<T>,
+    opts?: { noFilter?: boolean }
+  ): ReactNode {
     getters.current[key] = getter;
     const active = sort?.key === key;
     const arrow = active ? (sort?.dir === "asc" ? "▲" : "▼") : "";
@@ -66,23 +71,25 @@ export function useSortableList<T>(items: T[]) {
           <span>{label}</span>
           <span style={{ color: "#6b7280", fontWeight: 400, marginLeft: 4 }}>{arrow}</span>
         </div>
-        <input
-          type="text"
-          placeholder="filtrer…"
-          value={filters[key] ?? ""}
-          onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: "100%",
-            marginTop: 4,
-            fontSize: 11,
-            padding: "2px 6px",
-            border: "1px solid #d1d5db",
-            borderRadius: 3,
-            fontWeight: 400,
-            background: "white",
-          }}
-        />
+        {!opts?.noFilter && (
+          <input
+            type="text"
+            placeholder="filtrer…"
+            value={filters[key] ?? ""}
+            onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              marginTop: 4,
+              fontSize: 11,
+              padding: "2px 6px",
+              border: "1px solid #d1d5db",
+              borderRadius: 3,
+              fontWeight: 400,
+              background: "white",
+            }}
+          />
+        )}
       </th>
     );
   }

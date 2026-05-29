@@ -3,12 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { users as usersApi } from "../api/endpoints";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { useInlineEdit } from "../hooks/useInlineEdit";
 import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
-import { USER_ROLE_LABELS } from "../labels";
+import { USER_ROLE_LABELS, USER_ROLES } from "../labels";
 import type { User, UserRole } from "../types";
-
-const ROLES: UserRole[] = ["admin", "membre"];
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Utilisateurs", to: "/users" };
@@ -17,14 +16,8 @@ export default function UsersPage() {
   const nav = useNavigate();
   const [items, setItems] = useState<User[]>([]);
   const [err, setErr] = useState<unknown>(null);
-  const [editing, setEditing] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState<{
-    nom?: string;
-    email?: string;
-    password?: string;
-    role?: UserRole;
-    actif?: boolean;
-  }>({});
+  const { editingId: editing, draft: editDraft, start, cancel, patch, isEditing } =
+    useInlineEdit<User & { password?: string }>();
 
   function load() {
     usersApi.list().then(setItems).catch(setErr);
@@ -34,13 +27,8 @@ export default function UsersPage() {
   const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
 
   function startEdit(u: User) {
-    setEditing(u.id);
-    setEditDraft({ nom: u.nom, email: u.email, role: u.role, actif: u.actif });
+    start(u);
     setErr(null);
-  }
-  function cancelEdit() {
-    setEditing(null);
-    setEditDraft({});
   }
   async function saveEdit() {
     if (editing == null) return;
@@ -54,7 +42,7 @@ export default function UsersPage() {
     if (editDraft.password) payload.password = editDraft.password;
     try {
       await usersApi.update(editing, payload);
-      cancelEdit();
+      cancel();
       load();
     } catch (e) {
       setErr(e);
@@ -64,7 +52,7 @@ export default function UsersPage() {
     if (!confirm("Supprimer cet utilisateur ?")) return;
     try {
       await usersApi.remove(id);
-      cancelEdit();
+      cancel();
       load();
     } catch (e) {
       setErr(e);
@@ -93,34 +81,34 @@ export default function UsersPage() {
         </thead>
         <tbody>
           {sorted.map((u) =>
-            editing === u.id ? (
+            isEditing(u.id) ? (
               <tr key={u.id} className="editing">
                 <td>
                   <input
                     value={editDraft.nom ?? ""}
-                    onChange={(ev) => setEditDraft({ ...editDraft, nom: ev.target.value })}
+                    onChange={(ev) => patch({nom: ev.target.value })}
                   />
                 </td>
                 <td>
                   <input
                     type="email"
                     value={editDraft.email ?? ""}
-                    onChange={(ev) => setEditDraft({ ...editDraft, email: ev.target.value })}
+                    onChange={(ev) => patch({email: ev.target.value })}
                   />
                 </td>
                 <td>
                   <select
                     value={editDraft.role ?? "membre"}
-                    onChange={(ev) => setEditDraft({ ...editDraft, role: ev.target.value as UserRole })}
+                    onChange={(ev) => patch({role: ev.target.value as UserRole })}
                   >
-                    {ROLES.map((r) => <option key={r} value={r}>{USER_ROLE_LABELS[r]}</option>)}
+                    {USER_ROLES.map((r) => <option key={r} value={r}>{USER_ROLE_LABELS[r]}</option>)}
                   </select>
                 </td>
                 <td>
                   <input
                     type="checkbox"
                     checked={!!editDraft.actif}
-                    onChange={(ev) => setEditDraft({ ...editDraft, actif: ev.target.checked })}
+                    onChange={(ev) => patch({actif: ev.target.checked })}
                   />
                 </td>
                 <td className="row-actions">
@@ -129,10 +117,10 @@ export default function UsersPage() {
                     placeholder="(mot de passe inchangé)"
                     style={{ width: 160 }}
                     value={editDraft.password ?? ""}
-                    onChange={(ev) => setEditDraft({ ...editDraft, password: ev.target.value })}
+                    onChange={(ev) => patch({password: ev.target.value })}
                   />
                   <button className="btn" onClick={saveEdit}>Enregistrer</button>
-                  <button className="btn secondary" onClick={cancelEdit}>Annuler</button>
+                  <button className="btn secondary" onClick={cancel}>Annuler</button>
                   <button className="btn danger" onClick={() => removeRow(u.id)}>Supprimer</button>
                 </td>
               </tr>

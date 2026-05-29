@@ -18,6 +18,9 @@ import DependenciesPage from "./pages/DependenciesPage";
 import DependencyNewPage from "./pages/DependencyNewPage";
 import UsersPage from "./pages/UsersPage";
 import UserNewPage from "./pages/UserNewPage";
+import EquipesPage from "./pages/EquipesPage";
+import EquipeNewPage from "./pages/EquipeNewPage";
+import ChargeEquipesPage from "./pages/ChargeEquipesPage";
 
 interface NavItem {
   to: string;
@@ -41,6 +44,8 @@ function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => vo
     { to: "/tasks", icon: "task_alt", label: "Tâches" },
     { to: "/milestones", icon: "flag", label: "Jalons" },
     { to: "/dependencies", icon: "account_tree", label: "Dépendances" },
+    { to: "/equipes", icon: "groups", label: "Équipes" },
+    { to: "/charge", icon: "monitoring", label: "Charge équipes" },
   ];
   if (user?.role === "admin") {
     items.push({ to: "/users", icon: "group", label: "Utilisateurs" });
@@ -127,6 +132,10 @@ export default function App() {
 
         <Route path="/users" element={<Protected><UsersPage /></Protected>} />
         <Route path="/users/new" element={<Protected><UserNewPage /></Protected>} />
+
+        <Route path="/equipes" element={<Protected><EquipesPage /></Protected>} />
+        <Route path="/equipes/new" element={<Protected><EquipeNewPage /></Protected>} />
+        <Route path="/charge" element={<Protected><ChargeEquipesPage /></Protected>} />
       </Routes>
     </AuthProvider>
   );

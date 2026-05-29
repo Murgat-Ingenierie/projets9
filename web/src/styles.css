@@ -866,3 +866,72 @@ dl.kv dd textarea {
   opacity: 0 !important;
   visibility: hidden !important;
 }
+
+/* Charge équipes : tableau semaines × équipes */
+.charge-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.charge-table th,
+.charge-table td {
+  border: 1px solid #e0e0e0;
+  padding: 6px 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+.charge-table thead th {
+  background: #fafafa;
+  font-weight: 500;
+}
+.charge-cell {
+  cursor: pointer;
+  background: #fff;
+  transition: background 120ms;
+  min-width: 80px;
+}
+.charge-cell:hover {
+  background: #f0f4ff;
+}
+.charge-cell.empty {
+  background: #fafafa;
+  color: #bdbdbd;
+}
+.charge-cell.empty:hover {
+  background: #fafafa;
+}
+.charge-cell.overload {
+  background: #ffebee;
+  color: #c62828;
+  font-weight: 500;
+}
+.charge-cell.overload:hover {
+  background: #ffcdd2;
+}
+.charge-cell.selected {
+  outline: 2px solid #1976d2;
+  outline-offset: -2px;
+}
+
+.milestone-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid #1976d2;
+  background: #e3f2fd;
+  color: #0d47a1;
+  border-radius: 12px;
+  font-size: 11px;
+  cursor: pointer;
+  max-width: 100%;
+  font-family: inherit;
+}
+.milestone-pill:hover {
+  background: #bbdefb;
+}
+.milestone-pill-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px;
+}

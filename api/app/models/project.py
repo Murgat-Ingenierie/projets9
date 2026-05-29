@@ -35,9 +35,3 @@ class Project(Base, TimestampMixin):
 
     epic = relationship("Epic", back_populates="projects")
     tasks = relationship("Task", back_populates="project", cascade="all, delete-orphan")
-    milestones = relationship(
-        "Milestone",
-        primaryjoin="and_(Milestone.project_id==Project.id)",
-        cascade="all, delete-orphan",
-        viewonly=False,
-    )

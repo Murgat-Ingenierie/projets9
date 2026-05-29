@@ -7,9 +7,7 @@ from app.database import get_db
 from app.invariants import InvariantError
 from app.invariants.checks import (
     check_dependency_dates,
-    check_task_advancement_status,
     check_task_dates,
-    check_task_dates_within_project,
 )
 from app.models.dependency import Dependency
 from app.models.project import Project
@@ -30,8 +28,6 @@ def _validate(t: Task, db: Session) -> None:
         )
     try:
         check_task_dates(t)
-        check_task_dates_within_project(t, project)
-        check_task_advancement_status(t)
         if t.id is not None:
             deps = list(
                 db.execute(

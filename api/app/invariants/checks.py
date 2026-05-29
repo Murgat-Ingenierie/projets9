@@ -71,13 +71,11 @@ class TaskLike(Protocol):
     projet_id: int
     date_debut: date
     date_fin: date
-    avancement: int
     statut: str
 
 
 class MilestoneLike(Protocol):
-    epic_trigramme: str | None
-    project_id: int | None
+    nom: str
     date: date
     atteint: bool
 
@@ -149,14 +147,16 @@ def check_min_one_admin(users_after: Iterable[UserLike]) -> None:
 # -----------------------------------------------------------------------------
 
 
-def check_milestone_xor_parent(m: MilestoneLike) -> None:
-    """INV-6 : exactement un de (epic_trigramme, project_id) est défini."""
-    has_epic = m.epic_trigramme is not None
-    has_project = m.project_id is not None
-    if has_epic == has_project:
+def check_milestone_has_epics(epic_trigrammes: list[str]) -> None:
+    """INV-6 : un jalon doit être rattaché à au moins un epic (relation N-N).
+
+    Remplace l'ancien XOR epic/project depuis la migration 0006 (suppression du
+    concept de jalon "transverse" lié à un projet seul).
+    """
+    if not epic_trigrammes:
         raise InvariantError(
             "INV-6",
-            "Jalon doit avoir epic_trigramme XOR project_id (exactement un)",
+            "Jalon doit être rattaché à au moins un epic",
         )
 
 
@@ -214,12 +214,11 @@ def check_project_dates_within_epic(p: ProjectLike, e: EpicLike) -> None:
 
 
 def check_milestone_within_epic_max(m: MilestoneLike, e: EpicLike) -> None:
-    """INV-11 : jalon d'Epic respecte jalon_fin_max si défini."""
-    if (
-        m.epic_trigramme is not None
-        and e.jalon_fin_max is not None
-        and m.date > e.jalon_fin_max
-    ):
+    """INV-11 : jalon rattaché à un Epic respecte son jalon_fin_max si défini.
+
+    À appeler une fois par epic auquel le jalon est rattaché.
+    """
+    if e.jalon_fin_max is not None and m.date > e.jalon_fin_max:
         raise InvariantError(
             "INV-11",
             (
@@ -316,19 +315,9 @@ def check_dependency_acyclic(
 
 
 # -----------------------------------------------------------------------------
-# INV-16 — avancement
-# (INV-17 supprimé : le statut tâche est désormais ouvert/archive,
-#  indépendant du % d'avancement.)
+# INV-16 — supprimé : le champ avancement a été retiré (migration 0007).
+# INV-17 — supprimé : le statut tâche est désormais ouvert/archive directement.
 # -----------------------------------------------------------------------------
-
-
-def check_task_advancement_status(t: TaskLike) -> None:
-    """INV-16 : avancement ∈ [0, 100]."""
-    if not (0 <= t.avancement <= 100):
-        raise InvariantError(
-            "INV-16",
-            f"Tâche {t.nom!r} : avancement {t.avancement} hors [0, 100]",
-        )
 
 
 # -----------------------------------------------------------------------------

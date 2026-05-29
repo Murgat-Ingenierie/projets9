@@ -34,9 +34,12 @@ def _validate(epic: Epic, db: Session) -> None:
             )
             milestones = list(
                 db.execute(
-                    select(Milestone).where(Milestone.epic_trigramme == epic.trigramme)
+                    select(Milestone)
+                    .join(Milestone.epics)
+                    .where(Epic.trigramme == epic.trigramme)
                 )
                 .scalars()
+                .unique()
                 .all()
             )
             check_epic_realise_consistency(epic, projects, milestones)

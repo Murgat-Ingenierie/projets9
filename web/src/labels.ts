@@ -30,6 +30,12 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   membre: "Membre",
 };
 
+export const EPIC_STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
+export const EPIC_CATEGORIES: EpicCategory[] = ["operationnel", "strategique", "long_terme"];
+export const PROJECT_STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
+export const TASK_STATUTS: TaskStatus[] = ["ouvert", "archive"];
+export const USER_ROLES: UserRole[] = ["admin", "membre"];
+
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "";
   const [y, m, d] = iso.split("-");

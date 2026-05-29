@@ -2,28 +2,25 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { epics, measures, milestones, projects, users } from "../api/endpoints";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
+import { EpicEditor } from "../components/EpicEditor";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { EpicSelect, UserSelect } from "../components/selects";
 import { navState, useParentCrumbs } from "../hooks/useBreadcrumbState";
 import {
   EPIC_CATEGORY_LABELS,
   EPIC_STATUS_LABELS,
   PROJECT_STATUS_LABELS,
+  PROJECT_STATUTS,
   fmtDate,
 } from "../labels";
 import type {
   Epic,
-  EpicCategory,
-  EpicStatus,
   Measure,
   Milestone,
   Project,
   ProjectStatus,
   User,
 } from "../types";
-
-const EPIC_STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
-const EPIC_CATEGORIES: EpicCategory[] = ["operationnel", "strategique", "long_terme"];
-const PROJECT_STATUTS: ProjectStatus[] = ["prevu", "en_cours", "realise", "abandonne"];
 
 const DEFAULT_PARENT: Crumb[] = [
   { label: "Planning", to: "/" },
@@ -46,7 +43,6 @@ export default function EpicDetailPage() {
   const [err, setErr] = useState<unknown>(null);
 
   const [editingEpic, setEditingEpic] = useState(false);
-  const [epicDraft, setEpicDraft] = useState<Partial<Epic>>({});
 
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
   const [projectDraft, setProjectDraft] = useState<Partial<Project>>({});
@@ -78,47 +74,23 @@ export default function EpicDetailPage() {
   }
   useEffect(load, [trigramme]);
 
-  // Démarre en mode édition si l'URL est /edit
   useEffect(() => {
-    if (epic && startInEditMode && !editingEpic) {
-      setEpicDraft({ ...epic });
-      setEditingEpic(true);
-    }
+    if (epic && startInEditMode && !editingEpic) setEditingEpic(true);
   }, [epic, startInEditMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // --- Edit Epic ---
-  function startEditEpic() {
-    if (!epic) return;
-    setEpicDraft({ ...epic });
-    setEditingEpic(true);
-    setErr(null);
-  }
   function cancelEditEpic() {
     setEditingEpic(false);
-    setEpicDraft({});
     if (startInEditMode) nav(`/epics/${trigramme}`, { replace: true });
   }
-  async function saveEpic() {
-    setErr(null);
-    try {
-      const updated = await epics.update(trigramme, epicDraft);
-      setEpic(updated);
-      setEditingEpic(false);
-      setEpicDraft({});
-      if (startInEditMode) nav(`/epics/${trigramme}`, { replace: true });
-    } catch (e) {
-      setErr(e);
-    }
+  function onEpicSaved() {
+    setEditingEpic(false);
+    if (startInEditMode) nav(`/epics/${trigramme}`, { replace: true });
+    load();
   }
-  async function removeEpic() {
-    if (!confirm(`Supprimer l'epic "${trigramme}" et tous ses projets ?`)) return;
-    try {
-      await epics.remove(trigramme);
-      nav("/epics");
-    } catch (e) {
-      setErr(e);
-    }
+  function onEpicDeleted() {
+    nav("/epics");
   }
+
   // --- Edit Project (inline) ---
   function startEditProject(p: Project) {
     setEditingProjectId(p.id);
@@ -153,137 +125,34 @@ export default function EpicDetailPage() {
 
   if (!epic) return <p>Chargement…</p>;
 
-  // Champs partagés entre lecture et édition — même ordre, mêmes libellés
-  const fields: { label: string; render: () => React.ReactNode }[] = [
-    {
-      label: "Nom",
-      render: () =>
-        editingEpic ? (
-          <input
-            value={epicDraft.nom ?? ""}
-            onChange={(e) => setEpicDraft({ ...epicDraft, nom: e.target.value })}
-          />
-        ) : (
-          <span>{epic.nom}</span>
-        ),
-    },
-    {
-      label: "Critère de réussite",
-      render: () =>
-        editingEpic ? (
-          <textarea
-            rows={2}
-            value={epicDraft.critere_reussite ?? ""}
-            onChange={(e) => setEpicDraft({ ...epicDraft, critere_reussite: e.target.value })}
-          />
-        ) : (
-          <span>{epic.critere_reussite || "—"}</span>
-        ),
-    },
-    {
-      label: "Raison de la date de fin",
-      render: () =>
-        editingEpic ? (
-          <input
-            value={epicDraft.raison_date_fin ?? ""}
-            onChange={(e) => setEpicDraft({ ...epicDraft, raison_date_fin: e.target.value })}
-          />
-        ) : (
-          <span>{epic.raison_date_fin || "—"}</span>
-        ),
-    },
-    {
-      label: "Date de fin prévue",
-      render: () =>
-        editingEpic ? (
-          <input
-            type="date"
-            value={epicDraft.date_fin_prevue ?? ""}
-            onChange={(e) =>
-              setEpicDraft({ ...epicDraft, date_fin_prevue: e.target.value || null })
-            }
-          />
-        ) : (
-          <span>{fmtDate(epic.date_fin_prevue) || "—"}</span>
-        ),
-    },
-    {
-      label: "Jalon de fin maximum",
-      render: () =>
-        editingEpic ? (
-          <input
-            type="date"
-            value={epicDraft.jalon_fin_max ?? ""}
-            onChange={(e) =>
-              setEpicDraft({ ...epicDraft, jalon_fin_max: e.target.value || null })
-            }
-          />
-        ) : (
-          <span>{fmtDate(epic.jalon_fin_max) || "—"}</span>
-        ),
-    },
+  const readonlyFields: { label: string; render: () => React.ReactNode }[] = [
+    { label: "Nom", render: () => <span>{epic.nom}</span> },
+    { label: "Critère de réussite", render: () => <span>{epic.critere_reussite || "—"}</span> },
+    { label: "Raison de la date de fin", render: () => <span>{epic.raison_date_fin || "—"}</span> },
+    { label: "Date de fin prévue", render: () => <span>{fmtDate(epic.date_fin_prevue) || "—"}</span> },
+    { label: "Jalon de fin maximum", render: () => <span>{fmtDate(epic.jalon_fin_max) || "—"}</span> },
     {
       label: "Statut",
-      render: () =>
-        editingEpic ? (
-          <select
-            value={epicDraft.statut ?? "idee"}
-            onChange={(e) => setEpicDraft({ ...epicDraft, statut: e.target.value as EpicStatus })}
-          >
-            {EPIC_STATUTS.map((s) => (
-              <option key={s} value={s}>{EPIC_STATUS_LABELS[s]}</option>
-            ))}
-          </select>
-        ) : (
-          <span className={`tag ${epic.statut}`}>{EPIC_STATUS_LABELS[epic.statut]}</span>
-        ),
+      render: () => <span className={`tag ${epic.statut}`}>{EPIC_STATUS_LABELS[epic.statut]}</span>,
     },
-    {
-      label: "Catégorie",
-      render: () =>
-        editingEpic ? (
-          <select
-            value={epicDraft.categorie ?? "operationnel"}
-            onChange={(e) =>
-              setEpicDraft({ ...epicDraft, categorie: e.target.value as EpicCategory })
-            }
-          >
-            {EPIC_CATEGORIES.map((c) => (
-              <option key={c} value={c}>{EPIC_CATEGORY_LABELS[c]}</option>
-            ))}
-          </select>
-        ) : (
-          <span>{EPIC_CATEGORY_LABELS[epic.categorie]}</span>
-        ),
-    },
+    { label: "Catégorie", render: () => <span>{EPIC_CATEGORY_LABELS[epic.categorie]}</span> },
     {
       label: "Couleur",
-      render: () =>
-        editingEpic ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              type="color"
-              value={epicDraft.couleur ?? "#3f51b5"}
-              onChange={(e) => setEpicDraft({ ...epicDraft, couleur: e.target.value })}
-              style={{ width: 48, height: 32, padding: 0, cursor: "pointer", border: "1px solid #e0e0e0", borderRadius: 4 }}
-            />
-            <code style={{ color: "#5f6368", fontSize: 12 }}>{epicDraft.couleur ?? "—"}</code>
-          </div>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span
-              style={{
-                display: "inline-block",
-                width: 20,
-                height: 20,
-                background: epic.couleur ?? "#3f51b5",
-                borderRadius: 4,
-                border: "1px solid #e0e0e0",
-              }}
-            />
-            <code style={{ color: "#5f6368", fontSize: 12 }}>{epic.couleur ?? "(défaut)"}</code>
-          </div>
-        ),
+      render: () => (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              display: "inline-block",
+              width: 20,
+              height: 20,
+              background: epic.couleur ?? "#3f51b5",
+              borderRadius: 4,
+              border: "1px solid #e0e0e0",
+            }}
+          />
+          <code style={{ color: "#5f6368", fontSize: 12 }}>{epic.couleur ?? "(défaut)"}</code>
+        </div>
+      ),
     },
   ];
 
@@ -292,26 +161,30 @@ export default function EpicDetailPage() {
       <Breadcrumb items={[...parentCrumbs, { label: epic.nom }]} />
       <div className="page-header">
         <h2>{epic.nom}</h2>
-        {!editingEpic ? (
-          <button className="btn" onClick={startEditEpic}>Éditer</button>
-        ) : (
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn" onClick={saveEpic}>Enregistrer</button>
-            <button className="btn secondary" onClick={cancelEditEpic}>Annuler</button>
-            <button className="btn danger" onClick={removeEpic}>Supprimer</button>
-          </div>
+        {!editingEpic && (
+          <button className="btn" onClick={() => setEditingEpic(true)}>Éditer</button>
         )}
       </div>
       <ErrorBanner error={err} />
 
-      <dl className="kv">
-        {fields.map((f) => (
-          <div key={f.label} className="kv-row">
-            <dt>{f.label}</dt>
-            <dd>{f.render()}</dd>
-          </div>
-        ))}
-      </dl>
+      {editingEpic ? (
+        <EpicEditor
+          trigramme={trigramme}
+          onSaved={onEpicSaved}
+          onCancel={cancelEditEpic}
+          onDeleted={onEpicDeleted}
+          showDelete
+        />
+      ) : (
+        <dl className="kv">
+          {readonlyFields.map((f) => (
+            <div key={f.label} className="kv-row">
+              <dt>{f.label}</dt>
+              <dd>{f.render()}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       <div className="page-header" style={{ marginTop: 32 }}>
         <h3 style={{ margin: 0 }}>Projets ({projs.length})</h3>
@@ -350,16 +223,11 @@ export default function EpicDetailPage() {
                   />
                 </td>
                 <td>
-                  <select
+                  <EpicSelect
                     value={projectDraft.epic_trigramme ?? ""}
-                    onChange={(ev) =>
-                      setProjectDraft({ ...projectDraft, epic_trigramme: ev.target.value })
-                    }
-                  >
-                    {allEpics.map((e) => (
-                      <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>
-                    ))}
-                  </select>
+                    onChange={(t) => setProjectDraft({ ...projectDraft, epic_trigramme: t })}
+                    epics={allEpics}
+                  />
                 </td>
                 <td>
                   <input
@@ -376,18 +244,11 @@ export default function EpicDetailPage() {
                   />
                 </td>
                 <td>
-                  <select
-                    value={projectDraft.responsable_id ?? ""}
-                    onChange={(ev) =>
-                      setProjectDraft({
-                        ...projectDraft,
-                        responsable_id: ev.target.value ? Number(ev.target.value) : null,
-                      })
-                    }
-                  >
-                    <option value="">—</option>
-                    {allUsers.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
-                  </select>
+                  <UserSelect
+                    value={projectDraft.responsable_id ?? null}
+                    onChange={(id) => setProjectDraft({ ...projectDraft, responsable_id: id })}
+                    users={allUsers}
+                  />
                 </td>
                 <td>
                   <select

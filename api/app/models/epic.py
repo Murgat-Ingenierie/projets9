@@ -43,8 +43,7 @@ class Epic(Base, TimestampMixin):
     projects = relationship("Project", back_populates="epic", cascade="all, delete-orphan")
     milestones = relationship(
         "Milestone",
-        primaryjoin="and_(Milestone.epic_trigramme==Epic.trigramme)",
-        cascade="all, delete-orphan",
-        viewonly=False,
+        secondary="milestone_epic",
+        viewonly=True,
     )
     measures = relationship("Measure", back_populates="epic", cascade="all, delete-orphan")

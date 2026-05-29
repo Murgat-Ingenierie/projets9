@@ -9,7 +9,6 @@ from app.invariants.checks import (
     check_project_dates,
     check_project_dates_within_epic,
     check_project_realise_consistency,
-    check_task_dates_within_project,
 )
 from app.models.epic import Epic
 from app.models.project import Project
@@ -32,8 +31,6 @@ def _validate(p: Project, db: Session) -> None:
         check_project_dates(p)
         check_project_dates_within_epic(p, epic)
         tasks = list(db.execute(select(Task).where(Task.projet_id == p.id)).scalars().all())
-        for t in tasks:
-            check_task_dates_within_project(t, p)
         if p.statut == "realise":
             check_project_realise_consistency(p, tasks)
     except InvariantError as e:

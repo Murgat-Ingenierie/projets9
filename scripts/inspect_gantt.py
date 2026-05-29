@@ -23,9 +23,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://localhost:8088/")
     ap.add_argument("--screenshot", default=None, help="path to save full-page screenshot")
-    ap.add_argument("--wait", type=int, default=800, help="ms to wait after SVG appears")
+    ap.add_argument("--wait", type=int, default=800, help="ms to wait after page ready")
     ap.add_argument("--width", type=int, default=1600)
     ap.add_argument("--height", type=int, default=1000)
+    ap.add_argument(
+        "--wait-selector",
+        default="svg g[tabindex]",
+        help="CSS selector to wait for before evaluating (use empty string to skip)",
+    )
     args = ap.parse_args()
 
     js = sys.stdin.read().strip()
@@ -43,13 +48,14 @@ def main():
         page.on("console", lambda m: errors.append(f"[{m.type}] {m.text}") if m.type in ("error", "warning") else None)
 
         page.goto(args.url, wait_until="domcontentloaded")
-        try:
-            page.wait_for_selector("svg g[tabindex]", timeout=15000)
-        except Exception as e:
-            sys.stderr.write(f"timeout waiting for SVG bars: {e}\n")
-            if errors:
-                sys.stderr.write("page errors:\n" + "\n".join(errors[:20]) + "\n")
-            sys.exit(3)
+        if args.wait_selector:
+            try:
+                page.wait_for_selector(args.wait_selector, timeout=15000)
+            except Exception as e:
+                sys.stderr.write(f"timeout waiting for {args.wait_selector!r}: {e}\n")
+                if errors:
+                    sys.stderr.write("page errors:\n" + "\n".join(errors[:20]) + "\n")
+                sys.exit(3)
 
         page.wait_for_timeout(args.wait)
         try:

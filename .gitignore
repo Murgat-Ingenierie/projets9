@@ -38,3 +38,9 @@ data/*.ods
 
 # Logs
 *.log
+
+# Local Claude Code config
+.claude/
+
+# Local DB dumps (la stratégie backup réelle vit dans le service backup)
+backups/

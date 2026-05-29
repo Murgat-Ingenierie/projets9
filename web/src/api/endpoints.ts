@@ -1,10 +1,12 @@
 import type {
   Dependency,
   Epic,
+  Equipe,
   LoginResponse,
   Measure,
   Milestone,
   Project,
+  TacheEquipe,
   Task,
   User,
 } from "../types";
@@ -66,10 +68,9 @@ export const tasks = {
 };
 
 export const milestones = {
-  list: (params: { epic?: string; projet_id?: number } = {}) => {
+  list: (params: { epic?: string } = {}) => {
     const q = new URLSearchParams();
     if (params.epic) q.set("epic", params.epic);
-    if (params.projet_id) q.set("projet_id", String(params.projet_id));
     const s = q.toString();
     return api<Milestone[]>(`/api/milestones${s ? `?${s}` : ""}`);
   },
@@ -112,4 +113,33 @@ export const measures = {
       body: JSON.stringify(data),
     }),
   remove: (id: number) => api<void>(`/api/measures/${id}`, { method: "DELETE" }),
+};
+
+export const equipes = {
+  list: () => api<Equipe[]>("/api/equipes"),
+  get: (id: number) => api<Equipe>(`/api/equipes/${id}`),
+  create: (data: { nom: string; temps_dispo_hebdo: number }) =>
+    api<Equipe>("/api/equipes", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: Partial<{ nom: string; temps_dispo_hebdo: number }>) =>
+    api<Equipe>(`/api/equipes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  remove: (id: number) => api<void>(`/api/equipes/${id}`, { method: "DELETE" }),
+};
+
+export const tacheEquipe = {
+  list: () => api<TacheEquipe[]>("/api/tache-equipe"),
+  create: (data: { tache_id: number; equipe_id: number; heures_allouees: number }) =>
+    api<TacheEquipe>("/api/tache-equipe", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: { heures_allouees: number }) =>
+    api<TacheEquipe>(`/api/tache-equipe/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  remove: (id: number) =>
+    api<void>(`/api/tache-equipe/${id}`, { method: "DELETE" }),
 };
