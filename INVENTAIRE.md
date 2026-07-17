@@ -268,7 +268,17 @@ construites par la CI**.
 
 | Annoncé | Réel |
 |---|---|
-| « à chaque push » | `push` **limité à `main`** ; ailleurs seulement si une PR est ouverte |
+| « à chaque push » | `push` **limité à `main`** ; ailleurs seulement si une PR est ouverte. **Volontairement conservé** — voir ci-dessous. |
+
+> **Correction de ma recommandation initiale (C1).** J'avais listé « élargir `push:` au-delà de `main` »
+> comme un reste-à-faire. À la réflexion, **la configuration est standard et correcte** :
+> `push: [main]` + `pull_request` est le motif habituel, et l'élargir à toutes les branches ferait
+> tourner la CI sur chaque push de travail en cours, pour un signal en double sur les branches de PR.
+> Ce qui a réellement manqué pendant 66 commits, ce n'est pas la config : c'est qu'**aucune PR n'a
+> jamais été ouverte** (la PR #1 est la première du dépôt). Le signal précoce s'obtient en ouvrant
+> une PR en draft, pas en élargissant le déclencheur. Seul le `README.md` est à corriger sur ce point :
+> il promet « à chaque push ». Ajoutés en revanche : `workflow_dispatch` (déclenchement manuel) et un
+> groupe `concurrency` (un nouveau push annule l'exécution précédente au lieu de faire la queue).
 | ruff + pytest | vrai — mais pytest est rouge |
 | build des 3 images | **ne s'exécute pas** (bloqué par `needs`) |
 | job « Web — lint + build » | **ne linte jamais** : pas d'étape lint |
@@ -336,7 +346,7 @@ correct si `models/__init__.py` était un jour allégé), mais ce n'était **pas
 
 | Id | Chantier | Pourquoi | Effort |
 |---|---|---|---|
-| **C1** | 🟡 **En cours.** ✅ *Étape 0 faite : lint + tests verts (§1).* **Reste** : config ESLint (le job « Web — lint + build » ne linte pas, et `npm run lint` est inexécutable), `package-lock.json` (`npm ci \|\| npm install` masque l'échec), élargir `push:` au-delà de `main` | Rien n'est fiable tant que la CI ment | ~~XS~~ → M |
+| **C1** | ✅ **Fait (2026-07-17).** Étape 0 (lint + tests verts) puis : `eslint.config.js` plate créée — le job « Web — lint + build » **linte enfin** ; `package-lock.json` commité et `npm ci` sans repli ; `concurrency` + `workflow_dispatch` ; `*.tsbuildinfo` ignoré. Code mort du front retiré (`nav`, `navState`) + 2 directives `eslint-disable` mensongères. **Reste** : 7 warnings de lint documentés ci-dessous. | Rien n'est fiable tant que la CI ment | ~~XS~~ → M |
 | **C2** | ✅ **Fait (SPEC v0.2, 2026-07-17).** Équipes documentées + 5 invariants `INV-EQ-*`, non-invariants délibérés consignés, statut de livraison par écran, retraits INV-9/13/16/17 entérinés, écarts §6/§8 actés. **Découvert au passage** : les routers Équipe sont les seuls à ne pas passer par `app.invariants` — leurs violations ne remontent **aucun code** `INV-EQ-*`. Prérequis de C3, voir C10. | La spec est la référence de la phase 2 ; elle était fausse | S |
 | **C3** | **Phase 2 — tests d'invariants** (l'objectif annoncé du README) : **24 invariants actifs** à couvrir (19 restants + 5 `INV-EQ-*`), unitaire + intégration + Hypothesis | Le cœur métier n'est pas protégé | L |
 | **C10** | ✅ **Fait (2026-07-17).** 6 fonctions `check_*` ajoutées + câblées via `http_from_invariant` dans les 2 routers Équipe. Défaut `INV-EQ-1a` corrigé, `INV-EQ-5` aligné sur INV-4 (409+code). Exports d'`app.invariants` complétés (15→18+6). Vérifié 14/14. | Sans code stable, la règle « 1 test par `INV-X` » était inapplicable aux Équipes | S |
