@@ -348,3 +348,73 @@ def check_measure_unit_consistency(
                 "INV-20",
                 f"Mesure: unité {new_measure.unite!r} incohérente avec {m.unite!r} sur Epic {m.epic_trigramme}",
             )
+
+
+# -----------------------------------------------------------------------------
+# INV-EQ-1a / INV-EQ-1b / INV-EQ-2 — Équipe
+# INV-EQ-3 / INV-EQ-4 / INV-EQ-5 — allocation TâcheÉquipe
+#
+# Comme pour INV-1, certaines de ces règles sont aussi portées par le schéma
+# Pydantic, qui rejette en 422 avant que la route ne s'exécute. Les fonctions
+# ci-dessous restent la définition testable de l'invariant, indépendamment de
+# la couche qui l'applique en premier.
+# -----------------------------------------------------------------------------
+
+
+def check_equipe_nom(nom: str) -> None:
+    """INV-EQ-1a : Équipe.nom non vide après trim.
+
+    Non couvert par `Field(min_length=1)`, qui compte les caractères sans
+    trim et accepte donc "   ".
+    """
+    if not (nom or "").strip():
+        raise InvariantError("INV-EQ-1a", "Nom d'équipe vide")
+
+
+def check_equipe_nom_unique(nom: str, autres_noms: Iterable[str]) -> None:
+    """INV-EQ-1b : Équipe.nom unique, insensible à la casse.
+
+    `autres_noms` = les noms des *autres* équipes (l'appelant exclut l'équipe
+    en cours de modification, sinon un renommage à casse égale échouerait).
+    """
+    cible = (nom or "").strip().lower()
+    for autre in autres_noms:
+        if (autre or "").strip().lower() == cible:
+            raise InvariantError("INV-EQ-1b", f"Nom d'équipe déjà utilisé : {nom!r}")
+
+
+def check_equipe_temps_dispo(temps_dispo_hebdo: float) -> None:
+    """INV-EQ-2 : Équipe.temps_dispo_hebdo ≥ 0."""
+    if temps_dispo_hebdo < 0:
+        raise InvariantError(
+            "INV-EQ-2", f"temps_dispo_hebdo négatif : {temps_dispo_hebdo}"
+        )
+
+
+def check_allocation_heures(heures_allouees: float) -> None:
+    """INV-EQ-3 : TâcheÉquipe.heures_allouées > 0."""
+    if heures_allouees <= 0:
+        raise InvariantError(
+            "INV-EQ-3", f"heures_allouées doit être > 0 (reçu {heures_allouees})"
+        )
+
+
+def check_allocation_unique(
+    tache_id: int, equipe_id: int, couples_existants: Iterable[tuple[int, int]]
+) -> None:
+    """INV-EQ-4 : au plus une allocation par couple (tâche, équipe)."""
+    if (tache_id, equipe_id) in set(couples_existants):
+        raise InvariantError(
+            "INV-EQ-4",
+            f"Équipe {equipe_id} déjà allouée sur la tâche {tache_id}",
+        )
+
+
+def check_allocation_refs(
+    tache_id: int, equipe_id: int, *, tache_existe: bool, equipe_existe: bool
+) -> None:
+    """INV-EQ-5 : l'allocation référence une Tâche et une Équipe existantes."""
+    if not tache_existe:
+        raise InvariantError("INV-EQ-5", f"Tâche {tache_id} inconnue")
+    if not equipe_existe:
+        raise InvariantError("INV-EQ-5", f"Équipe {equipe_id} inconnue")

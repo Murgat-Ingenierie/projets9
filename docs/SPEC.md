@@ -232,29 +232,38 @@ Ajoutés en 0.2 : ces règles étaient **déjà appliquées par le code** (migra
 n'avaient jamais été spécifiées, donc jamais identifiées. Elles suivent la convention nommée
 d'`INV-AUTH-*` plutôt que la numérotation `INV-1..21`, qui est close.
 
-| ID | Énoncé | Appliqué ? |
-|---|---|---|
-| INV-EQ-1a | `Équipe.nom` est non vide **après trim**. | ❌ **non** — voir ci-dessous |
-| INV-EQ-1b | `Équipe.nom` est unique (insensible à la casse). | ✅ |
-| INV-EQ-2 | `Équipe.temps_dispo_hebdo ≥ 0`. | ✅ |
-| INV-EQ-3 | `TâcheÉquipe.heures_allouées > 0`. | ✅ |
-| INV-EQ-4 | Au plus une `TâcheÉquipe` par couple (`tâche_id`, `équipe_id`). | ✅ |
-| INV-EQ-5 | Toute `TâcheÉquipe` référence une `Tâche` et une `Équipe` existantes. | ✅ |
+| ID | Énoncé | Fonction | Refus |
+|---|---|---|---|
+| INV-EQ-1a | `Équipe.nom` est non vide **après trim**. | `check_equipe_nom` | 409 `INV-EQ-1a` |
+| INV-EQ-1b | `Équipe.nom` est unique (insensible à la casse). | `check_equipe_nom_unique` | 409 `INV-EQ-1b` |
+| INV-EQ-2 | `Équipe.temps_dispo_hebdo ≥ 0`. | `check_equipe_temps_dispo` | 422 (schéma) |
+| INV-EQ-3 | `TâcheÉquipe.heures_allouées > 0`. | `check_allocation_heures` | 422 (schéma) |
+| INV-EQ-4 | Au plus une `TâcheÉquipe` par couple (`tâche_id`, `équipe_id`). | `check_allocation_unique` | 409 `INV-EQ-4` |
+| INV-EQ-5 | Toute `TâcheÉquipe` référence une `Tâche` et une `Équipe` existantes. | `check_allocation_refs` | 409 `INV-EQ-5` |
 
-**INV-EQ-1a — défaut, pas choix.** Le nom d'équipe est validé par `Field(min_length=1)`, qui compte
-les caractères **sans trim** : une équipe nommée `"   "` est acceptée (vérifié — `HTTP 201`).
-`Epic.nom` est, lui, bien vérifié après trim (INV-2, via `check_epic_basics`). Rien ne justifie
-l'asymétrie : c'est un oubli. L'énoncé ci-dessus reste la référence, l'implémentation doit suivre.
-INV-EQ-1 est scindé en `1a`/`1b` précisément parce que ses deux moitiés n'ont pas le même statut —
-les tester ensemble masquerait le trou.
+INV-EQ-1 est scindé en `1a`/`1b` parce que ses deux moitiés n'avaient pas le même statut à la
+rédaction de la 0.2 : `1b` était appliqué, `1a` ne l'était pas. Les garder distincts évite qu'un
+test unique ne masque à nouveau la moitié manquante.
 
-**Écart connu à corriger (défaut, pas choix).** Les règles marquées ✅ sont bien appliquées, mais
-`routes/equipes.py` et `routes/tache_equipe.py` sont les **seuls routers à n'utiliser ni
-`app.invariants` ni `http_from_invariant`** : ils lèvent des `HTTPException(409, "…")` portant une
-chaîne libre au lieu du `{"code", "message"}` que produit tout le reste. **Les violations Équipe ne
-remontent donc aucun code `INV-EQ-*` au client.** Conséquence directe pour la phase 2 : la règle du
-`README.md` — « chaque ID `INV-X` donne lieu à au moins un test » — est **inapplicable telle quelle
-aux Équipes**. Câbler ces cinq codes est un prérequis de la phase 2, pas un raffinement.
+**INV-EQ-2 et INV-EQ-3 refusent en 422, pas en 409.** Ce n'est pas une anomalie mais la convention
+déjà en vigueur pour **INV-1** : la contrainte est portée par le schéma Pydantic
+(`Field(ge=0)` / `Field(gt=0)` / `pattern=…`), qui rejette avant que la route ne s'exécute et
+documente la règle dans l'OpenAPI. La fonction `check_*` reste la **définition testable** de
+l'invariant — c'est elle que la phase 2 éprouve unitairement — même si, via l'API, c'est le schéma
+qui refuse en premier. Les contraintes `CHECK` en base forment la dernière ligne.
+
+*Historique (résolu le 2026-07-17, chantier C10).* `routes/equipes.py` et `routes/tache_equipe.py`
+étaient les seuls routers à n'utiliser ni `app.invariants` ni `http_from_invariant` : ils levaient
+des `HTTPException(409, "chaîne libre")`, sans identifiant. Les violations Équipe ne remontaient
+donc aucun code, ce qui rendait la règle du `README.md` — « chaque `INV-X` donne lieu à au moins un
+test : mutation refusée **avec le bon code** » — inapplicable aux Équipes. Les six codes sont
+désormais câblés. Deux changements de comportement à noter :
+
+- `INV-EQ-1a` **refuse désormais** un nom composé uniquement d'espaces (auparavant `HTTP 201`), et
+  le nom est *trimmé* à l'écriture ;
+- `INV-EQ-5` renvoie **409 + code** au lieu de **404**, par alignement sur INV-4 (`Projet inconnu`),
+  qui traite déjà une référence manquante comme une violation d'invariant et non comme une
+  ressource absente.
 
 ### Non-invariants délibérés
 
