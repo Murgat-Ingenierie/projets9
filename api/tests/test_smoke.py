@@ -5,10 +5,7 @@ from app.invariants import InvariantError, check_dependency_acyclic
 
 def test_imports_ok() -> None:
     """Vérifie que les modules s'importent (CI ne casse pas avant phase 2)."""
-    from app.invariants import (  # noqa: F401
-        check_epic_realise_consistency,
-        check_task_advancement_status,
-    )
+    from app.invariants import check_epic_realise_consistency  # noqa: F401
 
 
 def test_acyclic_simple() -> None:

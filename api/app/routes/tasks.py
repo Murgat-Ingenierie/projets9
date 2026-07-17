@@ -1,15 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
 from app.invariants import InvariantError
-from app.invariants.checks import (
-    check_dependency_dates,
-    check_task_dates,
-)
-from app.models.dependency import Dependency
+from app.invariants.checks import check_task_dates
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
@@ -28,24 +24,6 @@ def _validate(t: Task, db: Session) -> None:
         )
     try:
         check_task_dates(t)
-        if t.id is not None:
-            deps = list(
-                db.execute(
-                    select(Dependency).where(
-                        or_(
-                            Dependency.tache_amont_id == t.id,
-                            Dependency.tache_aval_id == t.id,
-                        )
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            for d in deps:
-                amont = t if d.tache_amont_id == t.id else db.get(Task, d.tache_amont_id)
-                aval = t if d.tache_aval_id == t.id else db.get(Task, d.tache_aval_id)
-                if amont is not None and aval is not None:
-                    check_dependency_dates(d, amont, aval)
     except InvariantError as e:
         raise http_from_invariant(e) from None
 

@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field
 from app.models.epic import EpicCategory, EpicStatus
 from app.schemas.common import TimestampedRead
 
-
 COLOR_PATTERN = r"^#[0-9a-fA-F]{6}$"
 
 

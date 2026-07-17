@@ -42,11 +42,6 @@ def _fr(d: date) -> str:
 # -----------------------------------------------------------------------------
 
 
-class HasDateRange(Protocol):
-    date_debut: date
-    date_fin: date
-
-
 class EpicLike(Protocol):
     trigramme: str
     nom: str
@@ -184,21 +179,12 @@ def check_project_dates(p: ProjectLike) -> None:
 
 
 # -----------------------------------------------------------------------------
-# INV-9 / INV-10 / INV-11 / INV-12 — cascade
+# INV-10 / INV-11 / INV-12 — cascade
+#
+# INV-9 retiré (cf. docs/SPEC.md) : une tâche peut sortir de la fenêtre de son
+# projet. Le planning Gantt la signale par une hachure rouge, l'API ne refuse
+# plus la mutation.
 # -----------------------------------------------------------------------------
-
-
-def check_task_dates_within_project(t: TaskLike, p: ProjectLike) -> None:
-    """INV-9 : [task.date_début, task.date_fin] ⊆ [project.date_début, project.date_fin]."""
-    if t.date_debut < p.date_debut or t.date_fin > p.date_fin:
-        raise InvariantError(
-            "INV-9",
-            (
-                f"Tâche {t.nom!r} ({_fr(t.date_debut)} → {_fr(t.date_fin)}) "
-                f"hors de la fenêtre du projet {p.nom!r} "
-                f"({_fr(p.date_debut)} → {_fr(p.date_fin)})"
-            ),
-        )
 
 
 def check_project_dates_within_epic(p: ProjectLike, e: EpicLike) -> None:
@@ -245,23 +231,11 @@ def check_epic_date_order(e: EpicLike) -> None:
 
 
 # -----------------------------------------------------------------------------
-# INV-13 — dépendances et dates
-# -----------------------------------------------------------------------------
-
-
-def check_dependency_dates(dep: DependencyLike, amont: TaskLike, aval: TaskLike) -> None:
-    """INV-13 : SUPPRIMÉ.
-
-    Les contraintes de date entre tâches dépendantes ont été retirées —
-    une dépendance peut désormais être créée librement, indépendamment
-    de l'ordre chronologique des dates. Les seules contraintes restantes
-    sur le graphe sont : pas d'auto-dépendance (INV-15), DAG (INV-14).
-    """
-    return  # no-op
-
-
-# -----------------------------------------------------------------------------
 # INV-14 / INV-15 — graphe
+#
+# INV-13 retiré (cf. docs/SPEC.md) : plus aucune contrainte de dates entre
+# tâches dépendantes. Une dépendance se crée librement, indépendamment de
+# l'ordre chronologique.
 # -----------------------------------------------------------------------------
 
 
