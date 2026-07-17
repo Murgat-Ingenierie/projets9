@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# Une seule exécution par branche : un nouveau push annule la précédente,
+# encore en cours, plutôt que de faire la queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   api:
@@ -37,8 +44,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # `npm ci` sans repli : le `|| npm install` d'avant masquait l'absence de
+      # package-lock.json, et faisait flotter les versions à chaque exécution.
       - name: Install
-        run: npm ci || npm install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
       - name: Build
         run: npm run build
 

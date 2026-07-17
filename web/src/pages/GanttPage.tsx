@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import {
@@ -14,7 +13,6 @@ import {
 import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import { IconButton } from "../components/IconButton";
 import { ErrorBanner } from "../components/ErrorBanner";
-import { navState } from "../hooks/useBreadcrumbState";
 import type { Dependency, Epic, Equipe, Milestone, Project, TacheEquipe, Task } from "../types";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
@@ -125,7 +123,6 @@ function TaskListHeader({
 }
 
 export default function GanttPage() {
-  const nav = useNavigate();
   const [epicsList, setEpics] = useState<Epic[]>([]);
   const [projectsList, setProjects] = useState<Project[]>([]);
   const [tasksList, setTasks] = useState<Task[]>([]);
@@ -340,7 +337,7 @@ export default function GanttPage() {
       document.removeEventListener("mouseup", onUp);
       document.removeEventListener("keydown", onKey);
     };
-  }, [linkSource]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [linkSource]);
 
   // Calendrier figé : on clone le <g class="calendar"> du SVG dans un
   // overlay SVG position:fixed quand l'original passe au-dessus du viewport.
@@ -913,7 +910,7 @@ export default function GanttPage() {
 
     root.addEventListener("click", onClick);
     return () => root.removeEventListener("click", onClick);
-  }, [editMode, arrowPairs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editMode, arrowPairs]);
 
   // Position des handles "Lier" : un par tâche, sur le côté droit de sa barre.
   useEffect(() => {

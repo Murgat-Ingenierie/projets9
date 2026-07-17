@@ -16,6 +16,8 @@ env/
 node_modules/
 dist/
 .vite/
+# Cache incrémental de `tsc -b`, régénéré à chaque build
+*.tsbuildinfo
 
 # Env / secrets
 .env

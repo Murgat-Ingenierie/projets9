@@ -68,10 +68,14 @@ Connexion initiale avec `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` de `.env`.
 
 ## CI
 
-GitHub Actions exécute à chaque push :
+GitHub Actions s'exécute sur **push vers `main`**, sur **toute pull request**, et à la
+demande (`workflow_dispatch`) :
 - Lint Python (`ruff`) + tests `pytest`
-- Build TypeScript du front
+- Lint front (`eslint`) + build TypeScript
 - Build des trois images Docker
+
+Sur une branche de travail sans PR, la CI ne tourne pas : ouvrir une PR (même en
+*draft*) suffit à obtenir le signal.
 
 ## Phase 2 — Tests auto basés sur les invariants
 

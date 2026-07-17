@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint ."
   },
   "dependencies": {
     "gantt-task-react": "^0.3.9",
