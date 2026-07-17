@@ -1,0 +1,185 @@
+"""Fixtures des tests d'intégration (phase 2).
+
+Base SQLite en mémoire, schéma monté par `Base.metadata.create_all` plutôt que
+par Alembic : les migrations sont écrites pour PostgreSQL (types ENUM natifs) et
+ne s'appliquent pas telles quelles.
+
+**Portée assumée** : ce que ces tests éprouvent, c'est l'application des
+invariants par les *routes* — du Python, identique quel que soit le moteur. Les
+différences PostgreSQL/SQLite (contraintes `CHECK`, types ENUM) ne sont donc pas
+sur le chemin testé. En contrepartie, la dernière ligne de défense qu'est la
+contrainte en base n'est **pas** couverte ici : la faire tomber demanderait un
+service PostgreSQL en CI. C'est un arbitrage, pas un oubli.
+
+L'authentification n'est pas court-circuitée : on crée un vrai admin et on passe
+par `POST /api/auth/login` pour obtenir un vrai JWT. Le chemin d'auth est ainsi
+couvert par construction dans chaque test.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Generator
+from dataclasses import dataclass
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+import app.models  # noqa: F401  (import pour peupler Base.metadata)
+from app.auth.security import hash_password
+from app.database import Base, get_db
+from app.main import app as fastapi_app
+from app.models.user import User, UserRole
+
+ADMIN_EMAIL = "admin@test.local"
+ADMIN_PASSWORD = "motdepasse-admin"
+
+
+@pytest.fixture
+def engine() -> Generator[Engine, None, None]:
+    eng = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,  # une seule connexion : la base vit en mémoire
+        future=True,
+    )
+
+    @event.listens_for(eng, "connect")
+    def _active_les_fk(dbapi_conn, _record) -> None:  # type: ignore[no-untyped-def]
+        # SQLite ignore les clés étrangères par défaut : sans ça, ON DELETE
+        # CASCADE ne s'appliquerait pas et INV-4/INV-5 seraient testés à vide.
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
+
+    Base.metadata.create_all(eng)
+    try:
+        yield eng
+    finally:
+        Base.metadata.drop_all(eng)
+        eng.dispose()
+
+
+@pytest.fixture
+def session_factory(engine: Engine) -> sessionmaker[Session]:
+    return sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+
+@pytest.fixture
+def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
+    def _get_db() -> Generator[Session, None, None]:
+        db = session_factory()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    fastapi_app.dependency_overrides[get_db] = _get_db
+    with TestClient(fastapi_app) as c:
+        yield c
+    fastapi_app.dependency_overrides.clear()
+
+
+@dataclass
+class Compte:
+    id: int
+    email: str
+    password: str
+
+
+@pytest.fixture
+def admin(session_factory: sessionmaker[Session]) -> Compte:
+    db = session_factory()
+    u = User(
+        nom="Admin Test",
+        email=ADMIN_EMAIL,
+        password_hash=hash_password(ADMIN_PASSWORD),
+        role=UserRole.admin,
+        actif=True,
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    compte = Compte(id=u.id, email=u.email, password=ADMIN_PASSWORD)
+    db.close()
+    return compte
+
+
+@pytest.fixture
+def auth(client: TestClient, admin: Compte) -> dict[str, str]:
+    """En-tête Authorization d'un vrai JWT obtenu via /api/auth/login."""
+    r = client.post(
+        "/api/auth/login", json={"email": admin.email, "password": admin.password}
+    )
+    assert r.status_code == 200, f"login raté : {r.status_code} {r.text}"
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+# --- petites fabriques : montent le strict nécessaire pour chaque scénario ---
+
+
+@pytest.fixture
+def fabrique(client: TestClient, auth: dict[str, str]):
+    class Fabrique:
+        def epic(self, trigramme: str = "ABC", **kw):
+            corps = {
+                "trigramme": trigramme,
+                "nom": "Epic de test",
+                "statut": "idee",
+                "categorie": "operationnel",
+                **kw,
+            }
+            r = client.post("/api/epics", json=corps, headers=auth)
+            assert r.status_code == 201, r.text
+            return r.json()
+
+        def projet(self, epic_trigramme: str = "ABC", **kw):
+            corps = {
+                "epic_trigramme": epic_trigramme,
+                "nom": "Projet de test",
+                "date_debut": "2026-08-01",
+                "date_fin": "2026-08-31",
+                **kw,
+            }
+            r = client.post("/api/projects", json=corps, headers=auth)
+            assert r.status_code == 201, r.text
+            return r.json()
+
+        def tache(self, projet_id: int, **kw):
+            corps = {
+                "projet_id": projet_id,
+                "nom": "Tâche de test",
+                "date_debut": "2026-08-01",
+                "date_fin": "2026-08-10",
+                **kw,
+            }
+            r = client.post("/api/tasks", json=corps, headers=auth)
+            assert r.status_code == 201, r.text
+            return r.json()
+
+        def equipe(self, nom: str = "Maintenance", **kw):
+            corps = {"nom": nom, "temps_dispo_hebdo": 35, **kw}
+            r = client.post("/api/equipes", json=corps, headers=auth)
+            assert r.status_code == 201, r.text
+            return r.json()
+
+        def jalon(self, project_ids: list[int], **kw):
+            corps = {
+                "nom": "Jalon de test",
+                "date": "2026-08-15",
+                "project_ids": project_ids,
+                **kw,
+            }
+            r = client.post("/api/milestones", json=corps, headers=auth)
+            assert r.status_code == 201, r.text
+            return r.json()
+
+    return Fabrique()
+
+
+def code_de(reponse) -> str | None:
+    """Extrait le code INV-X d'une réponse d'erreur, ou None."""
+    detail = reponse.json().get("detail")
+    return detail.get("code") if isinstance(detail, dict) else None

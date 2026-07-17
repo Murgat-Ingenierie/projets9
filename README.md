@@ -5,9 +5,13 @@ Epics opérationnels et stratégiques de la pisciculture.
 
 ## Statut
 
-- **Phase 1 — Définition** : terminée. Voir [docs/SPEC.md](docs/SPEC.md) (modèle, 21 invariants, écrans, stack).
-- **Phase 2 — Tests auto basés sur les invariants** : à venir.
+- **Phase 1 — Définition** : terminée. Voir [docs/SPEC.md](docs/SPEC.md) — révisée en **v0.2** le
+  2026-07-17 pour être réconciliée avec le code livré (modèle, 25 invariants actifs, écrans, stack).
+- **Phase 2 — Tests auto basés sur les invariants** : **faite**. 183 tests + 2 xfail, les 25
+  invariants actifs couverts sur trois couches. Voir ci-dessous.
 - **v0** : scaffolding complet (API + front + Docker Compose + CI).
+
+État de l'existant, dette et chantiers ouverts : [INVENTAIRE.md](INVENTAIRE.md).
 
 ## Démarrage rapide (local)
 
@@ -83,7 +87,23 @@ Les invariants sont codés dans [api/app/invariants/checks.py](api/app/invariant
 Chacun lève `InvariantError(code="INV-X", ...)` avec l'ID stable défini dans
 [docs/SPEC.md](docs/SPEC.md).
 
-À la phase 2, chaque ID `INV-X` donnera lieu à au moins un test :
-- Test unitaire sur la fonction `check_*` (cas valides + cas invalides)
-- Test d'intégration via l'API (mutation refusée avec le bon code)
-- Tests générateurs Hypothesis pour couvrir des combinaisons larges
+Chaque ID `INV-X` donne lieu à au moins un test. Les trois couches prévues sont en place :
+
+| Fichier | Rôle |
+|---|---|
+| [`tests/test_invariants_unit.py`](api/tests/test_invariants_unit.py) | Test unitaire par `check_*`, cas valides **et** invalides. Sans base ni SQLAlchemy : les checks sont purs, on leur passe des dataclasses. |
+| [`tests/test_invariants_api.py`](api/tests/test_invariants_api.py) | Intégration via l'API : mutation refusée **avec le bon code**. Seul chemin possible pour INV-4, INV-5, INV-AUTH-1, INV-21, qui n'ont pas de fonction dédiée. |
+| [`tests/test_invariants_hypothesis.py`](api/tests/test_invariants_hypothesis.py) | Propriétés générées. INV-14 est confronté à un oracle indépendant (algorithme de Kahn) sur des centaines de graphes. |
+| [`tests/test_couverture_invariants.py`](api/tests/test_couverture_invariants.py) | Garde-fou : échoue si un `INV-X` est levé sans test qui le cite. Une règle que rien ne fait respecter finit par ne plus l'être. |
+
+```bash
+cd api && pip install -e ".[dev]" && pytest -q     # 183 passed, 2 xfailed
+```
+
+Deux `xfail(strict=True)` documentent des **défauts connus** (orphelinage d'un jalon, refus du
+domaine `.local` à la création d'un compte) : le jour où ils sont corrigés, la suite échoue tant
+que le marqueur n'est pas retiré.
+
+Les tests d'intégration tournent sur SQLite en mémoire : ce qu'ils éprouvent, c'est l'application
+des invariants par les *routes*. Les contraintes en base ne sont donc pas couvertes — cf.
+[INVENTAIRE.md](INVENTAIRE.md), chantier C12.
