@@ -307,17 +307,30 @@ marqueur *doit* être retiré. Un défaut connu qui ne peut pas être oublié :
 
 | Annoncé | Réel |
 |---|---|
-| « à chaque push » | `push` **limité à `main`** ; ailleurs seulement si une PR est ouverte. **Volontairement conservé** — voir ci-dessous. |
+| « à chaque push » | **Il n'y a plus de déclencheur `push` du tout** — voir ci-dessous. |
 
-> **Correction de ma recommandation initiale (C1).** J'avais listé « élargir `push:` au-delà de `main` »
-> comme un reste-à-faire. À la réflexion, **la configuration est standard et correcte** :
-> `push: [main]` + `pull_request` est le motif habituel, et l'élargir à toutes les branches ferait
-> tourner la CI sur chaque push de travail en cours, pour un signal en double sur les branches de PR.
-> Ce qui a réellement manqué pendant 66 commits, ce n'est pas la config : c'est qu'**aucune PR n'a
-> jamais été ouverte** (la PR #1 est la première du dépôt). Le signal précoce s'obtient en ouvrant
-> une PR en draft, pas en élargissant le déclencheur. Seul le `README.md` est à corriger sur ce point :
-> il promet « à chaque push ». Ajoutés en revanche : `workflow_dispatch` (déclenchement manuel) et un
-> groupe `concurrency` (un nouveau push annule l'exécution précédente au lieu de faire la queue).
+> **Évolution du déclencheur, en deux temps.**
+>
+> *Premier temps (C1).* J'avais listé « élargir `push:` au-delà de `main` » comme reste-à-faire, puis
+> je suis revenu dessus : `push: [main]` + `pull_request` est le motif standard, et l'élargir aurait
+> fait tourner la CI sur chaque push de travail en cours, avec un signal en double sur les branches
+> de PR. Ce qui a manqué pendant 66 commits n'était pas la config, c'est qu'**aucune PR n'a jamais
+> été ouverte** (la #1 est la première du dépôt).
+>
+> *Second temps (C13).* Le déclencheur `push` est **entièrement retiré**. La logique se tient dès lors
+> que `main` est protégée : tout ce qui y entre passe par une PR, donc a déjà été testé, et le rejouer
+> sur le commit de merge fait doublon. **Le mode *strict* des status checks est la clé** — il impose
+> que la branche soit à jour avant merge, ce qui garantit que l'état testé par la PR **est** l'état
+> fusionné. Sans lui, la PR pourrait être verte sur une base périmée et casser `main` en fusionnant.
+>
+> ⚠️ **La protection n'est pas en place** : `main` n'a aujourd'hui **aucune** règle
+> (`GET /branches/main/protection` → 404), et le compte utilisé n'est pas administrateur du dépôt
+> (`permissions.admin: false`), donc ne peut pas la poser. **Il y a donc une fenêtre** où `main`
+> n'est ni protégée ni couverte par la CI en cas de push direct. Chantier **C13** ci-dessous : à
+> faire poser par un administrateur.
+>
+> Ajoutés par ailleurs : `workflow_dispatch` (déclenchement manuel) et un groupe `concurrency`
+> (un nouveau push annule l'exécution précédente au lieu de faire la queue).
 | ruff + pytest | vrai — mais pytest est rouge |
 | build des 3 images | **ne s'exécute pas** (bloqué par `needs`) |
 | job « Web — lint + build » | **ne linte jamais** : pas d'étape lint |
@@ -391,6 +404,39 @@ correct si `models/__init__.py` était un jour allégé), mais ce n'était **pas
 | **C10** | ✅ **Fait (2026-07-17).** 6 fonctions `check_*` ajoutées + câblées via `http_from_invariant` dans les 2 routers Équipe. Défaut `INV-EQ-1a` corrigé, `INV-EQ-5` aligné sur INV-4 (409+code). Exports d'`app.invariants` complétés (15→18+6). Vérifié 14/14. | Sans code stable, la règle « 1 test par `INV-X` » était inapplicable aux Équipes | S |
 | **C11** | **Domaine `.local` refusé à la création d'utilisateur** : `UserCreate.email` est un `EmailStr` et `email-validator` rejette les TLD réservés, alors que `.env.example` impose `charles@lesfontaines.local`. Piste : `EmailStr` avec `test_environment=True`, ou un validateur maison. Un `xfail(strict=True)` garde la trace. | L'app ne sait pas créer un compte suivant sa propre convention | S |
 | **C12** | **Faire tomber les contraintes base en CI** : les tests d'intégration tournent sur SQLite, donc les `CheckConstraint` et l'unicité PostgreSQL ne sont pas éprouvées. Ajouter un service `postgres` au job `api` + `alembic upgrade head` (couvrirait aussi C5 via `alembic check`). | La dernière ligne de défense n'est pas testée | M |
+| **C13** | 🔴 **Protéger `main` — à faire poser par un administrateur.** Le déclencheur `push` de la CI a été retiré ; ce choix ne tient que si `main` est protégée. Aujourd'hui elle ne l'est pas du tout, et le compte disponible n'est pas admin du dépôt. **Fenêtre ouverte** : un push direct sur `main` n'est ni bloqué, ni testé. Réglage exact ci-dessous. | Sans protection, retirer `push:` laisse `main` sans filet | XS *(mais bloqué)* |
+
+### C13 — réglage à demander à l'administrateur
+
+Le dépôt est **public** et `main` n'a aucune règle. À poser dans
+*Settings → Branches → Add branch protection rule*, sur `main` :
+
+| Réglage | Valeur | Pourquoi |
+|---|---|---|
+| Require a pull request before merging | ✅ | C'est **le** réglage qui bloque les push directs. |
+| Required approving reviews | **0** | ⚠️ Mettre 1 verrouillerait le dépôt : GitHub interdit d'approuver sa propre PR, et l'équipe tient sur une personne. |
+| Require status checks to pass | ✅ | Les 3 contextes, au caractère près (ils contiennent un tiret cadratin) : `API — lint + tests`, `Web — lint + build`, `Docker — build images` |
+| **Require branches to be up to date** (*strict*) | ✅ | **Le réglage critique.** C'est lui qui rend le retrait du déclencheur `push` légitime : il garantit que l'état testé par la PR **est** l'état fusionné. |
+| Allow force pushes / deletions | ❌ | |
+| Include administrators | au choix | Le laisser décoché garde une issue de secours en cas d'urgence. |
+
+Équivalent en ligne de commande, pour un compte administrateur :
+
+```bash
+gh api -X PUT repos/Murgat-Ingenierie/projets9/branches/main/protection --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["API — lint + tests", "Web — lint + build", "Docker — build images"]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": {"required_approving_review_count": 0},
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+```
 | **C4** | **Peupler le Gantt** : la vue centrale est vide à l'install, sans chemin supporté | Le produit ne démontre rien au premier lancement | M |
 | **C5** | Réconcilier modèles ↔ migrations (R2) : déclarer les index de `milestone_project`, aligner l'unicité `users.email`, puis viser `alembic check` vert en CI | `autogenerate` produit aujourd'hui du churn d'index | S |
 | **C6** | Fiabiliser le backup : `pipefail`, plancher de copies, test de restore, corriger `RESTORE.md` | Un backup non vérifié n'est pas un backup | S |

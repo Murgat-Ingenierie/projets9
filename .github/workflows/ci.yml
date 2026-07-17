@@ -1,8 +1,14 @@
 name: CI
 
+# Pas de déclencheur `push` : tout ce qui entre dans `main` passe par une PR,
+# donc a déjà été testé. Le rejouer sur le commit de merge ferait doublon.
+#
+# Cela suppose que `main` soit protégée : « require a pull request before
+# merging » + « require status checks » avec « require branches to be up to
+# date » (strict). Le strict est la clé — il garantit que l'état testé par la
+# PR EST l'état fusionné. Sans protection, un push direct sur `main` ne
+# déclencherait plus rien du tout. Voir INVENTAIRE.md, chantier C13.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 

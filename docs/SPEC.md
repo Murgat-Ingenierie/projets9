@@ -438,7 +438,7 @@ jobs passent.
 | type-check `tsc` | ✅ via `npm run build` (`tsc -b && vite build`). |
 | tests `pytest` | ✅ vert — mais 1 invariant couvert sur 20 (phase 2). |
 | build images Docker | ✅ les 3 images, depuis le 2026-07-17. |
-| « à chaque push » | ❌ `push:` est limité à `main` ; ailleurs, la CI ne tourne que si une PR est ouverte. |
+| « à chaque push » | ❌ **Révisé en 0.2** : il n'y a plus de déclencheur `push` du tout. Tout ce qui entre dans `main` passe par une PR, donc a déjà été testé ; le rejouer sur le commit de merge ferait doublon. Suppose que `main` soit protégée avec des status checks en mode *strict* — cf. `INVENTAIRE.md`, chantier C13. |
 
 Non prévu par la 0.1 mais souhaitable, au vu de l'écart modèles↔migrations constaté :
 `alembic check` en CI, pour qu'une divergence entre les modèles et les migrations casse le build

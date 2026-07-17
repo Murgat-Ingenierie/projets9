@@ -72,14 +72,20 @@ Connexion initiale avec `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` de `.env`.
 
 ## CI
 
-GitHub Actions s'exécute sur **push vers `main`**, sur **toute pull request**, et à la
-demande (`workflow_dispatch`) :
+GitHub Actions s'exécute sur **toute pull request** et à la demande (`workflow_dispatch`) :
 - Lint Python (`ruff`) + tests `pytest`
 - Lint front (`eslint`) + build TypeScript
 - Build des trois images Docker
 
-Sur une branche de travail sans PR, la CI ne tourne pas : ouvrir une PR (même en
+Il n'y a **pas** de déclencheur sur `push` : tout ce qui entre dans `main` passe par une PR,
+donc a déjà été testé — le rejouer sur le commit de merge ferait doublon.
+
+Sur une branche de travail sans PR, la CI ne tourne donc pas : ouvrir une PR (même en
 *draft*) suffit à obtenir le signal.
+
+> ⚠️ Ce choix suppose que `main` soit **protégée** (PR obligatoire + status checks en mode
+> *strict*). Tant que ce n'est pas en place, un push direct sur `main` ne déclenche plus rien.
+> Voir [INVENTAIRE.md](INVENTAIRE.md), chantier **C13**.
 
 ## Phase 2 — Tests auto basés sur les invariants
 
