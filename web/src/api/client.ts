@@ -24,6 +24,17 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(path, { ...init, headers });
+
+  // 401 : token invalide / user déconnecté → on vide le token et on
+  // redirige vers /login (sauf si on est déjà dessus pour éviter une boucle).
+  if (res.status === 401) {
+    setToken(null);
+    if (!window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new ApiError(401, null, "Session expirée. Reconnecte-toi.");
+  }
+
   if (res.status === 204) return undefined as T;
 
   const text = await res.text();

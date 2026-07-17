@@ -19,7 +19,7 @@ d'endpoint d'import dans l'application).
 
 ```
 Epic ──< Projet ──< Tâche
-Epic >── Jalon ──< Epic      (relation N-N : un jalon peut être rattaché à plusieurs epics)
+Projet >── Jalon ──< Projet  (relation N-N : un jalon peut être rattaché à plusieurs projets, migration 0008)
 Tâche >── Dépendance ──< Tâche   (DAG global, cross-projet et cross-epic autorisé)
 Epic ──< Mesure                  (suivi du critère de réussite)
 User                              (responsable de Projet ou Tâche)
@@ -70,9 +70,9 @@ User                              (responsable de Projet ou Tâche)
 | `nom` | str | obligatoire |
 | `date` | date | obligatoire |
 | `atteint` | bool | défaut false |
-| `epics` | list[Epic] | relation N-N via `milestone_epic`, au moins 1 |
+| `projects` | list[Project] | relation N-N via `milestone_project`, au moins 1 |
 
-Un jalon peut être rattaché à plusieurs epics simultanément (révision 0006, suppression du concept de « jalon transverse projet »).
+Un jalon est désormais rattaché à un ou plusieurs **projets** (révision 0008). La précision est meilleure que l'ancien rattachement par epic. La portée sur le planning (où la ligne verticale s'arrête) est l'union des projets liés.
 
 #### Dépendance
 | Champ | Type | Notes |
@@ -131,7 +131,7 @@ de la base*. Une tentative de mutation qui violerait un invariant doit être
 |---|---|
 | INV-4 | Toute `Tâche` référence un `Projet` existant. |
 | INV-5 | Tout `Projet` référence un `Epic` existant. |
-| INV-6 | Tout `Jalon` est rattaché à au moins un `Epic` (relation N-N). Le concept de « jalon transverse projet » a été retiré en migration 0006. |
+| INV-6 | Tout `Jalon` est rattaché à au moins un `Projet` (relation N-N depuis la migration 0008 — passage epic → projet pour gagner en précision). |
 
 ### Dates (cascade)
 

@@ -9,24 +9,23 @@ class MilestoneBase(BaseModel):
     nom: str = Field(min_length=1, max_length=255)
     date: datetime.date
     atteint: bool = False
-    epic_trigrammes: list[str] = Field(min_length=1)
+    project_ids: list[int] = Field(min_length=1)
 
-    @field_validator("epic_trigrammes")
+    @field_validator("project_ids")
     @classmethod
-    def _validate_epic_trigrammes(cls, v: list[str]) -> list[str]:
-        normalized = []
-        seen: set[str] = set()
-        for t in v:
-            if not isinstance(t, str) or len(t) != 3:
-                raise ValueError("Chaque trigramme epic doit faire 3 caractères")
-            up = t.upper()
-            if up in seen:
+    def _dedup_project_ids(cls, v: list[int]) -> list[int]:
+        seen: set[int] = set()
+        out: list[int] = []
+        for pid in v:
+            if not isinstance(pid, int) or pid <= 0:
+                raise ValueError("project_id doit être un entier positif")
+            if pid in seen:
                 continue
-            seen.add(up)
-            normalized.append(up)
-        if not normalized:
-            raise ValueError("Au moins un epic doit être rattaché au jalon")
-        return normalized
+            seen.add(pid)
+            out.append(pid)
+        if not out:
+            raise ValueError("Au moins un projet doit être rattaché au jalon")
+        return out
 
 
 class MilestoneCreate(MilestoneBase):
@@ -37,14 +36,14 @@ class MilestoneUpdate(BaseModel):
     nom: str | None = Field(default=None, min_length=1, max_length=255)
     date: datetime.date | None = None
     atteint: bool | None = None
-    epic_trigrammes: list[str] | None = Field(default=None, min_length=1)
+    project_ids: list[int] | None = Field(default=None, min_length=1)
 
-    @field_validator("epic_trigrammes")
+    @field_validator("project_ids")
     @classmethod
-    def _validate_epic_trigrammes(cls, v: list[str] | None) -> list[str] | None:
+    def _dedup_project_ids(cls, v: list[int] | None) -> list[int] | None:
         if v is None:
             return None
-        return MilestoneBase._validate_epic_trigrammes.__func__(cls, v)
+        return MilestoneBase._dedup_project_ids.__func__(cls, v)
 
 
 class MilestoneRead(TimestampedRead):
@@ -52,4 +51,4 @@ class MilestoneRead(TimestampedRead):
     nom: str
     date: datetime.date
     atteint: bool
-    epic_trigrammes: list[str]
+    project_ids: list[int]

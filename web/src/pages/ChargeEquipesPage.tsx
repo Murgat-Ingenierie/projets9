@@ -162,8 +162,8 @@ export default function ChargeEquipesPage() {
   }
 
   function focusMilestone(m: Milestone) {
-    const first = (m.epic_trigrammes ?? [])[0];
-    if (first) nav(`/epics/${first}`);
+    const first = (m.project_ids ?? [])[0];
+    if (first) nav(`/projects/${first}/edit`);
     else nav("/milestones");
   }
 

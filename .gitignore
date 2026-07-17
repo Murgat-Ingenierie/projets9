@@ -42,5 +42,6 @@ data/*.ods
 # Local Claude Code config
 .claude/
 
-# Local DB dumps (la stratégie backup réelle vit dans le service backup)
+# Local DB dumps / exports (la stratégie backup réelle vit dans le service backup)
 backups/
+exports/

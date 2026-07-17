@@ -18,7 +18,7 @@ const DEFAULT_DRAFT: Partial<Milestone> = {
   nom: "",
   date: "",
   atteint: false,
-  epic_trigrammes: [],
+  project_ids: [],
 };
 
 export function MilestoneEditor({
@@ -54,8 +54,8 @@ export function MilestoneEditor({
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    if (!draft.epic_trigrammes || draft.epic_trigrammes.length === 0) {
-      setErr(new Error("Sélectionne au moins un epic."));
+    if (!draft.project_ids || draft.project_ids.length === 0) {
+      setErr(new Error("Sélectionne au moins un projet."));
       return;
     }
     try {
@@ -63,7 +63,7 @@ export function MilestoneEditor({
         nom: draft.nom,
         date: draft.date,
         atteint: draft.atteint ?? false,
-        epic_trigrammes: draft.epic_trigrammes,
+        project_ids: draft.project_ids,
       };
       if (isEdit) await milestonesApi.update(milestoneId!, payload);
       else await milestonesApi.create(payload);

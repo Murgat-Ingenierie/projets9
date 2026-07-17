@@ -56,7 +56,7 @@ export interface Task {
 
 export interface Milestone {
   id: number;
-  epic_trigrammes: string[];
+  project_ids: number[];
   nom: string;
   date: string;
   atteint: boolean;

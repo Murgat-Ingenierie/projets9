@@ -847,9 +847,14 @@ dl.kv dd textarea {
 .gantt-container.edit-mode g[class~="arrow"] path {
   pointer-events: all;
 }
+/* Au survol on ne touche PAS au fill : le <path> est en zigzag et avec Z,
+   un fill teinte toute la zone enclose (jusqu'à 1000+ px de surface) → un
+   énorme triangle rouge envahit le planning. On rougit uniquement le stroke
+   (épaissi) + un léger drop-shadow rouge pour signifier le hover. */
 .gantt-container.edit-mode g[class~="arrow"]:hover path {
-  fill: #d32f2f !important;
-  stroke: rgba(211, 47, 47, 0.35) !important;
+  stroke: #d32f2f !important;
+  stroke-width: 6 !important;
+  filter: drop-shadow(0 0 2px rgba(211, 47, 47, 0.6));
 }
 
 /* Masque les libellés affichés sur les barres : le nom est déjà dans le

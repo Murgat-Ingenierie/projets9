@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { epics, milestones as milestonesApi, projects, tasks } from "../api/endpoints";
 import type { Task } from "../types";
 import { EpicEditor } from "./EpicEditor";
@@ -12,7 +12,8 @@ export type PanelTarget =
   | { type: "project"; id: number }
   | { type: "task"; id: number }
   | { type: "task-new"; projet_id: number }
-  | { type: "milestone"; id: number };
+  | { type: "milestone"; id: number }
+  | { type: "milestone-new" };
 
 interface Props {
   target: PanelTarget | null;
@@ -151,16 +152,38 @@ function MilestoneForm({ id, onClose, onSaved }: { id: number; onClose: () => vo
   );
 }
 
+function MilestoneNewForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  return (
+    <>
+      <PanelHeader title="Nouveau jalon" onClose={onClose} />
+      <div className="panel-body">
+        <MilestoneEditor
+          onSaved={() => { onSaved(); onClose(); }}
+          onCancel={onClose}
+          formStyle={{ boxShadow: "none", padding: 0, background: "transparent" }}
+        />
+      </div>
+    </>
+  );
+}
+
 export function EditPanel({ target, onClose, onSaved }: Props) {
-  // Échap pour fermer
+  // Échap pour fermer : capture phase sur document → ne se laisse pas
+  // intercepter par les form inputs (date picker, select, etc.).
+  // Ref pour ne pas re-binder à chaque re-render du parent.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!target) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onCloseRef.current();
+      }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [target, onClose]);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [target]);
 
   if (!target) return null;
 
@@ -182,6 +205,9 @@ export function EditPanel({ target, onClose, onSaved }: Props) {
         )}
         {target.type === "milestone" && (
           <MilestoneForm id={target.id} onClose={onClose} onSaved={onSaved} />
+        )}
+        {target.type === "milestone-new" && (
+          <MilestoneNewForm onClose={onClose} onSaved={onSaved} />
         )}
       </aside>
     </>

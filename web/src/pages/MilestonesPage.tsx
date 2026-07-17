@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { epics, milestones } from "../api/endpoints";
+import { milestones, projects } from "../api/endpoints";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import { fmtDate } from "../labels";
-import type { Epic, Milestone } from "../types";
+import type { Milestone, Project } from "../types";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Jalons", to: "/milestones" };
@@ -14,30 +14,30 @@ const SELF: Crumb = { label: "Jalons", to: "/milestones" };
 export default function MilestonesPage() {
   const nav = useNavigate();
   const [items, setItems] = useState<Milestone[]>([]);
-  const [allEpics, setAllEpics] = useState<Epic[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [err, setErr] = useState<unknown>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Milestone>>({});
 
   function load() {
-    Promise.all([milestones.list(), epics.list()])
-      .then(([m, e]) => {
+    Promise.all([milestones.list(), projects.list()])
+      .then(([m, p]) => {
         setItems(m);
-        setAllEpics(e);
+        setAllProjects(p);
       })
       .catch(setErr);
   }
   useEffect(load, []);
 
-  const epicName = useMemo(() => {
-    const m = new Map<string, string>();
-    allEpics.forEach((e) => m.set(e.trigramme, e.nom));
+  const projectName = useMemo(() => {
+    const m = new Map<number, string>();
+    allProjects.forEach((p) => m.set(p.id, p.nom));
     return m;
-  }, [allEpics]);
+  }, [allProjects]);
 
-  const epicsLabel = (m: Milestone) =>
-    (m.epic_trigrammes ?? [])
-      .map((t) => epicName.get(t) ?? t)
+  const projectsLabel = (m: Milestone) =>
+    (m.project_ids ?? [])
+      .map((id) => projectName.get(id) ?? `#${id}`)
       .join(", ");
 
   const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
@@ -90,7 +90,7 @@ export default function MilestonesPage() {
       <table>
         <thead>
           <tr>
-            {sortHeader("Epics", "epics", epicsLabel)}
+            {sortHeader("Projets", "projets", projectsLabel)}
             {sortHeader("Nom", "nom", (m: Milestone) => m.nom)}
             {sortHeader("Date", "date", (m: Milestone) => m.date)}
             {sortHeader("Atteint", "atteint", (m: Milestone) => m.atteint ? 1 : 0)}
@@ -101,7 +101,7 @@ export default function MilestonesPage() {
           {sorted.map((m) =>
             editing === m.id ? (
               <tr key={m.id} className="editing">
-                <td>{epicsLabel(m)}</td>
+                <td>{projectsLabel(m)}</td>
                 <td>
                   <input
                     value={editDraft.nom ?? ""}
@@ -130,7 +130,7 @@ export default function MilestonesPage() {
               </tr>
             ) : (
               <tr key={m.id}>
-                <td>{epicsLabel(m)}</td>
+                <td>{projectsLabel(m)}</td>
                 <td>{m.nom}</td>
                 <td>{fmtDate(m.date)}</td>
                 <td>{m.atteint ? "Oui" : "Non"}</td>

@@ -35,8 +35,8 @@ def _validate(epic: Epic, db: Session) -> None:
             milestones = list(
                 db.execute(
                     select(Milestone)
-                    .join(Milestone.epics)
-                    .where(Epic.trigramme == epic.trigramme)
+                    .join(Milestone.projects)
+                    .where(Project.epic_trigramme == epic.trigramme)
                 )
                 .scalars()
                 .unique()

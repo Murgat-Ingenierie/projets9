@@ -147,16 +147,16 @@ def check_min_one_admin(users_after: Iterable[UserLike]) -> None:
 # -----------------------------------------------------------------------------
 
 
-def check_milestone_has_epics(epic_trigrammes: list[str]) -> None:
-    """INV-6 : un jalon doit être rattaché à au moins un epic (relation N-N).
+def check_milestone_has_projects(project_ids: list[int]) -> None:
+    """INV-6 : un jalon doit être rattaché à au moins un projet (relation N-N).
 
-    Remplace l'ancien XOR epic/project depuis la migration 0006 (suppression du
-    concept de jalon "transverse" lié à un projet seul).
+    Évolution de l'invariant depuis la migration 0008 : le rattachement passe
+    de N-N avec les epics à N-N avec les projets (plus précis).
     """
-    if not epic_trigrammes:
+    if not project_ids:
         raise InvariantError(
             "INV-6",
-            "Jalon doit être rattaché à au moins un epic",
+            "Jalon doit être rattaché à au moins un projet",
         )
 
 

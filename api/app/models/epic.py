@@ -41,9 +41,8 @@ class Epic(Base, TimestampMixin):
     updated_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     projects = relationship("Project", back_populates="epic", cascade="all, delete-orphan")
-    milestones = relationship(
-        "Milestone",
-        secondary="milestone_epic",
-        viewonly=True,
-    )
+    # Plus de relation directe Epic↔Milestone : depuis la migration 0008 les
+    # jalons sont rattachés aux projets (et non aux epics). On peut obtenir
+    # les jalons d'un epic via : SELECT m FROM milestones m JOIN m.projects p
+    # WHERE p.epic_trigramme = epic.trigramme.
     measures = relationship("Measure", back_populates="epic", cascade="all, delete-orphan")

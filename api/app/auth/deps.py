@@ -12,8 +12,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 
 
 def _first_active_admin(db: Session) -> User:
+    # .first() au lieu de .scalar_one_or_none() pour ne pas planter quand il y
+    # a plusieurs admins (situation normale).
     user = db.execute(
-        select(User).where(User.actif == True, User.role == UserRole.admin).order_by(User.id)  # noqa: E712
+        select(User)
+        .where(User.actif == True, User.role == UserRole.admin)  # noqa: E712
+        .order_by(User.id)
+        .limit(1)
     ).scalar_one_or_none()
     if user is None:
         raise HTTPException(

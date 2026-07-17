@@ -5,9 +5,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, TimestampMixin
 
-# Table d'association N-N entre jalons et epics
-milestone_epic = Table(
-    "milestone_epic",
+# Table d'association N-N entre jalons et projets
+milestone_project = Table(
+    "milestone_project",
     Base.metadata,
     Column(
         "milestone_id",
@@ -16,9 +16,9 @@ milestone_epic = Table(
         primary_key=True,
     ),
     Column(
-        "epic_trigramme",
-        String(3),
-        ForeignKey("epics.trigramme", ondelete="CASCADE"),
+        "project_id",
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
         primary_key=True,
     ),
 )
@@ -33,8 +33,8 @@ class Milestone(Base, TimestampMixin):
     atteint: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     updated_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    epics = relationship("Epic", secondary=milestone_epic, lazy="selectin")
+    projects = relationship("Project", secondary=milestone_project, lazy="selectin")
 
     @property
-    def epic_trigrammes(self) -> list[str]:
-        return [e.trigramme for e in self.epics]
+    def project_ids(self) -> list[int]:
+        return [p.id for p in self.projects]

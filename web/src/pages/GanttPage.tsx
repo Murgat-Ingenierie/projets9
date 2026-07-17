@@ -5,15 +5,17 @@ import "gantt-task-react/dist/index.css";
 import {
   dependencies as depsApi,
   epics,
+  equipes as equipesApi,
   milestones as milestonesApi,
   projects,
+  tacheEquipe,
   tasks,
 } from "../api/endpoints";
 import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import { IconButton } from "../components/IconButton";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { navState } from "../hooks/useBreadcrumbState";
-import type { Dependency, Epic, Milestone, Project, Task } from "../types";
+import type { Dependency, Epic, Equipe, Milestone, Project, TacheEquipe, Task } from "../types";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
 
@@ -136,6 +138,30 @@ export default function GanttPage() {
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
   const [allDeps, setAllDeps] = useState<Dependency[]>([]);
   const [allMilestones, setAllMilestones] = useState<Milestone[]>([]);
+  const [allEquipes, setAllEquipes] = useState<Equipe[]>([]);
+  const [allAllocations, setAllAllocations] = useState<TacheEquipe[]>([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
+  // Regroupement par epic : ajoute une ligne d'en-tête par epic, repliable.
+  const [groupByEpic, setGroupByEpic] = useState(false);
+  const [collapsedEpics, setCollapsedEpics] = useState<Set<string>>(new Set());
+  // Nombre de lignes réservées pour la swimlane jalons (≥1). Augmenté
+  // automatiquement par update() quand des noms se chevauchent et débordent.
+  const [milestoneRowCount, setMilestoneRowCount] = useState(1);
+  const milestoneRowCountRef = useRef(1);
+  milestoneRowCountRef.current = milestoneRowCount;
+
+  // Pile d'annulation : chaque action réversible (drag, lien, suppression de
+  // lien) empile une opération inverse. Le bouton retour / Ctrl+Z dépile.
+  const [undoStack, setUndoStack] = useState<{ label: string; undo: () => Promise<void> }[]>([]);
+  function pushUndo(label: string, undo: () => Promise<void>) {
+    setUndoStack((s) => [...s, { label, undo }]);
+  }
+  const [undoing, setUndoing] = useState(false);
+  // Sélection multiple : ensemble d'ids "task-N". Drag d'une tâche sélectionnée
+  // décale toutes les autres du même delta.
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const selectedTaskIdsRef = useRef<Set<string>>(new Set());
+  selectedTaskIdsRef.current = selectedTaskIds;
   const allMilestonesRef = useRef<Milestone[]>([]);
   allMilestonesRef.current = allMilestones;
   const projectsListRef = useRef<Project[]>([]);
@@ -165,13 +191,17 @@ export default function GanttPage() {
       tasks.list(),
       depsApi.list(),
       milestonesApi.list(),
+      equipesApi.list(),
+      tacheEquipe.list(),
     ])
-      .then(([e, p, t, d, m]) => {
+      .then(([e, p, t, d, m, eq, alloc]) => {
         setEpics(e);
         setProjects(p);
         setTasks(t);
         setAllDeps(d);
         setAllMilestones(m);
+        setAllEquipes(eq);
+        setAllAllocations(alloc);
       })
       .catch(setErr);
   }
@@ -183,6 +213,18 @@ export default function GanttPage() {
       if (d.type !== "FS") continue;
       if (!m.has(d.tache_aval_id)) m.set(d.tache_aval_id, []);
       m.get(d.tache_aval_id)!.push(d.tache_amont_id);
+    }
+    return m;
+  }, [allDeps]);
+
+  // Map inverse amont_task_id → [aval_task_ids] : pour cascader le décalage
+  // d'une tâche vers ses dépendantes situées en aval.
+  const dependentsByAmont = useMemo(() => {
+    const m = new Map<number, number[]>();
+    for (const d of allDeps) {
+      if (d.type !== "FS") continue;
+      if (!m.has(d.tache_amont_id)) m.set(d.tache_amont_id, []);
+      m.get(d.tache_amont_id)!.push(d.tache_aval_id);
     }
     return m;
   }, [allDeps]);
@@ -272,7 +314,12 @@ export default function GanttPage() {
       const avalId = Number(target.id.slice(5));
       depsApi
         .create({ tache_amont_id: amontId, tache_aval_id: avalId, type: "FS" })
-        .then(() => {
+        .then((created) => {
+          if (created?.id != null) {
+            pushUndo("Création de dépendance", () =>
+              depsApi.remove(created.id).then(() => {})
+            );
+          }
           cancelLink();
           load();
         })
@@ -386,6 +433,74 @@ export default function GanttPage() {
     };
   }, []);
 
+  // Gestion click / dblclick sur les barres du Gantt :
+  //  - Ctrl+clic sur barre tâche → toggle sélection (pour décalage groupé)
+  //  - clic simple sur barre projet → toggle expand
+  //  - double-clic sur projet ou tâche → ouvre le panel
+  //  - le timer évite que le simple-clic se déclenche pendant un double-clic
+  // La lib gantt-task-react ne passe pas l'event aux callbacks → on capture
+  // l'état des modificateurs au mousedown via capture phase document-level.
+  const clickTimerRef = useRef<number | null>(null);
+  const ctrlOnMouseDownRef = useRef(false);
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      ctrlOnMouseDownRef.current = e.ctrlKey || e.metaKey;
+    }
+    document.addEventListener("mousedown", onMouseDown, true);
+    return () => document.removeEventListener("mousedown", onMouseDown, true);
+  }, []);
+  function handleBarClick(task: GanttTask) {
+    if (clickTimerRef.current !== null) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+    // Ctrl+clic sur tâche : sélection (immédiat, pas de timer)
+    if (ctrlOnMouseDownRef.current && task.id.startsWith("task-")) {
+      toggleTaskSelection(task.id);
+      return;
+    }
+    clickTimerRef.current = window.setTimeout(() => {
+      clickTimerRef.current = null;
+      if (task.id.startsWith("proj-")) {
+        toggleProject(Number(task.id.slice(5)));
+      } else if (task.id.startsWith("epic-")) {
+        toggleEpicCollapse(task.id.slice(5));
+      }
+    }, 220);
+  }
+  function handleBarDoubleClick(task: GanttTask) {
+    if (clickTimerRef.current !== null) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+    if (task.id.startsWith("proj-")) {
+      setPanelTarget({ type: "project", id: Number(task.id.slice(5)) });
+    } else if (task.id.startsWith("task-")) {
+      setPanelTarget({ type: "task", id: Number(task.id.slice(5)) });
+    } else if (task.id.startsWith("epic-")) {
+      setPanelTarget({ type: "epic", trigramme: task.id.slice(5) });
+    }
+  }
+
+  function toggleTaskSelection(id: string) {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Escape pour vider la sélection
+  useEffect(() => {
+    if (selectedTaskIds.size === 0) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSelectedTaskIds(new Set());
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedTaskIds]);
+
   function toggleProject(id: number) {
     setExpandedProjects((prev) => {
       const next = new Set(prev);
@@ -395,17 +510,143 @@ export default function GanttPage() {
     });
   }
 
+  function toggleEpicCollapse(tri: string) {
+    setCollapsedEpics((prev) => {
+      const next = new Set(prev);
+      if (next.has(tri)) next.delete(tri);
+      else next.add(tri);
+      return next;
+    });
+  }
+
+  function toggleGroupByEpic() {
+    const next = !groupByEpic;
+    setGroupByEpic(next);
+    // À l'activation on replie tous les epics par défaut (vue d'ensemble).
+    setCollapsedEpics(
+      next ? new Set(projectsList.map((p) => p.epic_trigramme)) : new Set()
+    );
+  }
+
   async function handleDateChange(task: GanttTask) {
     setErr(null);
     try {
+      // Si plusieurs tâches sont sélectionnées ET la tâche déplacée fait partie
+      // de la sélection, on décale toutes les sélectionnées du même delta.
+      const sel = selectedTaskIdsRef.current;
+      const inSelection = task.id.startsWith("task-") && sel.has(task.id);
+      if (inSelection && sel.size > 1) {
+        // Référence pour calculer le delta : ancienne date_debut depuis tasksList
+        const dragged = tasksList.find((t) => `task-${t.id}` === task.id);
+        if (!dragged) {
+          load();
+          return;
+        }
+        const oldStart = new Date(dragged.date_debut + "T00:00:00").getTime();
+        const newStart = task.start.getTime();
+        const deltaDays = Math.round((newStart - oldStart) / 86400000);
+        if (deltaDays === 0) return;
+        const tasksById = new Map(tasksList.map((t) => [t.id, t]));
+        // Capture des dates d'origine pour l'undo
+        const before = Array.from(sel)
+          .map((sid) => tasksById.get(Number(sid.slice(5))))
+          .filter((t): t is Task => !!t)
+          .map((t) => ({ id: t.id, date_debut: t.date_debut, date_fin: t.date_fin }));
+        await Promise.all(
+          Array.from(sel).map((sid) => {
+            const id = Number(sid.slice(5));
+            const t = tasksById.get(id);
+            if (!t) return Promise.resolve();
+            const d1 = new Date(t.date_debut + "T00:00:00");
+            const d2 = new Date(t.date_fin + "T00:00:00");
+            d1.setDate(d1.getDate() + deltaDays);
+            d2.setDate(d2.getDate() + deltaDays);
+            return tasks.update(id, {
+              date_debut: isoDate(d1),
+              date_fin: isoDate(d2),
+            });
+          })
+        );
+        pushUndo(`Décalage de ${before.length} tâches`, async () => {
+          await Promise.all(
+            before.map((b) =>
+              tasks.update(b.id, { date_debut: b.date_debut, date_fin: b.date_fin })
+            )
+          );
+        });
+        load();
+        return;
+      }
+
+      // Drag simple (une seule tâche / projet hors sélection groupée)
       const date_debut = isoDate(task.start);
       const date_fin = isoDate(task.end);
       if (task.id.startsWith("proj-")) {
         const id = Number(task.id.slice(5));
+        const old = projectsList.find((p) => p.id === id);
         await projects.update(id, { date_debut, date_fin });
+        if (old) {
+          pushUndo(`Déplacement projet « ${old.nom} »`, () =>
+            projects.update(id, { date_debut: old.date_debut, date_fin: old.date_fin }).then(() => {})
+          );
+        }
       } else if (task.id.startsWith("task-")) {
         const id = Number(task.id.slice(5));
-        await tasks.update(id, { date_debut, date_fin });
+        const old = tasksList.find((t) => t.id === id);
+        if (!old) {
+          await tasks.update(id, { date_debut, date_fin });
+          load();
+          return;
+        }
+        // Cascade FS : le décalage de la date de fin propage aux tâches
+        // dépendantes en aval (postérieures), de proche en proche.
+        const oldEndMs = new Date(old.date_fin + "T00:00:00").getTime();
+        const cascadeDelta = Math.round((task.end.getTime() - oldEndMs) / 86400000);
+        const oldStartMs = new Date(old.date_debut + "T00:00:00").getTime();
+        const tasksById = new Map(tasksList.map((t) => [t.id, t]));
+
+        const toShift = new Set<number>();
+        if (cascadeDelta !== 0) {
+          const queue = [id];
+          while (queue.length) {
+            const cur = queue.shift()!;
+            for (const dep of dependentsByAmont.get(cur) ?? []) {
+              if (toShift.has(dep) || dep === id) continue;
+              const dt = tasksById.get(dep);
+              if (!dt) continue;
+              // Postérieure : commence à/après le début original de la tâche déplacée
+              if (new Date(dt.date_debut + "T00:00:00").getTime() >= oldStartMs) {
+                toShift.add(dep);
+                queue.push(dep);
+              }
+            }
+          }
+        }
+
+        const before = [{ id, date_debut: old.date_debut, date_fin: old.date_fin }];
+        const ops: Promise<unknown>[] = [tasks.update(id, { date_debut, date_fin })];
+        for (const depId of toShift) {
+          const dt = tasksById.get(depId)!;
+          before.push({ id: depId, date_debut: dt.date_debut, date_fin: dt.date_fin });
+          const d1 = new Date(dt.date_debut + "T00:00:00");
+          const d2 = new Date(dt.date_fin + "T00:00:00");
+          d1.setDate(d1.getDate() + cascadeDelta);
+          d2.setDate(d2.getDate() + cascadeDelta);
+          ops.push(tasks.update(depId, { date_debut: isoDate(d1), date_fin: isoDate(d2) }));
+        }
+        await Promise.all(ops);
+        pushUndo(
+          toShift.size > 0
+            ? `Déplacement « ${old.nom} » + ${toShift.size} dépendante${toShift.size > 1 ? "s" : ""}`
+            : `Déplacement tâche « ${old.nom} »`,
+          async () => {
+            await Promise.all(
+              before.map((b) =>
+                tasks.update(b.id, { date_debut: b.date_debut, date_fin: b.date_fin })
+              )
+            );
+          }
+        );
       } else {
         return;
       }
@@ -415,6 +656,38 @@ export default function GanttPage() {
       load(); // rollback visuel
     }
   }
+
+  async function performUndo() {
+    if (undoStack.length === 0 || undoing) return;
+    const action = undoStack[undoStack.length - 1];
+    setUndoStack((s) => s.slice(0, -1));
+    setUndoing(true);
+    setErr(null);
+    try {
+      await action.undo();
+      load();
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setUndoing(false);
+    }
+  }
+
+  // Ctrl+Z (ou Cmd+Z) pour annuler la dernière action du planning
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
+        const tgt = e.target as HTMLElement | null;
+        // On ignore si l'utilisateur est en train d'éditer un champ (le Ctrl+Z
+        // natif de l'input doit primer).
+        if (tgt && /^(INPUT|TEXTAREA|SELECT)$/.test(tgt.tagName)) return;
+        e.preventDefault();
+        performUndo();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undoStack, undoing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tasksByProject = useMemo(() => {
     const m = new Map<number, Task[]>();
@@ -430,6 +703,28 @@ export default function GanttPage() {
     return m;
   }, [tasksList]);
 
+  // Filtre équipes : ids des tâches concernées par au moins une équipe sélectionnée.
+  // null = pas de filtre (affiche tout).
+  const teamFilterTaskIds = useMemo(() => {
+    if (selectedTeamIds.size === 0) return null;
+    const out = new Set<number>();
+    for (const a of allAllocations) {
+      if (selectedTeamIds.has(a.equipe_id)) out.add(a.tache_id);
+    }
+    return out;
+  }, [selectedTeamIds, allAllocations]);
+
+  // Pour le filtre, on doit aussi connaître les projets concernés
+  // (= projets ayant au moins une tâche dans teamFilterTaskIds).
+  const teamFilterProjectIds = useMemo(() => {
+    if (!teamFilterTaskIds) return null;
+    const out = new Set<number>();
+    for (const t of tasksList) {
+      if (teamFilterTaskIds.has(t.id)) out.add(t.projet_id);
+    }
+    return out;
+  }, [teamFilterTaskIds, tasksList]);
+
   const ganttTasks: GanttTask[] = useMemo(() => {
     const out: GanttTask[] = [];
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
@@ -441,21 +736,26 @@ export default function GanttPage() {
     const sortedMs = [...allMilestones].sort((a, b) => a.date.localeCompare(b.date));
     const MILESTONE_COLOR = "#f57c00";
     if (sortedMs.length > 0) {
-      out.push({
-        id: "milestone-anchor",
-        name: "Jalons",
-        type: "milestone",
-        start: toDate(sortedMs[0].date),
-        end: toDate(sortedMs[0].date),
-        progress: 0,
-        isDisabled: true,
-        styles: {
-          backgroundColor: MILESTONE_COLOR,
-          backgroundSelectedColor: MILESTONE_COLOR,
-          progressColor: MILESTONE_COLOR,
-          progressSelectedColor: MILESTONE_COLOR,
-        },
-      });
+      // On réserve `milestoneRowCount` lignes pour la swimlane (calculé dans
+      // update() selon le nombre de pistes nécessaires en cas de collisions).
+      // La 1ère porte le label "Jalons", les suivantes sont des espaceuses.
+      for (let r = 0; r < milestoneRowCount; r++) {
+        out.push({
+          id: r === 0 ? "milestone-anchor" : `milestone-spacer-${r}`,
+          name: r === 0 ? "Jalons" : "",
+          type: "milestone",
+          start: toDate(sortedMs[0].date),
+          end: toDate(sortedMs[0].date),
+          progress: 0,
+          isDisabled: true,
+          styles: {
+            backgroundColor: MILESTONE_COLOR,
+            backgroundSelectedColor: MILESTONE_COLOR,
+            progressColor: MILESTONE_COLOR,
+            progressSelectedColor: MILESTONE_COLOR,
+          },
+        });
+      }
     }
 
     const byEpic = new Map<string, Project[]>();
@@ -479,7 +779,41 @@ export default function GanttPage() {
 
       // Ordre stable par id pour ne pas permuter quand on drag une barre.
       const sortedProjects = [...epicProjects].sort((a, b) => a.id - b.id);
+
+      // Filtre équipes appliqué au niveau epic : si aucun de ses projets n'est
+      // dans le scope, on saute l'epic entier.
+      const visibleProjects = teamFilterProjectIds
+        ? sortedProjects.filter((p) => teamFilterProjectIds.has(p.id))
+        : sortedProjects;
+      if (visibleProjects.length === 0) continue;
+
+      // Ligne d'en-tête epic (mode groupé) : barre bracket couvrant la plage
+      // de dates de ses projets, repliable.
+      if (groupByEpic) {
+        const starts = visibleProjects.map((p) => p.date_debut).sort();
+        const ends = visibleProjects.map((p) => p.date_fin).sort();
+        out.push({
+          id: `epic-${tri}`,
+          name: epic?.nom ?? tri,
+          type: "project",
+          start: toDate(starts[0]),
+          end: toDate(ends[ends.length - 1]),
+          progress: 0,
+          isDisabled: true,
+          styles: {
+            backgroundColor: color,
+            backgroundSelectedColor: color,
+            progressColor: color,
+            progressSelectedColor: color,
+          },
+        });
+        if (collapsedEpics.has(tri)) continue; // epic replié → on masque ses projets
+      }
+
       for (const p of sortedProjects) {
+        // Filtre équipes : on masque les projets qui n'ont pas de tâche
+        // dans le scope sélectionné.
+        if (teamFilterProjectIds && !teamFilterProjectIds.has(p.id)) continue;
         out.push({
           id: `proj-${p.id}`,
           name: p.nom,
@@ -493,6 +827,8 @@ export default function GanttPage() {
         if (expandedProjects.has(p.id)) {
           const pTasks = tasksByProject.get(p.id) ?? [];
           for (const t of pTasks) {
+            // Filtre équipes : seules les tâches en scope sont visibles.
+            if (teamFilterTaskIds && !teamFilterTaskIds.has(t.id)) continue;
             const dependsOn = depsByAval.get(t.id) ?? [];
             out.push({
               id: `task-${t.id}`,
@@ -510,7 +846,7 @@ export default function GanttPage() {
       }
     }
     return out;
-  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval, allMilestones]);
+  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval, allMilestones, teamFilterTaskIds, teamFilterProjectIds, milestoneRowCount, groupByEpic, collapsedEpics]);
   ganttTasksRef.current = ganttTasks;
 
   // Liste des flèches dans l'ordre où la lib les rend (pour les clics
@@ -561,9 +897,17 @@ export default function GanttPage() {
       e.preventDefault();
       e.stopPropagation();
       if (!confirm("Supprimer cette dépendance ?")) return;
+      const { amontId, avalId } = pair;
       depsApi
         .remove(pair.depId)
-        .then(load)
+        .then(() => {
+          pushUndo("Suppression de dépendance", () =>
+            depsApi
+              .create({ tache_amont_id: amontId, tache_aval_id: avalId, type: "FS" })
+              .then(() => {})
+          );
+          load();
+        })
         .catch(setErr);
     }
 
@@ -617,6 +961,14 @@ export default function GanttPage() {
       window.removeEventListener("resize", onScrollOrResize);
     };
   }, [editMode, ganttTasks]);
+
+  const epicInfoByTri = useMemo(() => {
+    const m = new Map<string, { color: string; nom: string }>();
+    for (const e of epicsList) {
+      m.set(e.trigramme, { color: e.couleur ?? DEFAULT_EPIC_COLOR, nom: e.nom });
+    }
+    return m;
+  }, [epicsList]);
 
   const projectInfoById = useMemo(() => {
     const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
@@ -794,18 +1146,23 @@ export default function GanttPage() {
           hatch.remove();
         }
 
-        // Fade sur toutes les barres terminées ; stroke vert si assez large
+        // Fade sur toutes les barres terminées ; stroke vert si assez large.
+        // Stroke bleu prioritaire si la tâche est sélectionnée pour décalage groupé.
+        const isSelected =
+          ganttTasksRef.current[i]?.id &&
+          selectedTaskIdsRef.current.has(ganttTasksRef.current[i].id);
         if (isDone) {
           mainRect.setAttribute("fill-opacity", "0.4");
-          if (w >= MIN_W) {
-            mainRect.setAttribute("stroke", GREEN);
-            mainRect.setAttribute("stroke-width", "2");
-          } else {
-            mainRect.removeAttribute("stroke");
-            mainRect.removeAttribute("stroke-width");
-          }
         } else {
           mainRect.setAttribute("fill-opacity", "1");
+        }
+        if (isSelected) {
+          mainRect.setAttribute("stroke", "#1976d2");
+          mainRect.setAttribute("stroke-width", "3");
+        } else if (isDone && w >= MIN_W) {
+          mainRect.setAttribute("stroke", GREEN);
+          mainRect.setAttribute("stroke-width", "2");
+        } else {
           mainRect.removeAttribute("stroke");
           mainRect.removeAttribute("stroke-width");
         }
@@ -893,8 +1250,15 @@ export default function GanttPage() {
         svg.querySelector("[data-milestone-lane]")?.remove();
         svg.querySelector("[data-milestone-lines]")?.remove();
       } else {
-        // Masque le diamant rendu par la lib (anchor)
-        (anchorRect as SVGRectElement).style.display = "none";
+        // Masque les diamants rendus par la lib pour toutes les lignes
+        // milestone (anchor + espaceuses).
+        bars.forEach((bar, i) => {
+          const id = ganttTasksRef.current[i]?.id;
+          if (id && id.startsWith("milestone-")) {
+            const r = bar.querySelector("rect");
+            if (r) (r as SVGRectElement).style.display = "none";
+          }
+        });
 
         const anchorX = parseFloat(anchorRect.getAttribute("x") || "0");
         const anchorY = parseFloat(anchorRect.getAttribute("y") || "0");
@@ -948,7 +1312,7 @@ export default function GanttPage() {
           svg.appendChild(lane);
         }
         const fp =
-          ms.map((m) => `${m.id}|${m.date}|${m.nom}|${(m.epic_trigrammes ?? []).join("+")}`).join(",") +
+          ms.map((m) => `${m.id}|${m.date}|${m.nom}|${(m.project_ids ?? []).join("+")}`).join(",") +
           `:${currentView}:${anchorX.toFixed(2)}:${rowMidY.toFixed(2)}:${rowHeight.toFixed(2)}:${bars.length}`;
         if (lane.getAttribute("data-fp") === fp && lane.children.length > 0) {
           // Aucun changement de jalons / vue / anchor → on ne touche à rien
@@ -957,6 +1321,63 @@ export default function GanttPage() {
         }
         lane.setAttribute("data-fp", fp);
         lane.innerHTML = "";
+
+        // Pré-calcul des slots : si plusieurs noms se chevauchent, on les
+        // décale verticalement vers le bas plutôt que de les masquer.
+        // measureText sur canvas pour estimer la largeur du nom sans devoir
+        // l'insérer puis le mesurer (DOM thrashing).
+        const measureCanvas = document.createElement("canvas");
+        const measureCtx = measureCanvas.getContext("2d");
+        if (measureCtx) measureCtx.font = "500 12px Roboto, sans-serif";
+        const NAME_GAP = 12;
+        const DIAMOND_HALF = 9; // rect 12px tourné 45° → demi-largeur visuelle ~9
+        // Slots = pistes verticales. Diamant ET nom voyagent ensemble sur le
+        // même slot. Un jalon (date croissante) descend d'une piste si son
+        // diamant chevaucherait le nom déjà posé dans la piste courante.
+        // La portée occupée d'un jalon = [bord gauche diamant, fin du nom].
+        const slotEnds: number[] = []; // rightmost x occupé par slot
+        const msSlot: number[] = [];
+        for (let i = 0; i < ms.length; i++) {
+          const mx = xOf(ms[i].date);
+          const w = measureCtx ? measureCtx.measureText(ms[i].nom).width : ms[i].nom.length * 7;
+          const diamondLeft = mx - DIAMOND_HALF;
+          const nameEnd = mx + 10 + w;
+          let slot = 0;
+          while (slot < slotEnds.length && diamondLeft < slotEnds[slot] + NAME_GAP) slot++;
+          while (slot >= slotEnds.length) slotEnds.push(-Infinity);
+          slotEnds[slot] = nameEnd;
+          msSlot.push(slot);
+        }
+        const slotsUsed = Math.max(1, slotEnds.length);
+
+        // On PACKE plusieurs pistes dans une même ligne lib pour éviter le vide.
+        // Espacement vertical mini ~20px → nb de pistes par ligne.
+        const SLOT_MIN = 20;
+        const slotsPerRow = Math.max(1, Math.floor(rowHeight / SLOT_MIN));
+        const rowsNeeded = Math.max(1, Math.ceil(slotsUsed / slotsPerRow));
+        if (rowsNeeded !== milestoneRowCountRef.current) {
+          milestoneRowCountRef.current = rowsNeeded;
+          setMilestoneRowCount(rowsNeeded);
+        }
+        // La swimlane visible occupe les lignes réellement rendues.
+        let milestoneBarCount = 0;
+        for (let bi = 0; bi < bars.length; bi++) {
+          if (ganttTasksRef.current[bi]?.id?.startsWith("milestone-")) milestoneBarCount++;
+        }
+        const renderedRows = Math.max(1, milestoneBarCount);
+        const laneHeightActual = renderedRows * rowHeight;
+        const laneBottom = laneTop + laneHeightActual;
+
+        // Position Y d'une piste : répartie équitablement dans sa ligne lib.
+        const slotY = (k: number) => {
+          const rowIdx = Math.floor(k / slotsPerRow);
+          const posInRow = k % slotsPerRow;
+          return (
+            laneTop +
+            rowIdx * rowHeight +
+            (rowHeight * (posInRow + 1)) / (slotsPerRow + 1)
+          );
+        };
 
         // Background bandeau swimlane
         const svgW =
@@ -967,7 +1388,7 @@ export default function GanttPage() {
         bg.setAttribute("x", "0");
         bg.setAttribute("y", String(laneTop));
         bg.setAttribute("width", String(svgW));
-        bg.setAttribute("height", String(rowHeight));
+        bg.setAttribute("height", String(laneHeightActual));
         bg.setAttribute("fill", "#fff3e0");
         bg.setAttribute("pointer-events", "none");
         lane.appendChild(bg);
@@ -998,14 +1419,8 @@ export default function GanttPage() {
           rowGeomById.set(id, { y: rowTop, bottom: rowBot });
         });
 
-        // Pour un jalon : liste des ids ganttTask concernés (projet + ses tâches dépliées,
-        // OU tous les projets d'un epic + leurs tâches dépliées)
-        const projectsByEpic = new Map<string, Project[]>();
-        for (const p of projectsListRef.current) {
-          if (!projectsByEpic.has(p.epic_trigramme))
-            projectsByEpic.set(p.epic_trigramme, []);
-          projectsByEpic.get(p.epic_trigramme)!.push(p);
-        }
+        // Pour un jalon : liste des ids ganttTask concernés = ses projets
+        // directement liés + leurs tâches dépliées.
         const tasksByProj = new Map<number, Task[]>();
         for (const t of tasksListRef.current) {
           if (!tasksByProj.has(t.projet_id)) tasksByProj.set(t.projet_id, []);
@@ -1014,48 +1429,49 @@ export default function GanttPage() {
         function concernedIds(mil: Milestone): string[] {
           const out: string[] = [];
           const seen = new Set<string>();
-          for (const tri of mil.epic_trigrammes ?? []) {
-            for (const p of projectsByEpic.get(tri) ?? []) {
-              const pid = `proj-${p.id}`;
-              if (!seen.has(pid)) {
-                seen.add(pid);
-                out.push(pid);
-              }
-              for (const t of tasksByProj.get(p.id) ?? []) {
-                const tid = `task-${t.id}`;
-                if (!seen.has(tid)) {
-                  seen.add(tid);
-                  out.push(tid);
-                }
+          for (const pid of mil.project_ids ?? []) {
+            const projKey = `proj-${pid}`;
+            if (!seen.has(projKey)) {
+              seen.add(projKey);
+              out.push(projKey);
+            }
+            for (const t of tasksByProj.get(pid) ?? []) {
+              const taskKey = `task-${t.id}`;
+              if (!seen.has(taskKey)) {
+                seen.add(taskKey);
+                out.push(taskKey);
               }
             }
           }
           return out;
         }
 
-        // Diamants + noms avec collision detection (ordre x croissant)
-        let lastNameRight = -Infinity;
-        for (const m of ms) {
+        // Diamants + noms : tous deux posés sur le slot calculé (msSlot[i]).
+        // Diamant et nom restent côte à côte sur la même piste verticale.
+        for (let i = 0; i < ms.length; i++) {
+          const m = ms[i];
+          const slot = msSlot[i];
           const mx = xOf(m.date);
+          const rowY = slotY(slot);
 
-          // Diamant (rect rotated 45°) — cliquable pour ouvrir le panel
+          // Diamant (rect rotated 45°) — au slot du jalon
           const ds = 12;
           const diamond = document.createElementNS(ns, "rect");
           diamond.setAttribute("x", String(mx - ds / 2));
-          diamond.setAttribute("y", String(rowMidY - ds / 2));
+          diamond.setAttribute("y", String(rowY - ds / 2));
           diamond.setAttribute("width", String(ds));
           diamond.setAttribute("height", String(ds));
           diamond.setAttribute("fill", "#f57c00");
-          diamond.setAttribute("transform", `rotate(45 ${mx} ${rowMidY})`);
+          diamond.setAttribute("transform", `rotate(45 ${mx} ${rowY})`);
           diamond.style.cursor = "pointer";
           const openMs = () => setPanelTarget({ type: "milestone", id: m.id });
-          diamond.addEventListener("click", openMs);
+          diamond.addEventListener("dblclick", openMs);
           lane.appendChild(diamond);
 
-          // Nom à droite du diamant (cliquable → ouvre le panel d'édition)
+          // Nom (cliquable → ouvre le panel d'édition)
           const text = document.createElementNS(ns, "text");
           text.setAttribute("x", String(mx + 10));
-          text.setAttribute("y", String(rowMidY));
+          text.setAttribute("y", String(rowY));
           text.setAttribute("dominant-baseline", "central");
           text.setAttribute("font-family", "Roboto, sans-serif");
           text.setAttribute("font-size", "12");
@@ -1064,7 +1480,7 @@ export default function GanttPage() {
           text.style.cursor = "pointer";
           text.setAttribute("data-milestone-id", String(m.id));
           text.textContent = m.nom;
-          text.addEventListener("click", openMs);
+          text.addEventListener("dblclick", openMs);
           let bgPill: SVGRectElement | null = null;
           text.addEventListener("mouseenter", () => {
             const bb = text.getBBox();
@@ -1086,17 +1502,7 @@ export default function GanttPage() {
           });
           lane.appendChild(text);
 
-          // Collision : si le nom chevauche le précédent, on le masque (mais on garde le diamant)
-          let bb: DOMRect | { x: number; width: number } = { x: mx + 10, width: 0 };
-          try { bb = text.getBBox(); } catch { /* offscreen */ }
-          if (bb.x < lastNameRight) {
-            (text as SVGTextElement).style.display = "none";
-          } else {
-            lastNameRight = bb.x + bb.width + 8;
-          }
-
           // Périmètre : on tronque la ligne aux barres concernées
-          const laneBottom = laneTop + rowHeight;
           const concerned = concernedIds(m)
             .map((id) => rowGeomById.get(id))
             .filter((g): g is { y: number; bottom: number } => !!g);
@@ -1166,6 +1572,7 @@ export default function GanttPage() {
           hit.addEventListener("mouseenter", showTooltip as EventListener);
           hit.addEventListener("mousemove", showTooltip as EventListener);
           hit.addEventListener("mouseleave", hideTooltip);
+          hit.addEventListener("dblclick", openMs);
           linesG.appendChild(hit);
         }
       }
@@ -1208,7 +1615,9 @@ export default function GanttPage() {
                   alignItems: "center",
                   paddingLeft: 12,
                   paddingRight: 12,
-                  borderBottom: "1px solid #f1f3f4",
+                  // Pas de bordure basse : la swimlane peut s'étendre sur
+                  // plusieurs lignes-espaceuses, la séparation est portée par
+                  // la dernière.
                   boxSizing: "border-box",
                   background: "#fff3e0",
                   color: "#e65100",
@@ -1222,7 +1631,114 @@ export default function GanttPage() {
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
                   flag
                 </span>
-                Jalons
+                <span style={{ flex: 1 }}>Jalons</span>
+                <IconButton
+                  icon="add"
+                  title="Créer un jalon"
+                  onClick={() => setPanelTarget({ type: "milestone-new" })}
+                />
+              </div>
+            );
+          }
+          if (t.id.startsWith("milestone-spacer-")) {
+            // Ligne-espaceuse : continue le fond orange de la swimlane.
+            // La dernière porte la bordure basse de séparation.
+            const idx = Number(t.id.slice("milestone-spacer-".length));
+            const isLast = idx === milestoneRowCount - 1;
+            return (
+              <div
+                key={t.id}
+                style={{
+                  height: props.rowHeight,
+                  background: "#fff3e0",
+                  borderBottom: isLast ? "1px solid #f1f3f4" : undefined,
+                  boxSizing: "border-box",
+                }}
+              />
+            );
+          }
+          if (t.id.startsWith("epic-")) {
+            const tri = t.id.slice(5);
+            const info = epicInfoByTri.get(tri);
+            const color = info?.color ?? DEFAULT_EPIC_COLOR;
+            const collapsed = collapsedEpics.has(tri);
+            return (
+              <div
+                key={t.id}
+                style={{
+                  height: props.rowHeight,
+                  display: "flex",
+                  alignItems: "center",
+                  paddingLeft: 8,
+                  paddingRight: 12,
+                  borderBottom: "1px solid #e0e0e0",
+                  boxSizing: "border-box",
+                  color: "#1f2329",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  gap: 8,
+                  background: "#f8f9fa",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleEpicCollapse(tri)}
+                  title={collapsed ? "Déplier l'epic" : "Replier l'epic"}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    padding: 0,
+                    width: 22,
+                    height: 22,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#5f6368",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+                    {collapsed ? "chevron_right" : "expand_more"}
+                  </span>
+                </button>
+                <span
+                  style={{
+                    background: color,
+                    color: textColorFor(color),
+                    padding: "3px 8px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.6px",
+                    fontFamily: "ui-monospace, monospace",
+                    flexShrink: 0,
+                  }}
+                >
+                  {tri}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPanelTarget({ type: "epic", trigramme: tri })}
+                  title="Éditer l'epic"
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    padding: 0,
+                    flex: 1,
+                    textAlign: "left",
+                    color: "inherit",
+                    fontFamily: "inherit",
+                    fontSize: "inherit",
+                    fontWeight: "inherit",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {t.name}
+                </button>
               </div>
             );
           }
@@ -1238,14 +1754,17 @@ export default function GanttPage() {
                   height: props.rowHeight,
                   display: "flex",
                   alignItems: "center",
-                  paddingLeft: 64,
+                  paddingLeft: selectedTaskIds.has(t.id) ? 61 : 64,
                   paddingRight: 12,
                   borderBottom: "1px solid #f1f3f4",
                   boxSizing: "border-box",
                   color: "#5f6368",
                   fontSize: 13,
                   gap: 6,
+                  background: selectedTaskIds.has(t.id) ? "#e3f2fd" : "transparent",
+                  borderLeft: selectedTaskIds.has(t.id) ? "3px solid #1976d2" : "3px solid transparent",
                 }}
+                title={selectedTaskIds.has(t.id) ? "Sélectionnée — glisse une barre pour décaler le groupe (Échap pour désélectionner)" : undefined}
               >
                 {isDone && (
                   <span
@@ -1258,8 +1777,15 @@ export default function GanttPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setPanelTarget({ type: "task", id: taskId })}
-                  title="Éditer la tâche"
+                  onClick={(e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                      e.preventDefault();
+                      toggleTaskSelection(t.id);
+                    } else {
+                      setPanelTarget({ type: "task", id: taskId });
+                    }
+                  }}
+                  title="Ctrl+clic : sélectionner pour décalage groupé · Clic : éditer la tâche"
                   style={{
                     background: "transparent",
                     border: 0,
@@ -1455,6 +1981,40 @@ export default function GanttPage() {
           </span>
           Édition
         </button>
+        <button
+          type="button"
+          className={`chip ${groupByEpic ? "active" : ""}`}
+          onClick={toggleGroupByEpic}
+          title="Afficher une ligne d'en-tête par epic, repliable"
+          style={{ marginLeft: 8 }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16, marginRight: 4 }}>
+            {groupByEpic ? "folder_open" : "folder"}
+          </span>
+          Grouper par epic
+        </button>
+        <button
+          type="button"
+          className="chip"
+          onClick={performUndo}
+          disabled={undoStack.length === 0 || undoing}
+          title={
+            undoStack.length > 0
+              ? `Annuler : ${undoStack[undoStack.length - 1].label} (Ctrl+Z)`
+              : "Rien à annuler"
+          }
+          style={{
+            marginLeft: 8,
+            opacity: undoStack.length === 0 || undoing ? 0.5 : 1,
+            cursor: undoStack.length === 0 || undoing ? "default" : "pointer",
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16, marginRight: 4 }}>
+            undo
+          </span>
+          Annuler
+          {undoStack.length > 0 ? ` (${undoStack.length})` : ""}
+        </button>
         <span
           style={{
             marginLeft: 12,
@@ -1474,14 +2034,130 @@ export default function GanttPage() {
           <span className="material-symbols-outlined" style={{ fontSize: 14 }}>today</span>
           Aujourd'hui : {todayPill}
         </span>
+        {selectedTaskIds.size > 0 && (
+          <span
+            style={{
+              marginLeft: 12,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              background: "#e3f2fd",
+              color: "#0d47a1",
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 500,
+            }}
+            title="Glisse une barre sélectionnée pour décaler tout le groupe"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>checklist</span>
+            {selectedTaskIds.size} tâche{selectedTaskIds.size > 1 ? "s" : ""} sélectionnée{selectedTaskIds.size > 1 ? "s" : ""}
+            <button
+              type="button"
+              onClick={() => setSelectedTaskIds(new Set())}
+              title="Désélectionner (Échap)"
+              style={{
+                background: "transparent",
+                border: 0,
+                cursor: "pointer",
+                color: "#0d47a1",
+                display: "inline-flex",
+                padding: 0,
+                marginLeft: 4,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
+            </button>
+          </span>
+        )}
         <span style={{ color: "#5f6368", fontSize: 12, marginLeft: "auto" }}>
           {editMode
             ? linkSource
               ? "Relâchez sur la tâche aval pour lier. Échap pour annuler."
-              : "Glissez les barres · 🔗 pour lier · cliquez sur une flèche pour la supprimer."
-            : "Clic sur un projet = déplier. ✏️ = panneau d'édition. Clic sur une tâche = panneau."}
+              : "Glissez · Ctrl+clic sur un nom pour sélectionner · 🔗 pour lier · cliquez sur une flèche pour la supprimer."
+            : "Clic sur un projet = déplier. ✏️ = panneau. Ctrl+clic sur une tâche = sélectionner pour décalage groupé."}
         </span>
       </div>
+      {allEquipes.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
+            marginTop: 8,
+            marginBottom: 8,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: "#5f6368",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>groups</span>
+            Filtrer par équipe :
+          </span>
+          {allEquipes.map((eq) => {
+            const active = selectedTeamIds.has(eq.id);
+            return (
+              <button
+                key={eq.id}
+                type="button"
+                onClick={() =>
+                  setSelectedTeamIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(eq.id)) next.delete(eq.id);
+                    else next.add(eq.id);
+                    return next;
+                  })
+                }
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  border: active ? "1px solid #1976d2" : "1px solid #e0e0e0",
+                  background: active ? "#1976d2" : "#fafafa",
+                  color: active ? "white" : "#5f6368",
+                  transition: "background 120ms, color 120ms",
+                }}
+                title={`${eq.nom} · ${eq.temps_dispo_hebdo} h/sem`}
+              >
+                {eq.nom}
+              </button>
+            );
+          })}
+          {selectedTeamIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedTeamIds(new Set())}
+              title="Vider le filtre"
+              style={{
+                marginLeft: 4,
+                padding: "4px 8px",
+                borderRadius: 999,
+                fontSize: 12,
+                cursor: "pointer",
+                border: 0,
+                background: "transparent",
+                color: "#5f6368",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 2,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+              Réinitialiser
+            </button>
+          )}
+        </div>
+      )}
       {ganttTasks.length === 0 ? (
         <p>Aucun projet planifié.</p>
       ) : (
@@ -1503,6 +2179,8 @@ export default function GanttPage() {
             TaskListTable={CustomTaskListTable}
             TooltipContent={TooltipContent}
             onDateChange={handleDateChange}
+            onClick={handleBarClick}
+            onDoubleClick={handleBarDoubleClick}
           />
         </div>
       )}
