@@ -7,10 +7,20 @@
 >
 > Ce document est un instantané. À réactualiser quand les chantiers du §9 avancent.
 >
-> **MàJ 2026-07-17 — chantier C1 (étape 0) appliqué.** Voir §1. Deux affirmations de la première
-> version de ce document étaient fausses et ont été corrigées ici : la CI n'est pas « rouge depuis
-> 2 commits » mais **rouge depuis le commit initial, à l'étape lint** (§6) ; et le risque R2
-> (`alembic/env.py` → `drop_table`) était un **faux positif** (§8).
+> **MàJ 2026-07-17 — chantiers C1 (étape 0) et C2 appliqués.** Voir §1 et la SPEC
+> [v0.2](docs/SPEC.md). **Trois** affirmations de la première version de ce document étaient
+> fausses et sont corrigées ici :
+> 1. la CI n'est pas « rouge depuis 2 commits » mais **rouge depuis le commit initial, à l'étape
+>    lint** — `pytest` n'était jamais atteint (§6) ;
+> 2. le risque R2 (`alembic/env.py` → `drop_table`) était un **faux positif** (§8) ;
+> 3. le RBAC n'est **pas** un écart à la SPEC §6 : celle-ci accorde explicitement au rôle `membre`
+>    tout le CRUD métier, le code y est conforme (§7, R4).
+>
+> Ces trois erreurs partagent la même cause : une conclusion tirée d'une lecture partielle sans
+> exécution. Les deux premières sont tombées en confrontant l'affirmation au réel (relancer le lint
+> sur le commit initial ; retirer l'import et observer `alembic check`). D'où la règle appliquée
+> depuis : **une affirmation de ce document doit être vérifiable par une commande**, et les
+> commandes en question sont citées.
 
 ---
 
@@ -166,7 +176,8 @@ Le proxy passe `/api/` **sans réécriture** — cohérent par construction.
 
 ## 5. Invariants — le cœur du sujet
 
-C'est la matière de la phase 2. **24 IDs déclarés, 4 retirés, 20 actifs — 1 seul testé.**
+C'est la matière de la phase 2. **29 IDs déclarés, 4 retirés, 25 actifs — 1 seul testé.**
+*(Les 5 `INV-EQ-*` ont été nommés par la SPEC v0.2 ; ils étaient déjà appliqués, mais anonymes.)*
 
 | ID | Fonction `check_*` | Appelée par | Testé |
 |---|---|---|---|
@@ -191,6 +202,20 @@ C'est la matière de la phase 2. **24 IDs déclarés, 4 retirés, 20 actifs — 
 | INV-AUTH-1 | *aucune* — `func.lower(email)` inline | `users.py:58,93` | ❌ |
 | INV-AUTH-2 | `check_max_active_users` | `users.py:24` | ❌ |
 | INV-AUTH-3 | `check_min_one_admin` | `users.py:25,128` | ❌ |
+| INV-EQ-1a | **non appliqué** — `Field(min_length=1)` ne trim pas : `nom="   "` accepté (vérifié, 201) | — | ❌ |
+| INV-EQ-1b | *aucune* — `func.lower(nom)` inline, **409 sans code** | `equipes.py:33,59` | ❌ |
+| INV-EQ-2 | *aucune* — Pydantic `Field(ge=0)` + `CheckConstraint` | `schemas/equipe.py:8,13` | ❌ |
+| INV-EQ-3 | *aucune* — Pydantic `Field(gt=0)` + `CheckConstraint` | `schemas/equipe.py:25,29` | ❌ |
+| INV-EQ-4 | *aucune* — requête inline, **409 sans code** | `tache_equipe.py:34` | ❌ |
+| INV-EQ-5 | *aucune* — `db.get` + 404 inline | `tache_equipe.py:30,32` | ❌ |
+
+> **Les 5 `INV-EQ-*` sont appliqués mais anonymes.** `equipes.py` et `tache_equipe.py` sont les
+> **seuls routers à n'importer ni `app.invariants` ni `http_from_invariant`** : ils lèvent des
+> `HTTPException(409, "Nom d'équipe déjà utilisé")` — une chaîne libre, là où tout le reste du
+> code renvoie `{"code": "INV-X", "message": …}`. Côté front, `ErrorBanner` affiche `[CODE] message`
+> quand le code existe : les erreurs Équipe s'affichent donc sans code. Tant que ce n'est pas câblé
+> (**chantier C10**), la règle du README « chaque `INV-X` donne lieu à au moins un test » est
+> inapplicable aux Équipes.
 
 **Code mort à retirer** : `check_task_dates_within_project` (INV-9, retiré de la SPEC mais lèverait encore
 si on l'appelait) et `check_dependency_dates` (INV-13, no-op). Ce dernier est **coûteux** : dans
@@ -254,13 +279,18 @@ construites par la CI**.
 
 ## 7. Écarts SPEC ↔ code
 
-| Sujet | SPEC | Code |
+> **Résolu par la SPEC [v0.2](docs/SPEC.md) (chantier C2).** Ce tableau décrit l'état constaté au
+> commit `e260851`. La SPEC documente désormais les Équipes, leurs 5 invariants, les non-invariants
+> délibérés, le statut de livraison de chaque écran, et les écarts §6/§8. Il est conservé ici comme
+> trace de ce qui a motivé la révision.
+
+| Sujet | SPEC (v0.1) | Code |
 |---|---|---|
-| **Équipes** | **absent** | 2 tables, 12 endpoints, 3 pages, 1 migration |
-| **Mesures (CRUD + courbe)** | écrans 8 & 9 | API complète, **UI lecture seule**, pas de courbe |
-| **Paramètres / Backup** | écran 11 | inexistant |
+| **Équipes** | **absent** → ✅ documenté en v0.2 (`INV-EQ-1..5`) | 2 tables, 12 endpoints, 3 pages, 1 migration |
+| **Mesures (CRUD + courbe)** | écrans 8 & 9 → statut ❌/🟡 explicité en v0.2 | API complète, **UI lecture seule**, pas de courbe |
+| **Paramètres / Backup** | écran 11 → statut ❌ explicité en v0.2 | inexistant |
 | **Refresh token** | §6 | non implémenté |
-| **Rôles** | admin / membre distincts | membre ≈ admin sauf gestion users |
+| ~~**Rôles**~~ | ~~admin / membre distincts~~ | **Pas un écart — erreur de la v1 de ce document.** La SPEC §6 dit littéralement « `membre` (CRUD métier sans gestion users) » : un membre a bien tout le CRUD métier. Le code est **conforme**. Voir R4. |
 | **CI** | ruff + **black**, **eslint** + tsc, pytest, docker | ni black, ni eslint |
 | **Lib Gantt** | `gantt-task-react` « à confirmer » | confirmé, `^0.3.9` |
 | **SS / FF** | types de dépendance légitimes | **jamais dessinés** sur le Gantt (`continue` si `!== "FS"`) — créables mais invisibles |
@@ -275,7 +305,7 @@ construites par la CI**.
 | ~~R1~~ | ~~**CI rouge**~~ | ✅ **résolu (étape 0)** | Était rouge depuis le commit initial, à l'étape lint (§6). `ruff check .` et `pytest -q` passent désormais. |
 | R2 | **Dérive modèles ↔ migrations** | 🟠 | `alembic check` échoue sur **3 points** : la migration `0008` crée `ix_milestone_project_milestone_id` et `ix_milestone_project_project_id` (l. 41-42) que le `Table` du modèle **ne déclare pas** ; et `user.py:19` (`unique=True, index=True`) diverge de la contrainte `users_email_key` posée par `0001`. Un `alembic revision --autogenerate` émettrait donc du **churn d'index** — suppression de deux index qui portent les jointures N-N, réécriture de l'unicité email. Pas de perte de données. |
 | R3 | **1 invariant testé sur 20** | 🔴 | cœur du produit non protégé ; c'est l'objet de la phase 2 |
-| R4 | **RBAC : tout membre peut tout détruire** | 🟠 | 3 endpoints gardés sur 40 |
+| R4 | **RBAC : tout membre peut tout détruire** | 🟡 | 3 endpoints gardés par `require_admin` sur 40. **Conforme à la SPEC §6** (« membre : CRUD métier sans gestion users ») — la v1 de ce document le présentait à tort comme un écart. Reste une question de **conception**, pas de conformité : est-il voulu qu'un membre puisse supprimer un epic entier ? Y toucher serait un changement de besoin, à trancher dans la SPEC avant d'être codé. Seul écart réel : `GET /api/users` n'est pas gaté admin. |
 | R5 | **Gantt couplé au DOM de la lib** | 🟠 | mapping **par index DOM** entre `svg g[tabindex]` et le tableau de tâches (poignées, décorations, flèches). Un changement d'ordre de rendu de `gantt-task-react` → **suppression de la mauvaise dépendance**, en silence. Sélecteurs internes (`g[class~="arrow"]`), détection d'« aujourd'hui » en cherchant la chaîne `"255, 152, 0"` dans un `fill`. 3 `setInterval` permanents (250/300/500 ms). |
 | R6 | **Backup tolère la corruption** | 🟠 | `pg_dump \| gzip` sous `sh` **sans `pipefail`** : un dump en échec écrit un `.sql.gz` tronqué **compté comme réussi**. Rétention purement par âge, **sans plancher de copies** : une panne > 30 j + un passage de cron ⇒ **zéro backup**. Aucune vérification de restore, aucune copie hors-volume. |
 | R7 | **Pas de lockfile npm** | 🟠 | builds non reproductibles |
@@ -303,8 +333,9 @@ correct si `models/__init__.py` était un jour allégé), mais ce n'était **pas
 | Id | Chantier | Pourquoi | Effort |
 |---|---|---|---|
 | **C1** | 🟡 **En cours.** ✅ *Étape 0 faite : lint + tests verts (§1).* **Reste** : config ESLint (le job « Web — lint + build » ne linte pas, et `npm run lint` est inexécutable), `package-lock.json` (`npm ci \|\| npm install` masque l'échec), élargir `push:` au-delà de `main` | Rien n'est fiable tant que la CI ment | ~~XS~~ → M |
-| **C2** | **Réconcilier la SPEC avec le réel** : documenter Équipes (+ ses invariants), acter Mesures/Backup, entériner le retrait INV-9/13 côté SPEC | La spec est la référence de la phase 2 ; elle est fausse aujourd'hui | S |
-| **C3** | **Phase 2 — tests d'invariants** (l'objectif annoncé du README) : 19 invariants à couvrir, unitaire + intégration + Hypothesis | Le cœur métier n'est pas protégé | L |
+| **C2** | ✅ **Fait (SPEC v0.2, 2026-07-17).** Équipes documentées + 5 invariants `INV-EQ-*`, non-invariants délibérés consignés, statut de livraison par écran, retraits INV-9/13/16/17 entérinés, écarts §6/§8 actés. **Découvert au passage** : les routers Équipe sont les seuls à ne pas passer par `app.invariants` — leurs violations ne remontent **aucun code** `INV-EQ-*`. Prérequis de C3, voir C10. | La spec est la référence de la phase 2 ; elle était fausse | S |
+| **C3** | **Phase 2 — tests d'invariants** (l'objectif annoncé du README) : **24 invariants actifs** à couvrir (19 restants + 5 `INV-EQ-*`), unitaire + intégration + Hypothesis | Le cœur métier n'est pas protégé | L |
+| **C10** | **Câbler les codes `INV-EQ-*`** : `check_*` dans `app.invariants` + `http_from_invariant` dans les 2 routers Équipe, à la place des `HTTPException(409, "chaîne")` | Sans code stable, la règle « 1 test par `INV-X` » est inapplicable aux Équipes | S |
 | **C4** | **Peupler le Gantt** : la vue centrale est vide à l'install, sans chemin supporté | Le produit ne démontre rien au premier lancement | M |
 | **C5** | Réconcilier modèles ↔ migrations (R2) : déclarer les index de `milestone_project`, aligner l'unicité `users.email`, puis viser `alembic check` vert en CI | `autogenerate` produit aujourd'hui du churn d'index | S |
 | **C6** | Fiabiliser le backup : `pipefail`, plancher de copies, test de restore, corriger `RESTORE.md` | Un backup non vérifié n'est pas un backup | S |
