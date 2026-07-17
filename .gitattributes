@@ -1,0 +1,5 @@
+# Les scripts shell sont exécutés dans des conteneurs Linux. Sur un checkout
+# Windows (core.autocrlf=true) ils seraient convertis en CRLF, le shebang
+# deviendrait "#!/bin/sh\r" et l'exec échouerait avec un trompeur
+# "no such file or directory" (c'est l'interpréteur qui est introuvable).
+*.sh text eol=lf

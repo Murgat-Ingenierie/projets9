@@ -18,7 +18,15 @@ from app.routes import (
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Gestionnaire de projet — API", version="0.1.0")
+# Le proxy ne transmet que /api/ : sans ces préfixes, la doc servie sur /docs
+# est injoignable depuis le navigateur (cf. docker/proxy/nginx.conf).
+app = FastAPI(
+    title="Gestionnaire de projet — API",
+    version="0.1.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,
