@@ -1,7 +1,6 @@
 from app.invariants.checks import (
     InvariantError,
     check_dependency_acyclic,
-    check_dependency_dates,
     check_dependency_no_self,
     check_epic_realise_consistency,
     check_epic_trigramme,
@@ -13,13 +12,11 @@ from app.invariants.checks import (
     check_project_dates_within_epic,
     check_project_realise_consistency,
     check_task_dates,
-    check_task_dates_within_project,
 )
 
 __all__ = [
     "InvariantError",
     "check_dependency_acyclic",
-    "check_dependency_dates",
     "check_dependency_no_self",
     "check_epic_realise_consistency",
     "check_epic_trigramme",
@@ -31,5 +28,4 @@ __all__ = [
     "check_project_dates_within_epic",
     "check_project_realise_consistency",
     "check_task_dates",
-    "check_task_dates_within_project",
 ]

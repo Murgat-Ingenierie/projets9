@@ -38,10 +38,31 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Les migrations sont des artefacts historiques : on ne les reformate pas
+# après coup, sinon le fichier ne correspond plus à ce qui a été appliqué.
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
-ignore = ["E501"]
+# UP042 : passage de (str, Enum) à StrEnum. Reporté en phase 2 — change le
+# résultat de str() sur des enums sérialisés par l'API, à faire une fois les
+# tests d'invariants en place pour rattraper une éventuelle régression.
+ignore = ["E501", "UP042"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Sans ça, B008 remonte un faux positif sur chaque `= Depends(...)`, qui est
+# l'idiome normal d'injection de FastAPI (82 occurrences dans app/).
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

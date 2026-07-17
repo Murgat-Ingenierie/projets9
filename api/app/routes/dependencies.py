@@ -7,7 +7,6 @@ from app.database import get_db
 from app.invariants import InvariantError
 from app.invariants.checks import (
     check_dependency_acyclic,
-    check_dependency_dates,
     check_dependency_no_self,
 )
 from app.models.dependency import Dependency
@@ -48,7 +47,6 @@ def create_dep(
         check_dependency_no_self(new)
         existing = list(db.execute(select(Dependency)).scalars().all())
         check_dependency_acyclic(existing, new_edge=new)
-        check_dependency_dates(new, amont, aval)
     except InvariantError as e:
         raise http_from_invariant(e) from None
 
