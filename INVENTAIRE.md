@@ -202,20 +202,24 @@ C'est la matière de la phase 2. **29 IDs déclarés, 4 retirés, 25 actifs — 
 | INV-AUTH-1 | *aucune* — `func.lower(email)` inline | `users.py:58,93` | ❌ |
 | INV-AUTH-2 | `check_max_active_users` | `users.py:24` | ❌ |
 | INV-AUTH-3 | `check_min_one_admin` | `users.py:25,128` | ❌ |
-| INV-EQ-1a | **non appliqué** — `Field(min_length=1)` ne trim pas : `nom="   "` accepté (vérifié, 201) | — | ❌ |
-| INV-EQ-1b | *aucune* — `func.lower(nom)` inline, **409 sans code** | `equipes.py:33,59` | ❌ |
-| INV-EQ-2 | *aucune* — Pydantic `Field(ge=0)` + `CheckConstraint` | `schemas/equipe.py:8,13` | ❌ |
-| INV-EQ-3 | *aucune* — Pydantic `Field(gt=0)` + `CheckConstraint` | `schemas/equipe.py:25,29` | ❌ |
-| INV-EQ-4 | *aucune* — requête inline, **409 sans code** | `tache_equipe.py:34` | ❌ |
-| INV-EQ-5 | *aucune* — `db.get` + 404 inline | `tache_equipe.py:30,32` | ❌ |
+| INV-EQ-1a | `check_equipe_nom` *(ajoutée — C10)* | `equipes.py::_validate` | ❌ |
+| INV-EQ-1b | `check_equipe_nom_unique` *(ajoutée — C10)* | `equipes.py::_validate` | ❌ |
+| INV-EQ-2 | `check_equipe_temps_dispo` *(ajoutée — C10)* | `equipes.py::_validate` — 422 par le schéma en pratique, comme INV-1 | ❌ |
+| INV-EQ-3 | `check_allocation_heures` *(ajoutée — C10)* | `tache_equipe.py` — idem 422 | ❌ |
+| INV-EQ-4 | `check_allocation_unique` *(ajoutée — C10)* | `tache_equipe.py::create` | ❌ |
+| INV-EQ-5 | `check_allocation_refs` *(ajoutée — C10)* | `tache_equipe.py::create` | ❌ |
 
-> **Les 5 `INV-EQ-*` sont appliqués mais anonymes.** `equipes.py` et `tache_equipe.py` sont les
-> **seuls routers à n'importer ni `app.invariants` ni `http_from_invariant`** : ils lèvent des
-> `HTTPException(409, "Nom d'équipe déjà utilisé")` — une chaîne libre, là où tout le reste du
-> code renvoie `{"code": "INV-X", "message": …}`. Côté front, `ErrorBanner` affiche `[CODE] message`
-> quand le code existe : les erreurs Équipe s'affichent donc sans code. Tant que ce n'est pas câblé
-> (**chantier C10**), la règle du README « chaque `INV-X` donne lieu à au moins un test » est
-> inapplicable aux Équipes.
+> **✅ Résolu par C10 (2026-07-17).** Les `INV-EQ-*` étaient appliqués mais **anonymes** :
+> `equipes.py` et `tache_equipe.py` étaient les seuls routers à n'importer ni `app.invariants` ni
+> `http_from_invariant`, et levaient des `HTTPException(409, "chaîne libre")`. Les six codes sont
+> désormais câblés (vérifié de bout en bout, 14/14). Deux corrections au passage : `INV-EQ-1a`
+> refuse enfin `nom="   "` (accepté en 201 auparavant) et le nom est trimmé à l'écriture ;
+> `INV-EQ-5` renvoie 409 + code au lieu de 404, par alignement sur INV-4.
+>
+> Corrigé aussi : `app/invariants/__init__.py` ne ré-exportait que 15 des 18 fonctions de
+> `checks.py` — d'où une **convention d'import à deux portes**, les routes contournant le trou en
+> important depuis `app.invariants.checks`. C'est exactement ce motif qui avait cassé la CI. Tout
+> est désormais exporté. *(Reste cosmétique : 6 routes importent encore par `app.invariants.checks`.)*
 
 **Code mort à retirer** : `check_task_dates_within_project` (INV-9, retiré de la SPEC mais lèverait encore
 si on l'appelait) et `check_dependency_dates` (INV-13, no-op). Ce dernier est **coûteux** : dans
@@ -335,7 +339,7 @@ correct si `models/__init__.py` était un jour allégé), mais ce n'était **pas
 | **C1** | 🟡 **En cours.** ✅ *Étape 0 faite : lint + tests verts (§1).* **Reste** : config ESLint (le job « Web — lint + build » ne linte pas, et `npm run lint` est inexécutable), `package-lock.json` (`npm ci \|\| npm install` masque l'échec), élargir `push:` au-delà de `main` | Rien n'est fiable tant que la CI ment | ~~XS~~ → M |
 | **C2** | ✅ **Fait (SPEC v0.2, 2026-07-17).** Équipes documentées + 5 invariants `INV-EQ-*`, non-invariants délibérés consignés, statut de livraison par écran, retraits INV-9/13/16/17 entérinés, écarts §6/§8 actés. **Découvert au passage** : les routers Équipe sont les seuls à ne pas passer par `app.invariants` — leurs violations ne remontent **aucun code** `INV-EQ-*`. Prérequis de C3, voir C10. | La spec est la référence de la phase 2 ; elle était fausse | S |
 | **C3** | **Phase 2 — tests d'invariants** (l'objectif annoncé du README) : **24 invariants actifs** à couvrir (19 restants + 5 `INV-EQ-*`), unitaire + intégration + Hypothesis | Le cœur métier n'est pas protégé | L |
-| **C10** | **Câbler les codes `INV-EQ-*`** : `check_*` dans `app.invariants` + `http_from_invariant` dans les 2 routers Équipe, à la place des `HTTPException(409, "chaîne")` | Sans code stable, la règle « 1 test par `INV-X` » est inapplicable aux Équipes | S |
+| **C10** | ✅ **Fait (2026-07-17).** 6 fonctions `check_*` ajoutées + câblées via `http_from_invariant` dans les 2 routers Équipe. Défaut `INV-EQ-1a` corrigé, `INV-EQ-5` aligné sur INV-4 (409+code). Exports d'`app.invariants` complétés (15→18+6). Vérifié 14/14. | Sans code stable, la règle « 1 test par `INV-X` » était inapplicable aux Équipes | S |
 | **C4** | **Peupler le Gantt** : la vue centrale est vide à l'install, sans chemin supporté | Le produit ne démontre rien au premier lancement | M |
 | **C5** | Réconcilier modèles ↔ migrations (R2) : déclarer les index de `milestone_project`, aligner l'unicité `users.email`, puis viser `alembic check` vert en CI | `autogenerate` produit aujourd'hui du churn d'index | S |
 | **C6** | Fiabiliser le backup : `pipefail`, plancher de copies, test de restore, corriger `RESTORE.md` | Un backup non vérifié n'est pas un backup | S |
