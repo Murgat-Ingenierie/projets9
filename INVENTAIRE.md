@@ -7,9 +7,10 @@
 >
 > Ce document est un instantané. À réactualiser quand les chantiers du §9 avancent.
 >
-> **MàJ 2026-07-17 — chantiers C1 (étape 0) et C2 appliqués.** Voir §1 et la SPEC
-> [v0.2](docs/SPEC.md). **Trois** affirmations de la première version de ce document étaient
-> fausses et sont corrigées ici :
+> **MàJ 2026-07-17 — chantiers C1, C2, C3 et C10 appliqués.** Voir §1 et la SPEC
+> [v0.2](docs/SPEC.md). La phase 2 est faite : les 25 invariants actifs sont couverts (§6).
+> **Trois** affirmations de la première version de ce document étaient fausses et sont
+> corrigées ici :
 > 1. la CI n'est pas « rouge depuis 2 commits » mais **rouge depuis le commit initial, à l'étape
 >    lint** — `pytest` n'était jamais atteint (§6) ;
 > 2. le risque R2 (`alembic/env.py` → `drop_table`) était un **faux positif** (§8) ;
@@ -176,38 +177,40 @@ Le proxy passe `/api/` **sans réécriture** — cohérent par construction.
 
 ## 5. Invariants — le cœur du sujet
 
-C'est la matière de la phase 2. **29 IDs déclarés, 4 retirés, 25 actifs — 1 seul testé.**
+**29 IDs déclarés, 4 retirés, 25 actifs — ~~1~~ 25 testés (phase 2 faite, chantier C3).**
 *(Les 5 `INV-EQ-*` ont été nommés par la SPEC v0.2 ; ils étaient déjà appliqués, mais anonymes.)*
+
+`U` = test unitaire sur la fonction · `A` = test d'intégration via l'API · `H` = propriété Hypothesis.
 
 | ID | Fonction `check_*` | Appelée par | Testé |
 |---|---|---|---|
-| INV-1 | `check_epic_trigramme` (regex **seule** ; l'unicité est portée par la PK + un 409 inline) | `epics.py:26` | ❌ |
-| INV-2 / INV-3 | `check_epic_basics` | `epics.py:27` | ❌ |
-| INV-4 / INV-5 | *aucune* — délégué aux FK | — | ❌ |
-| INV-6 | `check_milestone_has_projects` | `milestones.py:37` | ❌ |
-| INV-7 | `check_task_dates` | `tasks.py:30` | ❌ |
-| INV-8 | `check_project_dates` | `projects.py:31` | ❌ |
-| **INV-9** | `check_task_dates_within_project` | **jamais appelée → code mort** | ❌ |
-| INV-10 | `check_project_dates_within_epic` | `projects.py:32` | ❌ |
-| INV-11 | `check_milestone_within_epic_max` | `milestones.py:46` | ❌ |
-| INV-12 | `check_epic_date_order` | `epics.py:28` | ❌ |
-| **INV-13** | `check_dependency_dates` → **`return  # no-op`** | `tasks.py:48`, `dependencies.py:51` | ❌ |
-| **INV-14** | `check_dependency_acyclic` | `dependencies.py:50` | ✅ **le seul** |
-| INV-15 | `check_dependency_no_self` (+ `CheckConstraint` DB) | `dependencies.py:48` | ❌ |
-| **INV-16 / INV-17** | *supprimées avec le champ `avancement` (`0007`)* | — | ⚠️ voir §6 |
-| INV-18 | `check_project_realise_consistency` | `projects.py:35` | ❌ |
-| INV-19 | `check_epic_realise_consistency` | `epics.py:45` | ❌ |
-| INV-20 | `check_measure_unit_consistency` | `measures.py:47,79` | ❌ |
-| INV-21 | *aucune* — audit fait à la main dans 8 routers | — | ❌ |
-| INV-AUTH-1 | *aucune* — `func.lower(email)` inline | `users.py:58,93` | ❌ |
-| INV-AUTH-2 | `check_max_active_users` | `users.py:24` | ❌ |
-| INV-AUTH-3 | `check_min_one_admin` | `users.py:25,128` | ❌ |
-| INV-EQ-1a | `check_equipe_nom` *(ajoutée — C10)* | `equipes.py::_validate` | ❌ |
-| INV-EQ-1b | `check_equipe_nom_unique` *(ajoutée — C10)* | `equipes.py::_validate` | ❌ |
-| INV-EQ-2 | `check_equipe_temps_dispo` *(ajoutée — C10)* | `equipes.py::_validate` — 422 par le schéma en pratique, comme INV-1 | ❌ |
-| INV-EQ-3 | `check_allocation_heures` *(ajoutée — C10)* | `tache_equipe.py` — idem 422 | ❌ |
-| INV-EQ-4 | `check_allocation_unique` *(ajoutée — C10)* | `tache_equipe.py::create` | ❌ |
-| INV-EQ-5 | `check_allocation_refs` *(ajoutée — C10)* | `tache_equipe.py::create` | ❌ |
+| INV-1 | `check_epic_trigramme` (regex **seule** ; l'unicité est portée par la PK + un 409 inline) | `epics.py:26` | U A H |
+| INV-2 / INV-3 | `check_epic_basics` | `epics.py:27` | U A |
+| INV-4 / INV-5 | *aucune* — 409 + code en ligne dans la route | `tasks.py`, `projects.py` | A |
+| INV-6 | `check_milestone_has_projects` | `milestones.py:37` | U A + **1 xfail** (orphelinage) |
+| INV-7 | `check_task_dates` | `tasks.py:30` | U A H |
+| INV-8 | `check_project_dates` | `projects.py:31` | U A H |
+| **INV-9** | ~~`check_task_dates_within_project`~~ **purgée (étape 0)** | — | A *(vérifie que la mutation est ACCEPTÉE)* |
+| INV-10 | `check_project_dates_within_epic` | `projects.py:32` | U A |
+| INV-11 | `check_milestone_within_epic_max` | `milestones.py:46` | U A |
+| INV-12 | `check_epic_date_order` | `epics.py:28` | U A |
+| **INV-13** | ~~`check_dependency_dates`~~ **purgée (étape 0)** | — | A *(vérifie que la mutation est ACCEPTÉE)* |
+| **INV-14** | `check_dependency_acyclic` | `dependencies.py:50` | U A **H (oracle de Kahn)** |
+| INV-15 | `check_dependency_no_self` (+ `CheckConstraint` DB) | `dependencies.py:48` | U A H |
+| **INV-16 / INV-17** | *supprimées avec le champ `avancement` (`0007`)* | — | — |
+| INV-18 | `check_project_realise_consistency` | `projects.py:35` | U A |
+| INV-19 | `check_epic_realise_consistency` | `epics.py:45` | U A |
+| INV-20 | `check_measure_unit_consistency` | `measures.py:47,79` | U A |
+| INV-21 | *aucune* — audit fait à la main dans 8 routers | — | A |
+| INV-AUTH-1 | *aucune* — `func.lower(email)` inline, 409 + code | `users.py:58,93` | A + **1 xfail** (domaine `.local`) |
+| INV-AUTH-2 | `check_max_active_users` | `users.py:24` | U H |
+| INV-AUTH-3 | `check_min_one_admin` | `users.py:25,128` | U A |
+| INV-EQ-1a | `check_equipe_nom` *(C10)* | `equipes.py::_validate` | U A H |
+| INV-EQ-1b | `check_equipe_nom_unique` *(C10)* | `equipes.py::_validate` | U A H |
+| INV-EQ-2 | `check_equipe_temps_dispo` *(C10)* | `equipes.py::_validate` — 422 par le schéma en pratique, comme INV-1 | U A H |
+| INV-EQ-3 | `check_allocation_heures` *(C10)* | `tache_equipe.py` — idem 422 | U A |
+| INV-EQ-4 | `check_allocation_unique` *(C10)* | `tache_equipe.py::create` | U A |
+| INV-EQ-5 | `check_allocation_refs` *(C10)* | `tache_equipe.py::create` | U A |
 
 > **✅ Résolu par C10 (2026-07-17).** Les `INV-EQ-*` étaient appliqués mais **anonymes** :
 > `equipes.py` et `tache_equipe.py` étaient les seuls routers à n'importer ni `app.invariants` ni
@@ -256,13 +259,49 @@ construites par la CI**.
 
 **État après étape 0** : `ruff check .` → *All checks passed* · `pytest -q` → *2 passed*.
 
-### Couverture réelle
+### Couverture — avant / après la phase 2 (chantier C3)
 
-- **2 fonctions de test au total.** L'une (`test_imports_ok`) n'a **aucune assertion** et est cassée.
-  L'autre couvre INV-14. → **1 invariant actif sur 20.**
-- **0 test front** (aucun runner installé), **0 test d'intégration API**, 0 fixture, pas de `conftest.py`.
-- `hypothesis`, `httpx`, `black` sont **déclarés en dev-deps et jamais importés**. `pytest-asyncio` est
-  configuré (`asyncio_mode="auto"`) sans aucun test async.
+**Avant** : 2 fonctions de test. L'une (`test_imports_ok`) n'avait **aucune assertion** et était
+cassée ; l'autre couvrait INV-14. → **1 invariant actif sur 25.** Zéro test d'intégration, zéro
+fixture, pas de `conftest.py`. `hypothesis` et `httpx` étaient déclarés en dev-deps et **jamais
+importés**.
+
+**Après** : **183 tests + 2 xfail**, les 25 invariants actifs couverts. `test_smoke.py` est retiré —
+il annonçait lui-même être un placeholder « avant phase 2 ».
+
+| Fichier | Contenu |
+|---|---|
+| `tests/test_invariants_unit.py` | 121 tests sur les fonctions `check_*`, cas valides **et** invalides. Aucune dépendance à SQLAlchemy : les checks sont purs et typés par `Protocol`, on leur passe des dataclasses — l'intention posée dès l'origine par la docstring de `checks.py`. |
+| `tests/test_invariants_api.py` | 47 tests d'intégration. Prouvent que **la route appelle réellement** le check et surface le bon code. Seul chemin possible pour INV-4, INV-5, INV-AUTH-1 et INV-21, qui n'ont pas de fonction dédiée. |
+| `tests/test_invariants_hypothesis.py` | 14 propriétés. Cœur : INV-14 confronté à un **oracle indépendant** (algorithme de Kahn) sur des centaines de graphes générés. |
+| `tests/test_couverture_invariants.py` | Garde-fou : échoue si un `InvariantError("INV-…")` apparaît sans test qui le cite, ou si un test attend un code que plus personne ne lève. |
+| `tests/conftest.py` | SQLite en mémoire + `TestClient`. L'auth n'est **pas** court-circuitée : vrai admin, vrai `POST /api/auth/login`, vrai JWT. |
+
+**Chaque test invalide assert le code `INV-X`**, pas seulement le statut HTTP : l'ID stable est le
+contrat entre la SPEC, l'API et le client.
+
+**La suite détecte-t-elle vraiment une régression ?** Vérifié par tests de mutation : 8 invariants
+cassés un à un dans `checks.py` (retrait du trim, `>` → `>=`, détection de cycle désactivée…),
+**8/8 rattrapés**. Une suite qui passe ne prouve rien ; une suite qui tue ses mutants, si.
+
+**Portée assumée** : les tests d'intégration tournent sur **SQLite en mémoire**, pas sur PostgreSQL.
+Ce qui est éprouvé, c'est l'application des invariants par les *routes* — du Python, identique quel
+que soit le moteur. En contrepartie, la dernière ligne de défense (contraintes `CHECK` en base) n'est
+pas couverte : il faudrait un service PostgreSQL en CI. Arbitrage, pas oubli.
+
+**Deux défauts encodés en `xfail(strict=True)`** plutôt que laissés dans un coin de document. Le
+jour où ils sont corrigés, le test passe au vert, `strict=True` transforme ça en échec, et le
+marqueur *doit* être retiré. Un défaut connu qui ne peut pas être oublié :
+1. **INV-6 — orphelinage.** Supprimer un projet peut laisser un jalon sans aucun projet, qui devient
+   alors inéditable (cf. R8).
+2. **`.local` refusé à la création d'utilisateur** — voir ci-dessous.
+
+> **Nouveau défaut trouvé en écrivant les tests.** `UserCreate.email` est un `EmailStr`, et
+> `email-validator` **rejette les domaines réservés** comme `.local` → `POST /api/users` renvoie 422.
+> Or `.env.example` impose `SEED_ADMIN_EMAIL=charles@lesfontaines.local`. La seed écrit en base
+> directement (donc passe) et `LoginRequest.email` est un `str` nu (donc la connexion marche) :
+> **l'application ne sait pas créer un compte suivant sa propre convention.** Concrètement, impossible
+> d'ajouter un second utilisateur en `@lesfontaines.local` depuis l'UI. Chantier **C11**.
 
 ### Écarts README ↔ CI réelle
 
@@ -318,7 +357,7 @@ construites par la CI**.
 |---|---|---|---|
 | ~~R1~~ | ~~**CI rouge**~~ | ✅ **résolu (étape 0)** | Était rouge depuis le commit initial, à l'étape lint (§6). `ruff check .` et `pytest -q` passent désormais. |
 | R2 | **Dérive modèles ↔ migrations** | 🟠 | `alembic check` échoue sur **3 points** : la migration `0008` crée `ix_milestone_project_milestone_id` et `ix_milestone_project_project_id` (l. 41-42) que le `Table` du modèle **ne déclare pas** ; et `user.py:19` (`unique=True, index=True`) diverge de la contrainte `users_email_key` posée par `0001`. Un `alembic revision --autogenerate` émettrait donc du **churn d'index** — suppression de deux index qui portent les jointures N-N, réécriture de l'unicité email. Pas de perte de données. |
-| R3 | **1 invariant testé sur 20** | 🔴 | cœur du produit non protégé ; c'est l'objet de la phase 2 |
+| ~~R3~~ | ~~**1 invariant testé sur 20**~~ | ✅ **résolu (C3)** | Les 25 invariants actifs sont couverts : 183 tests + 2 xfail, sur 3 couches (unitaire, API, Hypothesis), plus un garde-fou de couverture. Suite éprouvée par mutation : 8/8. |
 | R4 | **RBAC : tout membre peut tout détruire** | 🟡 | 3 endpoints gardés par `require_admin` sur 40. **Conforme à la SPEC §6** (« membre : CRUD métier sans gestion users ») — la v1 de ce document le présentait à tort comme un écart. Reste une question de **conception**, pas de conformité : est-il voulu qu'un membre puisse supprimer un epic entier ? Y toucher serait un changement de besoin, à trancher dans la SPEC avant d'être codé. Seul écart réel : `GET /api/users` n'est pas gaté admin. |
 | R5 | **Gantt couplé au DOM de la lib** | 🟠 | mapping **par index DOM** entre `svg g[tabindex]` et le tableau de tâches (poignées, décorations, flèches). Un changement d'ordre de rendu de `gantt-task-react` → **suppression de la mauvaise dépendance**, en silence. Sélecteurs internes (`g[class~="arrow"]`), détection d'« aujourd'hui » en cherchant la chaîne `"255, 152, 0"` dans un `fill`. 3 `setInterval` permanents (250/300/500 ms). |
 | R6 | **Backup tolère la corruption** | 🟠 | `pg_dump \| gzip` sous `sh` **sans `pipefail`** : un dump en échec écrit un `.sql.gz` tronqué **compté comme réussi**. Rétention purement par âge, **sans plancher de copies** : une panne > 30 j + un passage de cron ⇒ **zéro backup**. Aucune vérification de restore, aucune copie hors-volume. |
@@ -348,8 +387,10 @@ correct si `models/__init__.py` était un jour allégé), mais ce n'était **pas
 |---|---|---|---|
 | **C1** | ✅ **Fait (2026-07-17).** Étape 0 (lint + tests verts) puis : `eslint.config.js` plate créée — le job « Web — lint + build » **linte enfin** ; `package-lock.json` commité et `npm ci` sans repli ; `concurrency` + `workflow_dispatch` ; `*.tsbuildinfo` ignoré. Code mort du front retiré (`nav`, `navState`) + 2 directives `eslint-disable` mensongères. **Reste** : 7 warnings de lint documentés ci-dessous. | Rien n'est fiable tant que la CI ment | ~~XS~~ → M |
 | **C2** | ✅ **Fait (SPEC v0.2, 2026-07-17).** Équipes documentées + 5 invariants `INV-EQ-*`, non-invariants délibérés consignés, statut de livraison par écran, retraits INV-9/13/16/17 entérinés, écarts §6/§8 actés. **Découvert au passage** : les routers Équipe sont les seuls à ne pas passer par `app.invariants` — leurs violations ne remontent **aucun code** `INV-EQ-*`. Prérequis de C3, voir C10. | La spec est la référence de la phase 2 ; elle était fausse | S |
-| **C3** | **Phase 2 — tests d'invariants** (l'objectif annoncé du README) : **24 invariants actifs** à couvrir (19 restants + 5 `INV-EQ-*`), unitaire + intégration + Hypothesis | Le cœur métier n'est pas protégé | L |
+| **C3** | ✅ **Fait (2026-07-17) — phase 2.** 183 tests + 2 xfail, les 25 invariants actifs couverts sur 3 couches (unitaire / API / Hypothesis) + un garde-fou de couverture. `test_smoke.py` retiré. Suite validée par mutation (8/8). 2 défauts encodés en `xfail(strict=True)`. **Reste** : les tests d'intégration tournent sur SQLite, pas PostgreSQL — les contraintes en base ne sont pas couvertes. | Le cœur métier n'était pas protégé | L |
 | **C10** | ✅ **Fait (2026-07-17).** 6 fonctions `check_*` ajoutées + câblées via `http_from_invariant` dans les 2 routers Équipe. Défaut `INV-EQ-1a` corrigé, `INV-EQ-5` aligné sur INV-4 (409+code). Exports d'`app.invariants` complétés (15→18+6). Vérifié 14/14. | Sans code stable, la règle « 1 test par `INV-X` » était inapplicable aux Équipes | S |
+| **C11** | **Domaine `.local` refusé à la création d'utilisateur** : `UserCreate.email` est un `EmailStr` et `email-validator` rejette les TLD réservés, alors que `.env.example` impose `charles@lesfontaines.local`. Piste : `EmailStr` avec `test_environment=True`, ou un validateur maison. Un `xfail(strict=True)` garde la trace. | L'app ne sait pas créer un compte suivant sa propre convention | S |
+| **C12** | **Faire tomber les contraintes base en CI** : les tests d'intégration tournent sur SQLite, donc les `CheckConstraint` et l'unicité PostgreSQL ne sont pas éprouvées. Ajouter un service `postgres` au job `api` + `alembic upgrade head` (couvrirait aussi C5 via `alembic check`). | La dernière ligne de défense n'est pas testée | M |
 | **C4** | **Peupler le Gantt** : la vue centrale est vide à l'install, sans chemin supporté | Le produit ne démontre rien au premier lancement | M |
 | **C5** | Réconcilier modèles ↔ migrations (R2) : déclarer les index de `milestone_project`, aligner l'unicité `users.email`, puis viser `alembic check` vert en CI | `autogenerate` produit aujourd'hui du churn d'index | S |
 | **C6** | Fiabiliser le backup : `pipefail`, plancher de copies, test de restore, corriger `RESTORE.md` | Un backup non vérifié n'est pas un backup | S |
