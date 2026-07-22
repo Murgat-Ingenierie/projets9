@@ -216,7 +216,9 @@ def import_projects(api: Api, wb) -> dict[str, int]:
         if not nom or not epic:
             continue
 
-        ensure_epic(api, epic.upper(), epic.upper())
+        # « Rappel du titre de l'épic » donne le nom complet de l'epic ; on
+        # s'en sert pour les epics créés à la volée (sinon le nom = trigramme).
+        ensure_epic(api, epic.upper(), rappel or epic.upper())
 
         date_fin = fin_prevu or jalon_max or DEFAULT_PROJECT_END
         if date_fin < DEFAULT_PROJECT_START:
@@ -254,13 +256,16 @@ def import_projects(api: Api, wb) -> dict[str, int]:
         by_name[key] = body["id"]
         created += 1
 
-    # Projets non planifiés → epic NPL. [1:] : on saute la ligne d'en-tête,
-    # comme pour tous les autres onglets.
+    # Projets non planifiés → epic NPL. Cet onglet n'a pas toujours de ligne
+    # d'en-tête (le vrai classeur commence directement par une donnée) : on ne
+    # saute donc pas la première ligne, on écarte seulement les intitulés de
+    # colonne s'ils sont présents.
     ensure_epic(api, "NPL", "Projets non planifiés (à classer)", statut="idee")
+    entetes = {"nom", "nom du projet", "projet", "projets"}
     np_created = 0
-    for r in list(wb["Projet non plannifiés"].iter_rows(values_only=True))[1:]:
+    for r in wb["Projet non plannifiés"].iter_rows(values_only=True):
         nom = (r[0] or "").strip() if r and r[0] else ""
-        if not nom or ("NPL", nom) in by_name:
+        if not nom or norm(nom) in entetes or ("NPL", nom) in by_name:
             continue
         payload = {
             "epic_trigramme": "NPL",
@@ -378,6 +383,9 @@ def ensure_transverse_project(api: Api) -> int | None:
 
 
 def import_milestones(api: Api, wb) -> None:
+    if "Jalons" not in wb.sheetnames:
+        print("jalons : pas d'onglet « Jalons » dans la source — ignoré")
+        return
     porteur_id = ensure_transverse_project(api)
     if porteur_id is None:
         print("jalons : projet porteur indisponible — import ignoré")
