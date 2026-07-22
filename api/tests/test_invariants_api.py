@@ -476,18 +476,13 @@ def test_inv_auth1_api_refuse_email_duplique_casse_differente(
     assert code_de(r) == "INV-AUTH-1"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DÉFAUT CONNU : UserCreate.email est un EmailStr, et email-validator "
-    "rejette les domaines réservés comme .local — alors que le .env.example du "
-    "projet impose SEED_ADMIN_EMAIL=charles@lesfontaines.local. La seed écrit en "
-    "base directement (donc passe), et LoginRequest.email est un str simple (donc "
-    "la connexion marche) : l'application ne sait pas créer un compte suivant sa "
-    "propre convention. Quand ce sera corrigé, retirer ce marqueur.",
-)
 def test_inv_auth1_api_accepte_le_domaine_local_du_projet(
     client: TestClient, auth
 ) -> None:
+    """Régression C11 : l'app doit savoir créer un compte suivant sa propre
+    convention (SEED_ADMIN_EMAIL=…@lesfontaines.local dans .env.example).
+    Était un xfail(strict) tant que UserCreate.email restait un EmailStr —
+    email-validator refusant les TLD réservés comme .local."""
     r = client.post(
         "/api/users",
         json={"nom": "Second admin", "email": "second@lesfontaines.local",
@@ -495,6 +490,19 @@ def test_inv_auth1_api_accepte_le_domaine_local_du_projet(
         headers=auth,
     )
     assert r.status_code == 201, r.text
+    assert r.json()["email"] == "second@lesfontaines.local"
+
+
+@pytest.mark.parametrize("email", ["pas-un-email", "sans@point", "a b@c.fr", "@lesfontaines.fr"])
+def test_email_casse_refuse_a_la_creation(client: TestClient, auth, email: str) -> None:
+    """Le validateur maison tolère .local mais reste un vrai contrôle : un
+    format cassé doit toujours être refusé (422), pas tout accepter."""
+    r = client.post(
+        "/api/users",
+        json={"nom": "X", "email": email, "password": "motdepasse1", "role": "membre"},
+        headers=auth,
+    )
+    assert r.status_code == 422, r.text
 
 
 # --- INV-AUTH-3 : au moins un admin actif -----------------------------------
