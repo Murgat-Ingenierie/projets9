@@ -16,6 +16,7 @@ from app.models.milestone import Milestone
 from app.models.project import Project
 from app.models.user import User
 from app.routes.errors import http_from_invariant
+from app.routes.milestone_guard import refuser_si_jalons_orphelins
 from app.schemas.epic import EpicCreate, EpicRead, EpicUpdate
 
 router = APIRouter(prefix="/api/epics", tags=["epics"])
@@ -110,5 +111,13 @@ def delete_epic(
     epic = db.get(Epic, trigramme.upper())
     if epic is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Epic introuvable")
+    # Supprimer l'epic cascade sur ses projets : on refuse si cela orphelinerait
+    # un jalon (INV-6), même par ce chemin indirect.
+    project_ids = set(
+        db.execute(select(Project.id).where(Project.epic_trigramme == epic.trigramme))
+        .scalars()
+        .all()
+    )
+    refuser_si_jalons_orphelins(db, project_ids)
     db.delete(epic)
     db.commit()

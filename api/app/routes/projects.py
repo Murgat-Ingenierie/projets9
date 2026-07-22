@@ -15,6 +15,7 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
 from app.routes.errors import http_from_invariant
+from app.routes.milestone_guard import refuser_si_jalons_orphelins
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -101,5 +102,6 @@ def delete_project(
     p = db.get(Project, project_id)
     if p is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project introuvable")
+    refuser_si_jalons_orphelins(db, {project_id})
     db.delete(p)
     db.commit()

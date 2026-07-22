@@ -150,32 +150,54 @@ def test_inv6_api_refuse_de_vider_les_projets_en_put(
     assert r.status_code == 422, r.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DÉFAUT CONNU (SPEC §3, note INV-6) : supprimer un projet cascade ses "
-    "lignes milestone_project et peut laisser un jalon à zéro projet, sans "
-    "revalidation ni contrainte en base. Le jalon devient alors inéditable. "
-    "Quand le défaut sera corrigé, ce test passera au vert : retirer ce marqueur.",
-)
-def test_inv6_api_un_jalon_ne_peut_pas_devenir_orphelin(
+def test_inv6_api_supprimer_le_dernier_projet_d_un_jalon_est_refuse(
     client: TestClient, auth, fabrique
 ) -> None:
-    """INV-6 doit tenir après TOUTE mutation, y compris la suppression du dernier
-    projet porteur. L'énoncé de la SPEC reste la référence : c'est le code qui
-    doit suivre, pas l'invariant qui doit être assoupli."""
+    """Régression : INV-6 doit tenir après TOUTE mutation, y compris la
+    suppression du dernier projet porteur d'un jalon. Était un xfail(strict)
+    tant que la suppression orphelinait le jalon en silence."""
     fabrique.epic("ABC")
     p = fabrique.projet("ABC")
     j = fabrique.jalon([p["id"]])
 
-    client.delete(f"/api/projects/{p['id']}", headers=auth)
+    r = client.delete(f"/api/projects/{p['id']}", headers=auth)
+    assert r.status_code == 409, r.text
+    assert code_de(r) == "INV-6"
 
-    r = client.get("/api/milestones", headers=auth)
-    assert r.status_code == 200, r.text
-    jalons = {m["id"]: m for m in r.json()}
-    if j["id"] in jalons:
-        assert jalons[j["id"]]["project_ids"], (
-            "INV-6 violé : le jalon a survécu à son dernier projet sans rattachement"
-        )
+    # Le jalon survit, toujours rattaché à son projet.
+    jalons = {m["id"]: m for m in client.get("/api/milestones", headers=auth).json()}
+    assert jalons[j["id"]]["project_ids"] == [p["id"]]
+
+
+def test_inv6_api_supprimer_un_projet_parmi_d_autres_reste_permis(
+    client: TestClient, auth, fabrique
+) -> None:
+    """Supprimer un projet qui n'est PAS le seul rattachement d'un jalon doit
+    rester possible : le jalon garde ses autres projets."""
+    fabrique.epic("ABC")
+    p1 = fabrique.projet("ABC", nom="P1")
+    p2 = fabrique.projet("ABC", nom="P2")
+    j = fabrique.jalon([p1["id"], p2["id"]])
+
+    r = client.delete(f"/api/projects/{p1['id']}", headers=auth)
+    assert r.status_code == 204, r.text
+
+    jalons = {m["id"]: m for m in client.get("/api/milestones", headers=auth).json()}
+    assert jalons[j["id"]]["project_ids"] == [p2["id"]]
+
+
+def test_inv6_api_supprimer_un_epic_qui_orphelinerait_un_jalon_est_refuse(
+    client: TestClient, auth, fabrique
+) -> None:
+    """Second chemin d'orphelinage : supprimer un epic cascade sur ses projets.
+    Doit être refusé si un jalon n'a de projets que dans cet epic."""
+    fabrique.epic("ABC")
+    p = fabrique.projet("ABC")
+    fabrique.jalon([p["id"]])
+
+    r = client.delete("/api/epics/ABC", headers=auth)
+    assert r.status_code == 409, r.text
+    assert code_de(r) == "INV-6"
 
 
 def test_inv6_api_accepte_jalon_multi_projets(client: TestClient, auth, fabrique) -> None:

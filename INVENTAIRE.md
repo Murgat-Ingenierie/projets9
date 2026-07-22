@@ -141,10 +141,10 @@ refusent toujours (INV-1, INV-4, INV-7, INV-8, INV-14, INV-15), ceux retirés ac
   référentielle (ni modèle, ni migration). Supprimer un user laisse des ids pendants. INV-21 repose dessus.
 - **`UserRead` expose un `updated_by_id` toujours `null`** : le schéma hérite de `TimestampedRead` mais
   la table `users` n'a pas cette colonne.
-- **Supprimer un projet peut violer INV-6 en silence** : le CASCADE sur `milestone_project` peut laisser
-  un jalon à zéro projet. Aucune contrainte DB, aucune revalidation dans `delete_project`.
-  La migration `0008` documente déjà ce cas d'orphelins (jalons d'un epic sans projet).
-  Un jalon orphelin devient **inéditable** via `PUT` (le check exige ≥1 projet).
+- ~~**Supprimer un projet peut violer INV-6 en silence**~~ ✅ **corrigé (2026-07-22)** : la
+  suppression d'un projet ou d'un epic est désormais **refusée (409 INV-6)** si elle orphelinerait
+  un jalon (`app/routes/milestone_guard.py`, appelé par `delete_project` et `delete_epic`). Le
+  message invite à rattacher le jalon ailleurs ou à le supprimer d'abord.
 - **Aucune relation ORM sur `tache_equipe`** (`Task.equipes` / `Equipe.taches` n'existent pas) → jointures manuelles.
 - `Milestone.projects` est **unidirectionnel** (pas de `back_populates`).
 
@@ -187,7 +187,7 @@ Le proxy passe `/api/` **sans réécriture** — cohérent par construction.
 | INV-1 | `check_epic_trigramme` (regex **seule** ; l'unicité est portée par la PK + un 409 inline) | `epics.py:26` | U A H |
 | INV-2 / INV-3 | `check_epic_basics` | `epics.py:27` | U A |
 | INV-4 / INV-5 | *aucune* — 409 + code en ligne dans la route | `tasks.py`, `projects.py` | A |
-| INV-6 | `check_milestone_has_projects` | `milestones.py:37` | U A + **1 xfail** (orphelinage) |
+| INV-6 | `check_milestone_has_projects` + garde `milestone_guard` sur suppression | `milestones.py:37`, `projects.py`/`epics.py` (delete) | U A *(dont orphelinage projet & epic)* |
 | INV-7 | `check_task_dates` | `tasks.py:30` | U A H |
 | INV-8 | `check_project_dates` | `projects.py:31` | U A H |
 | **INV-9** | ~~`check_task_dates_within_project`~~ **purgée (étape 0)** | — | A *(vérifie que la mutation est ACCEPTÉE)* |
@@ -266,9 +266,9 @@ cassée ; l'autre couvrait INV-14. → **1 invariant actif sur 25.** Zéro test 
 fixture, pas de `conftest.py`. `hypothesis` et `httpx` étaient déclarés en dev-deps et **jamais
 importés**.
 
-**Après** : **188 tests + 1 xfail** (183 + 2 xfail à la phase 2 ; le xfail `.local` est devenu un
-test vert avec C11, et 4 cas de rejet d'email ont été ajoutés). Les 25 invariants actifs couverts.
-`test_smoke.py` est retiré —
+**Après** : **191 tests, 0 xfail** (183 + 2 xfail à la phase 2 ; les deux xfail — `.local` (C11) et
+orphelinage INV-6 — sont devenus des tests verts, plus les cas ajoutés au passage). Les 25 invariants
+actifs couverts. `test_smoke.py` est retiré —
 il annonçait lui-même être un placeholder « avant phase 2 ».
 
 | Fichier | Contenu |
@@ -291,11 +291,12 @@ Ce qui est éprouvé, c'est l'application des invariants par les *routes* — du
 que soit le moteur. En contrepartie, la dernière ligne de défense (contraintes `CHECK` en base) n'est
 pas couverte : il faudrait un service PostgreSQL en CI. Arbitrage, pas oubli.
 
-**Le défaut encodé en `xfail(strict=True)`** plutôt que laissé dans un coin de document. Le jour où
-il est corrigé, le test passe au vert, `strict=True` transforme ça en échec, et le marqueur *doit*
-être retiré. Un défaut connu qui ne peut pas être oublié :
-- **INV-6 — orphelinage.** Supprimer un projet peut laisser un jalon sans aucun projet, qui devient
-  alors inéditable (cf. R8).
+**Plus aucun `xfail` : les deux défauts qui y étaient encodés sont corrigés.** Le mécanisme a joué
+comme prévu — un `xfail(strict=True)` passe au vert dès que le bug est corrigé, ce qui fait échouer
+la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu qui ne pouvait pas
+être oublié, puis effacé une fois réglé :
+- **`.local`** — corrigé en C11 (validateur d'email maison) ;
+- **orphelinage INV-6** — corrigé le 2026-07-22 (garde sur suppression projet/epic, cf. R8 et §3).
 
 > **Second défaut trouvé en écrivant les tests — ✅ corrigé (C11, 2026-07-22).** `UserCreate.email`
 > était un `EmailStr`, et `email-validator` **rejette les domaines réservés** comme `.local` → `POST
@@ -373,12 +374,12 @@ il est corrigé, le test passe au vert, `strict=True` transforme ça en échec, 
 |---|---|---|---|
 | ~~R1~~ | ~~**CI rouge**~~ | ✅ **résolu (étape 0)** | Était rouge depuis le commit initial, à l'étape lint (§6). `ruff check .` et `pytest -q` passent désormais. |
 | R2 | **Dérive modèles ↔ migrations** | 🟠 | `alembic check` échoue sur **3 points** : la migration `0008` crée `ix_milestone_project_milestone_id` et `ix_milestone_project_project_id` (l. 41-42) que le `Table` du modèle **ne déclare pas** ; et `user.py:19` (`unique=True, index=True`) diverge de la contrainte `users_email_key` posée par `0001`. Un `alembic revision --autogenerate` émettrait donc du **churn d'index** — suppression de deux index qui portent les jointures N-N, réécriture de l'unicité email. Pas de perte de données. |
-| ~~R3~~ | ~~**1 invariant testé sur 20**~~ | ✅ **résolu (C3)** | Les 25 invariants actifs sont couverts : **188 tests + 1 xfail**, sur 3 couches (unitaire, API, Hypothesis), plus un garde-fou de couverture. Suite éprouvée par mutation : 8/8. |
+| ~~R3~~ | ~~**1 invariant testé sur 20**~~ | ✅ **résolu (C3)** | Les 25 invariants actifs sont couverts : **191 tests, 0 xfail**, sur 3 couches (unitaire, API, Hypothesis), plus un garde-fou de couverture. Suite éprouvée par mutation : 8/8. |
 | R4 | **RBAC : tout membre peut tout détruire** | 🟡 | 3 endpoints gardés par `require_admin` sur 40. **Conforme à la SPEC §6** (« membre : CRUD métier sans gestion users ») — la v1 de ce document le présentait à tort comme un écart. Reste une question de **conception**, pas de conformité : est-il voulu qu'un membre puisse supprimer un epic entier ? Y toucher serait un changement de besoin, à trancher dans la SPEC avant d'être codé. Seul écart réel : `GET /api/users` n'est pas gaté admin. |
 | R5 | **Gantt couplé au DOM de la lib** | 🟠 | mapping **par index DOM** entre `svg g[tabindex]` et le tableau de tâches (poignées, décorations, flèches). Un changement d'ordre de rendu de `gantt-task-react` → **suppression de la mauvaise dépendance**, en silence. Sélecteurs internes (`g[class~="arrow"]`), détection d'« aujourd'hui » en cherchant la chaîne `"255, 152, 0"` dans un `fill`. 3 `setInterval` permanents (250/300/500 ms). |
 | R6 | **Backup tolère la corruption** | 🟠 | `pg_dump \| gzip` sous `sh` **sans `pipefail`** : un dump en échec écrit un `.sql.gz` tronqué **compté comme réussi**. Rétention purement par âge, **sans plancher de copies** : une panne > 30 j + un passage de cron ⇒ **zéro backup**. Aucune vérification de restore, aucune copie hors-volume. |
 | R7 | **Pas de lockfile npm** | 🟠 | builds non reproductibles |
-| R8 | **Jalons orphelins** | 🟠 | violent INV-6 en silence et deviennent inéditables (§3) |
+| ~~R8~~ | ~~**Jalons orphelins**~~ | ✅ **résolu (2026-07-22)** | La suppression d'un projet/epic qui orphelinerait un jalon est refusée (409 INV-6, `milestone_guard`). Vérifié end-to-end (4/4) et par test (projet & epic, + cas permis). |
 | R9 | **`GanttPage.tsx` = 2332 lignes** | 🟡 | **plus gros que tout le backend Python (2306 l.)**, 34 % du front. Composant monolithique, 8 refs miroir d'état pour contourner les effets à deps vides. |
 | R10 | **Aucun refetch ciblé** | 🟡 | chaque mutation du Gantt relance **7 requêtes** ; pas de cache, pas d'optimistic update |
 | R11 | `docs/RESTORE.md` : `psql -U postgres` | 🟡 | le rôle réel est `${POSTGRES_USER}` (= `gestion`) → **la commande de restore documentée échoue** |
