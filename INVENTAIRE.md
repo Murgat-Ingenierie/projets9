@@ -168,7 +168,7 @@ Le proxy passe `/api/` **sans réécriture** — cohérent par construction.
   mais le claim est mort).
 - `POST /api/auth/login` consomme du **JSON**, alors que `OAuth2PasswordBearer(tokenUrl=...)` annonce un
   endpoint form-encodé → **le bouton « Authorize » de Swagger ne fonctionne pas** contre lui.
-- **CORS `allow_origins=["*"]` + `allow_credentials=True`** : combinaison invalide, rejetée par les navigateurs.
+- ~~**CORS `allow_origins=["*"]` + `allow_credentials=True`**~~ ✅ **corrigé (C15/SAST, 2026-07-22)** : le wildcard (flaggé par Semgrep) est retiré. CORS désormais opt-in par `CORS_ORIGINS` (vide par défaut = même origine via proxy, aucun CORS ; jamais de `*`).
 - Verbes manquants : pas de `PUT` sur `dependencies` (assumé) ; pas de `GET /{id}` sur users, milestones,
   measures, tache-equipe → le front récupère la collection entière pour trouver une ligne.
 - Pas de refresh token (la SPEC §6 en prévoit un).
@@ -448,4 +448,4 @@ JSON
 | **C7** | Durcir le RBAC (R4) | Écart à la SPEC §6 | M |
 | **C8** | Écrans manquants : CRUD Mesures + courbe, Paramètres/Backup | SPEC §4 incomplet | M |
 | **C9** | Dégraisser `GanttPage.tsx` / réduire le couplage DOM (R5, R9). **Prérequis posé (2026-07-22)** : harness de tests front (Vitest + testing-library + jsdom) + 21 tests initiaux (`client.ts`, `labels.ts`, `ErrorBanner`), branchés en CI. Reste à caractériser le Gantt avant de le refactorer. | Zone la plus fragile et la plus active du dépôt | L |
-| **C15** | **Durcissement CI/tests** (initiative en cours) : ✅ tests front (Vitest) ; ⏳ SAST (Semgrep) ; ⏳ DAST (OWASP ZAP Baseline). Chaque garde-fou *vert à l'arrivée* — findings triés/corrigés avant de rendre le gate bloquant. | Élever le filet avant le gros refacto C9 | M |
+| **C15** | **Durcissement CI/tests** (en cours) : ✅ tests front (Vitest) ; ✅ **SAST Semgrep bloquant** (`--error`, 8 rulesets) ; ⏳ DAST (OWASP ZAP Baseline). SAST : 1 vrai finding corrigé (CORS wildcard), 5 actions GitHub épinglées au SHA, 2 findings infra bas-risque (backup root, Host proxy) acceptés par `nosemgrep` justifié — sidecar non exposé, proxy same-origin. 0 finding, gate vert à l'arrivée. | Élever le filet avant le gros refacto C9 | M |
