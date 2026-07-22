@@ -25,6 +25,21 @@ jobs:
     defaults:
       run:
         working-directory: ./api
+    # Postgres jetable : sert à appliquer les migrations sur une base vierge et
+    # à lancer `alembic check`, ce que SQLite (utilisé par les tests) ne permet
+    # pas — les migrations sont écrites pour Postgres (enums natifs).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gestion
+          POSTGRES_PASSWORD: gestion
+          POSTGRES_DB: gestion_projet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gestion -d gestion_projet"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,6 +51,16 @@ jobs:
           pip install -e ".[dev]"
       - name: Ruff
         run: ruff check .
+      # Applique 0001…n sur une base vierge (les migrations tiennent la route)
+      # PUIS vérifie que les modèles ne dérivent pas des migrations. `alembic
+      # check` échoue si un modèle change sans migration correspondante — c'est
+      # ce qui verrouille la réconciliation faite en C5.
+      - name: Migrations + contrôle de dérive
+        env:
+          DATABASE_URL: postgresql+psycopg://gestion:gestion@localhost:5432/gestion_projet
+        run: |
+          alembic upgrade head
+          alembic check
       - name: Tests
         run: pytest -q
 

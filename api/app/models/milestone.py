@@ -9,17 +9,22 @@ from app.database import Base, TimestampMixin
 milestone_project = Table(
     "milestone_project",
     Base.metadata,
+    # index=True : la migration 0008 crée ces deux index mono-colonne (en plus
+    # de la PK composite) ; on les déclare ici pour que le modèle reflète la
+    # base et que `alembic check` reste vert.
     Column(
         "milestone_id",
         Integer,
         ForeignKey("milestones.id", ondelete="CASCADE"),
         primary_key=True,
+        index=True,
     ),
     Column(
         "project_id",
         Integer,
         ForeignKey("projects.id", ondelete="CASCADE"),
         primary_key=True,
+        index=True,
     ),
 )
 

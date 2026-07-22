@@ -441,9 +441,9 @@ jobs passent.
 | build images Docker | ✅ les 3 images, depuis le 2026-07-17. |
 | « à chaque push » | ❌ **Révisé en 0.2** : il n'y a plus de déclencheur `push` du tout. Tout ce qui entre dans `main` passe par une PR, donc a déjà été testé ; le rejouer sur le commit de merge ferait doublon. Suppose que `main` soit protégée avec des status checks en mode *strict* — cf. `INVENTAIRE.md`, chantier C13. |
 
-Non prévu par la 0.1 mais souhaitable, au vu de l'écart modèles↔migrations constaté :
-`alembic check` en CI, pour qu'une divergence entre les modèles et les migrations casse le build
-plutôt que d'être découverte au prochain `--autogenerate`.
+Ajouté en 2026-07-22 (C12), au vu de l'écart modèles↔migrations constaté : le job `api` a un service
+Postgres et une étape `alembic upgrade head` + `alembic check`, pour qu'une divergence entre les
+modèles et les migrations **casse le build** plutôt que d'être découverte au prochain `--autogenerate`.
 
 ## 9. Hors périmètre v0
 
