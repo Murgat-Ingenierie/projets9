@@ -35,6 +35,21 @@ L'API exécute automatiquement au démarrage :
 
 Connexion initiale avec `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` de `.env`.
 
+### Jeu de démonstration
+
+Une installation neuve ne contient que les epics (le planning est donc vide).
+Pour peupler le Gantt avec un jeu réaliste — projets, tâches, jalons,
+dépendances, équipes, mesures — qui illustre toutes les vues :
+
+```bash
+# soit au démarrage : mettre SEED_DEMO=true dans .env avant `docker compose up`
+# soit à la demande, sur une base déjà lancée :
+docker compose exec api python -m app.seed_demo
+```
+
+Idempotent : ne s'exécute jamais par-dessus des données existantes. À laisser
+désactivé pour une installation réelle.
+
 ## Structure
 
 ```

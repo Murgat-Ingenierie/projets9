@@ -28,6 +28,7 @@ services:
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME}
       SEED_CSV_PATH: /seed/epics.csv
       AUTH_DISABLED: ${AUTH_DISABLED:-false}
+      SEED_DEMO: ${SEED_DEMO:-false}
     volumes:
       - ./Liste des projets en cours - Epic.csv:/seed/epics.csv:ro
     depends_on:

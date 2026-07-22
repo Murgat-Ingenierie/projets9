@@ -117,6 +117,10 @@ def main() -> None:
     log.info("DATABASE_URL=%s", os.environ.get("DATABASE_URL", "<from .env>"))
     _ensure_admin()
     _ensure_epics_from_csv()
+    if settings.seed_demo:
+        from app.seed_demo import seed_demo
+
+        seed_demo()
 
 
 if __name__ == "__main__":
