@@ -447,4 +447,5 @@ JSON
 | **C6** | ✅ **Fait (2026-07-22).** `pipefail` + `.part` atomique + `gzip -t` (fin des dumps tronqués) ; rétention à plancher `BACKUP_MIN_COPIES` (fin du vidage possible) ; `RESTORE.md` réécrit et corrigé. Testé : logique 5/5 en isolation, backup réel intègre (11 tables), cycle backup→restore validé contre la stack (R6, R11). | Un backup non vérifié n'est pas un backup | S |
 | **C7** | Durcir le RBAC (R4) | Écart à la SPEC §6 | M |
 | **C8** | Écrans manquants : CRUD Mesures + courbe, Paramètres/Backup | SPEC §4 incomplet | M |
-| **C9** | Dégraisser `GanttPage.tsx` / réduire le couplage DOM (R5, R9) | Zone la plus fragile et la plus active du dépôt | L |
+| **C9** | Dégraisser `GanttPage.tsx` / réduire le couplage DOM (R5, R9). **Prérequis posé (2026-07-22)** : harness de tests front (Vitest + testing-library + jsdom) + 21 tests initiaux (`client.ts`, `labels.ts`, `ErrorBanner`), branchés en CI. Reste à caractériser le Gantt avant de le refactorer. | Zone la plus fragile et la plus active du dépôt | L |
+| **C15** | **Durcissement CI/tests** (initiative en cours) : ✅ tests front (Vitest) ; ⏳ SAST (Semgrep) ; ⏳ DAST (OWASP ZAP Baseline). Chaque garde-fou *vert à l'arrivée* — findings triés/corrigés avant de rendre le gate bloquant. | Élever le filet avant le gros refacto C9 | M |
