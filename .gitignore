@@ -24,13 +24,12 @@ dist/
 .env.local
 *.local
 
-# DB / backups (locaux uniquement, ne pas committer)
-data/postgres/
-data/backups/
-
-# Source de données externe (workbook Google Sheets exporté)
-data/*.xlsx
-data/*.ods
+# Données locales : tout le dossier data/ reste hors dépôt. Il contient la
+# vraie donnée métier (classeurs source, fichiers nettoyés, logs d'import,
+# mapping d'IDs) qui ne doit jamais être committée. Les règles précédentes ne
+# couvraient que la racine de data/ (data/*.xlsx), pas les sous-dossiers
+# data/source/, data/cleaned/, data/output/ — d'où ce verrou global.
+data/
 
 # Éditeurs
 .idea/
