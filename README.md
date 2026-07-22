@@ -7,7 +7,7 @@ Epics opérationnels et stratégiques de la pisciculture.
 
 - **Phase 1 — Définition** : terminée. Voir [docs/SPEC.md](docs/SPEC.md) — révisée en **v0.2** le
   2026-07-17 pour être réconciliée avec le code livré (modèle, 25 invariants actifs, écrans, stack).
-- **Phase 2 — Tests auto basés sur les invariants** : **faite**. 188 tests + 1 xfail, les 25
+- **Phase 2 — Tests auto basés sur les invariants** : **faite**. 191 tests, les 25
   invariants actifs couverts sur trois couches. Voir ci-dessous.
 - **v0** : scaffolding complet (API + front + Docker Compose + CI).
 
@@ -141,12 +141,13 @@ Chaque ID `INV-X` donne lieu à au moins un test. Les trois couches prévues son
 | [`tests/test_couverture_invariants.py`](api/tests/test_couverture_invariants.py) | Garde-fou : échoue si un `INV-X` est levé sans test qui le cite. Une règle que rien ne fait respecter finit par ne plus l'être. |
 
 ```bash
-cd api && pip install -e ".[dev]" && pytest -q     # 188 passed, 1 xfailed
+cd api && pip install -e ".[dev]" && pytest -q     # 191 passed
 ```
 
-Deux `xfail(strict=True)` documentent des **défauts connus** (orphelinage d'un jalon, refus du
-domaine `.local` à la création d'un compte) : le jour où ils sont corrigés, la suite échoue tant
-que le marqueur n'est pas retiré.
+Les deux défauts qui étaient documentés en `xfail(strict=True)` — orphelinage d'un jalon et refus
+du domaine `.local` à la création d'un compte — sont désormais **corrigés**, et leurs `xfail` sont
+devenus des tests de régression verts. C'est le mécanisme voulu : un `xfail(strict=True)` force à
+retirer le marqueur dès que le bug est réglé (sinon la suite échoue).
 
 Les tests d'intégration tournent sur SQLite en mémoire : ce qu'ils éprouvent, c'est l'application
 des invariants par les *routes*. Les contraintes en base ne sont donc pas couvertes — cf.

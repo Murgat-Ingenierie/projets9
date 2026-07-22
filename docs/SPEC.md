@@ -188,13 +188,14 @@ de la base*. Une tentative de mutation qui violerait un invariant doit être
 | INV-5 | Tout `Projet` référence un `Epic` existant. |
 | INV-6 | Tout `Jalon` est rattaché à au moins un `Projet` (relation N-N depuis la migration 0008 — passage epic → projet pour gagner en précision). |
 
-> **INV-6 — défaut connu, l'énoncé ci-dessus reste la référence.** L'invariant est vérifié à la
-> création et à la mise à jour d'un jalon, mais **contournable par un chemin détourné** :
-> supprimer un projet cascade ses lignes `milestone_project` et peut laisser un jalon à zéro
-> projet, sans aucune revalidation ni contrainte en base. Le jalon devient alors **inéditable**
-> (toute mise à jour est refusée par INV-6 tant qu'aucun projet n'est fourni). La migration `0008`
-> documente déjà le même cas pour les jalons d'un epic sans projet. C'est un **défaut à corriger**,
-> pas un assouplissement à entériner : la spec n'est pas alignée sur ce comportement.
+> **INV-6 — désormais tenu sur toutes les mutations (corrigé le 2026-07-22).** L'invariant était
+> vérifié à la création et à la mise à jour d'un jalon, mais **contournable par un chemin détourné** :
+> supprimer un projet (ou un epic, qui cascade sur ses projets) retirait des lignes
+> `milestone_project` et pouvait laisser un jalon à zéro projet — jalon alors **inéditable**. La
+> suppression d'un projet ou d'un epic est maintenant **refusée (409, code `INV-6`)** si elle
+> orphelinerait un jalon, avec un message invitant à rattacher le jalon ailleurs ou à le supprimer
+> d'abord. Conforme au principe ci-dessous (« l'API bloque l'incohérence structurelle ») : un jalon
+> orphelin est un état que la base ne doit pas pouvoir atteindre.
 
 ### Dates (cascade)
 
