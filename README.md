@@ -50,6 +50,29 @@ docker compose exec api python -m app.seed_demo
 Idempotent : ne s'exécute jamais par-dessus des données existantes. À laisser
 désactivé pour une installation réelle.
 
+### Import du classeur source (données réelles)
+
+`scripts/import_data.py` importe le classeur Google Sheets exporté en `.xlsx`
+**via l'API** — donc à travers les invariants (une ligne invalide est refusée,
+pas insérée en douce). Idempotent, ré-exécutable sans doublons.
+
+```bash
+pip install -e "api/[scripts]"                      # requests + openpyxl
+
+# Format attendu du classeur : voir la docstring de scripts/import_data.py.
+# `make_sample_source.py` génère un exemple conforme (spec exécutable) :
+python scripts/make_sample_source.py --out data/source.xlsx
+
+python scripts/import_data.py \
+    --api http://localhost:8080 \
+    --xlsx data/source.xlsx \
+    --email "$SEED_ADMIN_EMAIL" --password "$SEED_ADMIN_PASSWORD"
+```
+
+`data/*.xlsx` est gitignoré : le vrai classeur ne rentre pas dans le dépôt.
+L'import crée des utilisateurs, il faut donc un compte **admin** (`--email` /
+`--password`, ou `--token`, ou `AUTH_DISABLED=true` en dev).
+
 ## Structure
 
 ```

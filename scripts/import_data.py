@@ -1,25 +1,54 @@
-"""Import enrichi depuis le workbook Google Sheets (export xlsx).
+"""Import enrichi depuis le classeur Google Sheets (export .xlsx).
 
-Source : `data/source.xlsx` — onglets Epic, Projets, Projet non plannifiés,
-Jalons, Detail des tache de projet, Chargés de projets.
+Charge les vraies données de la pisciculture dans l'application, **via l'API
+HTTP** — donc à travers les invariants métier (une ligne invalide est refusée,
+pas insérée en douce).
+
+Format attendu du classeur — onglets et colonnes (indices 0-based) :
+    « Chargés de projets »        : [0] nom
+    « Projets »                   : [0] nom  [1] fin prévue  [2] jalon de fin max
+                                    [3] raison fin  [4] trigramme projet
+                                    [5] trigramme epic  [6] rappel  [7] terminé ?
+    « Projet non plannifiés »     : [0] nom
+    « Detail des tache de projet »: [0] trigramme projet  [2] nom
+                                    [3] date début  [4] date fin
+                                    [6] responsable  [9] terminé ?
+    « Jalons »                    : [0] nom  [1] date
+
+    `scripts/make_sample_source.py` génère un classeur d'exemple conforme à ce
+    format — c'est la spec exécutable, et de quoi tester l'import sans données
+    réelles.
 
 Utilisation :
-    /tmp/xlsxvenv/bin/python scripts/import_data.py [--api http://localhost:8088]
+    pip install -e "api/[scripts]"          # requests + openpyxl
+    python scripts/import_data.py \\
+        --api http://localhost:8080 \\
+        --xlsx data/source.xlsx \\
+        --email admin@… --password …
 
-Idempotent : ré-exécutable sans doublons. Suppose AUTH_DISABLED=true côté API
-(sinon, ajouter un --token).
+Authentification (l'import crée des utilisateurs ⇒ droits admin requis) :
+    --email/--password  : le script se connecte et récupère un jeton, ou
+    --token <jwt>       : jeton fourni directement, ou
+    aucun des deux      : suppose AUTH_DISABLED=true côté API (dev uniquement).
 
-Stratégie pour les FK :
-    - Les projets de la source ont un trigramme (BDB, CIR, …) qui n'est PAS
-      stocké en base ; on garde un dict en mémoire `trig → project.id` pour
-      lier les tâches.
-    - Les responsables tâches sont matchés au User par nom (normalisé).
+Idempotent : ré-exécutable sans créer de doublons.
 
-Trous comblés par défaut :
-    - Projet sans date : [2026-05-01, 2028-12-31] (ajusté si `fin prévu`
-      ou `Jalon de fin maximum` année défini).
+Correspondances des clés étrangères :
+    - Les projets de la source portent un trigramme (BDB, CIR…) qui n'est PAS
+      stocké en base ; on garde en mémoire `trigramme → project.id` pour lier
+      les tâches.
+    - Les responsables de tâches sont rapprochés d'un User par nom normalisé.
+
+Valeurs par défaut pour les trous de la source :
+    - Projet sans date : [2026-05-01, 2028-12-31] (ajusté si une fin ou un
+      jalon de fin est renseigné).
     - Tâche sans date : alignée sur la fenêtre du projet parent.
     - Jalon sans date : 2026-12-31.
+
+Modèle des jalons : la source décrit des jalons « transverses » sans projet.
+Depuis la migration 0008, un jalon doit être rattaché à au moins un projet
+(INV-6). On crée donc un projet porteur unique « Jalons transverses » sous un
+epic TVS, auquel tous ces jalons sont rattachés.
 """
 
 from __future__ import annotations
@@ -34,11 +63,11 @@ from collections.abc import Iterable
 import requests
 from openpyxl import load_workbook
 
-
 DEFAULT_PROJECT_START = dt.date(2026, 5, 1)
 DEFAULT_PROJECT_END = dt.date(2028, 12, 31)
 DEFAULT_MILESTONE_DATE = dt.date(2026, 12, 31)
 DEFAULT_TASK_DURATION_DAYS = 30
+EMAIL_DOMAIN = "lesfontaines.fr"  # TLD réel : email-validator refuserait .local
 
 
 def norm(s: str | None) -> str:
@@ -50,7 +79,7 @@ def norm(s: str | None) -> str:
 
 
 def slug_email(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", norm(name)) + "@lesfontaines.fr"
+    return re.sub(r"[^a-z0-9]+", "", norm(name)) + "@" + EMAIL_DOMAIN
 
 
 def to_date(v) -> dt.date | None:
@@ -61,7 +90,7 @@ def to_date(v) -> dt.date | None:
     if isinstance(v, dt.date):
         return v
     if isinstance(v, (int, float)):
-        # Une année (ex: 2028.0) → 31 décembre
+        # Une année seule (ex : 2028.0) → 31 décembre de cette année.
         year = int(v)
         if 2000 <= year <= 2100:
             return dt.date(year, 12, 31)
@@ -74,9 +103,11 @@ def to_date(v) -> dt.date | None:
 
 
 class Api:
-    def __init__(self, base: str):
+    def __init__(self, base: str, token: str | None = None):
         self.base = base.rstrip("/")
         self.s = requests.Session()
+        if token:
+            self.s.headers["Authorization"] = f"Bearer {token}"
 
     def get(self, path: str, **params):
         r = self.s.get(self.base + path, params=params, timeout=10)
@@ -86,20 +117,32 @@ class Api:
     def post(self, path: str, json):
         r = self.s.post(self.base + path, json=json, timeout=10)
         if r.status_code >= 400:
-            return r.status_code, r.json() if r.text else None
+            return r.status_code, (r.json() if r.text else None)
         return r.status_code, r.json()
 
     def put(self, path: str, json):
         r = self.s.put(self.base + path, json=json, timeout=10)
         if r.status_code >= 400:
-            return r.status_code, r.json() if r.text else None
+            return r.status_code, (r.json() if r.text else None)
         return r.status_code, r.json()
 
 
-def ensure_users(api: Api, names: Iterable[str]) -> dict[str, int]:
-    """Crée les users manquants à partir des noms du sheet.
+def login(api: Api, email: str, password: str) -> None:
+    """Récupère un jeton via /api/auth/login et l'attache à la session."""
+    r = api.s.post(
+        api.base + "/api/auth/login",
+        json={"email": email, "password": password},
+        timeout=10,
+    )
+    if r.status_code != 200:
+        raise SystemExit(f"Échec de connexion ({r.status_code}) : {r.text}")
+    api.s.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
 
-    Retourne un mapping `norm(nom) → user.id`.
+
+def ensure_users(api: Api, names: Iterable[str]) -> dict[str, int]:
+    """Crée les users manquants à partir des noms du classeur.
+
+    Retourne `norm(nom) → user.id`.
     """
     existing_users = api.get("/api/users")
     out: dict[str, int] = {norm(u["nom"]): u["id"] for u in existing_users}
@@ -130,10 +173,10 @@ def ensure_users(api: Api, names: Iterable[str]) -> dict[str, int]:
 
 def ensure_epic(
     api: Api, trigramme: str, nom: str, *, statut: str = "idee", critere: str | None = None
-) -> bool:
+) -> None:
     existing = api.get("/api/epics")
     if any(e["trigramme"] == trigramme for e in existing):
-        return False
+        return
     payload = {
         "trigramme": trigramme,
         "nom": nom,
@@ -144,25 +187,20 @@ def ensure_epic(
     code, body = api.post("/api/epics", payload)
     if code >= 400:
         print(f"  ! epic {trigramme} refusé : {body}")
-        return False
-    return True
 
 
 def import_projects(api: Api, wb) -> dict[str, int]:
-    """Importe Projets + Projet non plannifiés. Retourne `trig → project.id`."""
+    """Importe « Projets » + « Projet non plannifiés ». Retourne `trig → id`."""
     ws = wb["Projets"]
     rows = list(ws.iter_rows(values_only=True))[1:]
 
     existing = api.get("/api/projects")
     out: dict[str, int] = {}
-    # On garde aussi un mapping (epic, nom) -> id pour idempotence
     by_name: dict[tuple[str, str], int] = {
         (p["epic_trigramme"], p["nom"]): p["id"] for p in existing
     }
 
-    created = 0
-    skipped = 0
-    refused = 0
+    created = skipped = refused = 0
     for r in rows:
         if not any(c not in (None, "") for c in r):
             continue
@@ -172,13 +210,12 @@ def import_projects(api: Api, wb) -> dict[str, int]:
         raison = (r[3] or "").strip() or None
         trig = (r[4] or "").strip()
         epic = (r[5] or "").strip()
-        rappel = (r[6] or "").strip()
-        termine = bool(r[7])
+        rappel = (r[6] or "").strip() if len(r) > 6 and r[6] else ""
+        termine = bool(r[7]) if len(r) > 7 else False
 
         if not nom or not epic:
             continue
 
-        # Crée l'epic à la volée s'il manque
         ensure_epic(api, epic.upper(), epic.upper())
 
         date_fin = fin_prevu or jalon_max or DEFAULT_PROJECT_END
@@ -187,7 +224,8 @@ def import_projects(api: Api, wb) -> dict[str, int]:
 
         key = (epic.upper(), nom)
         if key in by_name:
-            out[trig.upper()] = by_name[key]
+            if trig:
+                out[trig.upper()] = by_name[key]
             skipped += 1
             continue
 
@@ -198,34 +236,31 @@ def import_projects(api: Api, wb) -> dict[str, int]:
             desc_parts.append(f"Raison fin : {raison}")
         description = " · ".join(desc_parts) or None
 
-        statut = "realise" if termine else "en_cours"
         payload = {
             "epic_trigramme": epic.upper(),
             "nom": nom,
             "description": description,
             "date_debut": DEFAULT_PROJECT_START.isoformat(),
             "date_fin": date_fin.isoformat(),
-            "statut": statut,
+            "statut": "realise" if termine else "en_cours",
         }
         code, body = api.post("/api/projects", payload)
         if code >= 400:
             refused += 1
             print(f"  ! projet {nom!r} (epic {epic}) refusé : {body}")
             continue
-        out[trig.upper()] = body["id"]
+        if trig:
+            out[trig.upper()] = body["id"]
         by_name[key] = body["id"]
         created += 1
 
-    # Projets non plannifiés → epic NPL
+    # Projets non planifiés → epic NPL. [1:] : on saute la ligne d'en-tête,
+    # comme pour tous les autres onglets.
     ensure_epic(api, "NPL", "Projets non planifiés (à classer)", statut="idee")
-    ws = wb["Projet non plannifiés"]
     np_created = 0
-    for r in ws.iter_rows(values_only=True):
+    for r in list(wb["Projet non plannifiés"].iter_rows(values_only=True))[1:]:
         nom = (r[0] or "").strip() if r and r[0] else ""
-        if not nom:
-            continue
-        key = ("NPL", nom)
-        if key in by_name:
+        if not nom or ("NPL", nom) in by_name:
             continue
         payload = {
             "epic_trigramme": "NPL",
@@ -238,7 +273,7 @@ def import_projects(api: Api, wb) -> dict[str, int]:
         if code >= 400:
             print(f"  ! projet non planifié {nom!r} refusé : {body}")
             continue
-        by_name[key] = body["id"]
+        by_name[("NPL", nom)] = body["id"]
         np_created += 1
 
     print(
@@ -254,26 +289,25 @@ def import_tasks(
     ws = wb["Detail des tache de projet"]
     rows = list(ws.iter_rows(values_only=True))[1:]
 
-    # On charge la fenêtre de chaque projet pour clipper
     projects = api.get("/api/projects")
-    win = {p["id"]: (dt.date.fromisoformat(p["date_debut"]), dt.date.fromisoformat(p["date_fin"])) for p in projects}
+    win = {
+        p["id"]: (dt.date.fromisoformat(p["date_debut"]), dt.date.fromisoformat(p["date_fin"]))
+        for p in projects
+    }
 
     existing = api.get("/api/tasks")
     by_key: set[tuple[int, str]] = {(t["projet_id"], t["nom"]) for t in existing}
 
-    created = 0
-    refused = 0
-    skipped = 0
-    no_project = 0
+    created = refused = skipped = no_project = 0
     for r in rows:
         if not any(c not in (None, "") for c in r):
             continue
         trig = (r[0] or "").strip().upper()
-        nom = (r[2] or "").strip()
-        date_debut = to_date(r[3])
-        jalon_max = to_date(r[4])
-        responsable = (r[6] or "").strip()
-        termine = bool(r[9])
+        nom = (r[2] or "").strip() if len(r) > 2 else ""
+        date_debut = to_date(r[3]) if len(r) > 3 else None
+        date_fin_src = to_date(r[4]) if len(r) > 4 else None
+        responsable = (r[6] or "").strip() if len(r) > 6 and r[6] else ""
+        termine = bool(r[9]) if len(r) > 9 else False
 
         if not nom or not trig:
             continue
@@ -282,33 +316,30 @@ def import_tasks(
         if pid is None:
             no_project += 1
             continue
-
         if (pid, nom) in by_key:
             skipped += 1
             continue
 
         pstart, pend = win[pid]
         ts = date_debut or pstart
-        te = jalon_max or (ts + dt.timedelta(days=DEFAULT_TASK_DURATION_DAYS))
-        # Clipper dans la fenêtre du projet (INV-9), puis ré-aligner te ≥ ts
+        te = date_fin_src or (ts + dt.timedelta(days=DEFAULT_TASK_DURATION_DAYS))
+        # On aligne les dates sur la fenêtre du projet pour un rendu propre
+        # (INV-9 est retiré : ce clip est du confort, pas une contrainte API).
         ts = max(pstart, min(pend, ts))
         te = max(ts, min(pend, te))
-
-        resp_id = users.get(norm(responsable))
 
         payload = {
             "projet_id": pid,
             "nom": nom,
             "date_debut": ts.isoformat(),
             "date_fin": te.isoformat(),
-            "avancement": 100 if termine else 0,
-            "statut": "realise" if termine else "prevu",
-            "responsable_id": resp_id,
+            "statut": "archive" if termine else "ouvert",
+            "responsable_id": users.get(norm(responsable)),
         }
         code, body = api.post("/api/tasks", payload)
         if code >= 400:
             refused += 1
-            print(f"  ! tâche {nom!r} (projet trig {trig}) refusée : {body}")
+            print(f"  ! tâche {nom!r} (projet {trig}) refusée : {body}")
             continue
         by_key.add((pid, nom))
         created += 1
@@ -319,55 +350,83 @@ def import_tasks(
     )
 
 
+def ensure_transverse_project(api: Api) -> int | None:
+    """Projet porteur unique des jalons transverses (voir docstring, INV-6).
+
+    Idempotent : réutilise le projet s'il existe déjà.
+    """
+    ensure_epic(
+        api, "TVS", "Jalons transverses (suivi général)",
+        statut="actif", critere="Suivi des jalons réglementaires et événementiels",
+    )
+    nom = "Jalons transverses"
+    for p in api.get("/api/projects"):
+        if p["epic_trigramme"] == "TVS" and p["nom"] == nom:
+            return p["id"]
+    code, body = api.post("/api/projects", {
+        "epic_trigramme": "TVS",
+        "nom": nom,
+        "description": "Projet porteur des jalons sans rattachement propre.",
+        "date_debut": DEFAULT_PROJECT_START.isoformat(),
+        "date_fin": DEFAULT_PROJECT_END.isoformat(),
+        "statut": "en_cours",
+    })
+    if code >= 400:
+        print(f"  ! projet porteur des jalons refusé : {body}")
+        return None
+    return body["id"]
+
+
 def import_milestones(api: Api, wb) -> None:
-    """Jalons globaux → on les rattache à un epic transverse `TVS`."""
-    ensure_epic(api, "TVS", "Jalons transverses (suivi général)", statut="actif",
-                critere="Suivi des jalons réglementaires et événementiels")
-    ws = wb["Jalons"]
-    rows = list(ws.iter_rows(values_only=True))[1:]
+    porteur_id = ensure_transverse_project(api)
+    if porteur_id is None:
+        print("jalons : projet porteur indisponible — import ignoré")
+        return
 
-    existing = api.get("/api/milestones")
-    by_name = {(m.get("epic_trigramme") or "", m["nom"]) for m in existing}
-
-    created = 0
-    refused = 0
-    for r in rows:
+    existing = {m["nom"] for m in api.get("/api/milestones")}
+    created = refused = 0
+    for r in list(wb["Jalons"].iter_rows(values_only=True))[1:]:  # saute l'en-tête
         if not r or not r[0]:
             continue
         nom = (r[0] or "").strip()
-        date = to_date(r[1]) or DEFAULT_MILESTONE_DATE
-        if ("TVS", nom) in by_name:
+        if not nom or nom in existing:
             continue
-        payload = {
-            "epic_trigramme": "TVS",
-            "project_id": None,
+        date = (to_date(r[1]) if len(r) > 1 else None) or DEFAULT_MILESTONE_DATE
+        code, body = api.post("/api/milestones", {
             "nom": nom,
             "date": date.isoformat(),
             "atteint": False,
-        }
-        code, body = api.post("/api/milestones", payload)
+            "project_ids": [porteur_id],
+        })
         if code >= 400:
             refused += 1
             print(f"  ! jalon {nom!r} refusé : {body}")
             continue
+        existing.add(nom)
         created += 1
     print(f"jalons : {created} créés, {refused} refusés")
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--api", default="http://localhost:8088")
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Import du classeur source dans l'API.")
+    ap.add_argument("--api", default="http://localhost:8080")
     ap.add_argument("--xlsx", default="data/source.xlsx")
+    ap.add_argument("--token", help="Jeton JWT (sinon --email/--password, sinon AUTH_DISABLED)")
+    ap.add_argument("--email", help="Email admin pour se connecter et obtenir un jeton")
+    ap.add_argument("--password", help="Mot de passe associé à --email")
     args = ap.parse_args()
 
-    print(f"API : {args.api}")
+    print(f"API    : {args.api}")
     print(f"Source : {args.xlsx}\n")
 
-    api = Api(args.api)
+    api = Api(args.api, token=args.token)
+    if not args.token and args.email and args.password:
+        login(api, args.email, args.password)
+
     wb = load_workbook(args.xlsx, data_only=True)
 
-    # 1. Users : chargés + responsables uniques des tâches
-    names = set()
+    # 1. Users : chargés de projets + responsables uniques des tâches
+    names: set[str] = set()
     for r in list(wb["Chargés de projets"].iter_rows(values_only=True))[1:]:
         if r and r[0]:
             names.add(r[0])
@@ -376,7 +435,7 @@ def main():
             names.add(r[6])
     users = ensure_users(api, names)
 
-    # 2. Projets (et epics manquants à la volée)
+    # 2. Projets (crée les epics manquants à la volée)
     projects_by_trig = import_projects(api, wb)
 
     # 3. Tâches
@@ -385,11 +444,11 @@ def main():
     # 4. Jalons
     import_milestones(api, wb)
 
-    # 5. Résumé final
+    # 5. Résumé
     print("\n=== Résumé en base ===")
     for path in ("/api/epics", "/api/projects", "/api/tasks", "/api/milestones", "/api/users"):
-        data = api.get(path)
-        print(f"  {path} : {len(data)}")
+        print(f"  {path} : {len(api.get(path))}")
+    return 0
 
 
 if __name__ == "__main__":
