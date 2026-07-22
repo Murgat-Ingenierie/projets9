@@ -19,5 +19,10 @@ class Settings(BaseSettings):
 
     auth_disabled: bool = False
 
+    # Si true, la seed peuple le planning avec un jeu de démonstration
+    # (cf. app.seed_demo). Idempotent, ne s'exécute jamais par-dessus des
+    # données existantes. Destiné aux démos / au développement du front.
+    seed_demo: bool = False
+
 
 settings = Settings()

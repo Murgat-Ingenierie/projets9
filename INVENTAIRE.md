@@ -437,7 +437,8 @@ gh api -X PUT repos/Murgat-Ingenierie/projets9/branches/main/protection --input 
 }
 JSON
 ```
-| **C4** | **Peupler le Gantt** : la vue centrale est vide à l'install, sans chemin supporté | Le produit ne démontre rien au premier lancement | M |
+| **C4** | 🟡 **Volet démo fait (2026-07-22).** `app/seed_demo.py` : jeu de démonstration réaliste (4 projets, 13 tâches, 10 dépendances, 3 jalons, 3 équipes, 7 allocations, 4 mesures), activable par `SEED_DEMO=true` ou `python -m app.seed_demo`. Idempotent, auto-validé contre les 25 invariants avant commit. Vérifié end-to-end : Gantt peuplé (groupe par epic, pastille terminé, hachure hors-fenêtre, flèches, jalons), vue Charge avec surcharge rouge à 142 %. **Reste** : le volet « usage réel » (fiabiliser/documenter l'import du vrai tableur) — voir C14. | Le produit ne démontrait rien au premier lancement | M |
+| **C14** | **Chemin d'import du vrai tableur** : `scripts/import_data.py` lit `data/source.xlsx` (gitignoré, absent), a des deps non déclarées (`requests`, `openpyxl`) et un port par défaut périmé (8088). Le fiabiliser et le documenter pour que Charles importe ses vrais projets. | La seed de démo montre le produit ; elle ne charge pas les vraies données | M |
 | **C5** | Réconcilier modèles ↔ migrations (R2) : déclarer les index de `milestone_project`, aligner l'unicité `users.email`, puis viser `alembic check` vert en CI | `autogenerate` produit aujourd'hui du churn d'index | S |
 | **C6** | Fiabiliser le backup : `pipefail`, plancher de copies, test de restore, corriger `RESTORE.md` | Un backup non vérifié n'est pas un backup | S |
 | **C7** | Durcir le RBAC (R4) | Écart à la SPEC §6 | M |
