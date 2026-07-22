@@ -56,6 +56,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: ${POSTGRES_DB}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS}
+      BACKUP_MIN_COPIES: ${BACKUP_MIN_COPIES:-7}
     volumes:
       - backups:/backups
     depends_on:
