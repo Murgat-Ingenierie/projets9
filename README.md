@@ -7,7 +7,7 @@ Epics opérationnels et stratégiques de la pisciculture.
 
 - **Phase 1 — Définition** : terminée. Voir [docs/SPEC.md](docs/SPEC.md) — révisée en **v0.2** le
   2026-07-17 pour être réconciliée avec le code livré (modèle, 25 invariants actifs, écrans, stack).
-- **Phase 2 — Tests auto basés sur les invariants** : **faite**. 183 tests + 2 xfail, les 25
+- **Phase 2 — Tests auto basés sur les invariants** : **faite**. 188 tests + 1 xfail, les 25
   invariants actifs couverts sur trois couches. Voir ci-dessous.
 - **v0** : scaffolding complet (API + front + Docker Compose + CI).
 
@@ -141,7 +141,7 @@ Chaque ID `INV-X` donne lieu à au moins un test. Les trois couches prévues son
 | [`tests/test_couverture_invariants.py`](api/tests/test_couverture_invariants.py) | Garde-fou : échoue si un `INV-X` est levé sans test qui le cite. Une règle que rien ne fait respecter finit par ne plus l'être. |
 
 ```bash
-cd api && pip install -e ".[dev]" && pytest -q     # 183 passed, 2 xfailed
+cd api && pip install -e ".[dev]" && pytest -q     # 188 passed, 1 xfailed
 ```
 
 Deux `xfail(strict=True)` documentent des **défauts connus** (orphelinage d'un jalon, refus du

@@ -202,7 +202,7 @@ Le proxy passe `/api/` **sans réécriture** — cohérent par construction.
 | INV-19 | `check_epic_realise_consistency` | `epics.py:45` | U A |
 | INV-20 | `check_measure_unit_consistency` | `measures.py:47,79` | U A |
 | INV-21 | *aucune* — audit fait à la main dans 8 routers | — | A |
-| INV-AUTH-1 | *aucune* — `func.lower(email)` inline, 409 + code | `users.py:58,93` | A + **1 xfail** (domaine `.local`) |
+| INV-AUTH-1 | *aucune* — `func.lower(email)` inline, 409 + code | `users.py:58,93` | A *(dont régression `.local`, C11)* |
 | INV-AUTH-2 | `check_max_active_users` | `users.py:24` | U H |
 | INV-AUTH-3 | `check_min_one_admin` | `users.py:25,128` | U A |
 | INV-EQ-1a | `check_equipe_nom` *(C10)* | `equipes.py::_validate` | U A H |
@@ -266,7 +266,9 @@ cassée ; l'autre couvrait INV-14. → **1 invariant actif sur 25.** Zéro test 
 fixture, pas de `conftest.py`. `hypothesis` et `httpx` étaient déclarés en dev-deps et **jamais
 importés**.
 
-**Après** : **183 tests + 2 xfail**, les 25 invariants actifs couverts. `test_smoke.py` est retiré —
+**Après** : **188 tests + 1 xfail** (183 + 2 xfail à la phase 2 ; le xfail `.local` est devenu un
+test vert avec C11, et 4 cas de rejet d'email ont été ajoutés). Les 25 invariants actifs couverts.
+`test_smoke.py` est retiré —
 il annonçait lui-même être un placeholder « avant phase 2 ».
 
 | Fichier | Contenu |
@@ -289,19 +291,20 @@ Ce qui est éprouvé, c'est l'application des invariants par les *routes* — du
 que soit le moteur. En contrepartie, la dernière ligne de défense (contraintes `CHECK` en base) n'est
 pas couverte : il faudrait un service PostgreSQL en CI. Arbitrage, pas oubli.
 
-**Deux défauts encodés en `xfail(strict=True)`** plutôt que laissés dans un coin de document. Le
-jour où ils sont corrigés, le test passe au vert, `strict=True` transforme ça en échec, et le
-marqueur *doit* être retiré. Un défaut connu qui ne peut pas être oublié :
-1. **INV-6 — orphelinage.** Supprimer un projet peut laisser un jalon sans aucun projet, qui devient
-   alors inéditable (cf. R8).
-2. **`.local` refusé à la création d'utilisateur** — voir ci-dessous.
+**Le défaut encodé en `xfail(strict=True)`** plutôt que laissé dans un coin de document. Le jour où
+il est corrigé, le test passe au vert, `strict=True` transforme ça en échec, et le marqueur *doit*
+être retiré. Un défaut connu qui ne peut pas être oublié :
+- **INV-6 — orphelinage.** Supprimer un projet peut laisser un jalon sans aucun projet, qui devient
+  alors inéditable (cf. R8).
 
-> **Nouveau défaut trouvé en écrivant les tests.** `UserCreate.email` est un `EmailStr`, et
-> `email-validator` **rejette les domaines réservés** comme `.local` → `POST /api/users` renvoie 422.
-> Or `.env.example` impose `SEED_ADMIN_EMAIL=charles@lesfontaines.local`. La seed écrit en base
-> directement (donc passe) et `LoginRequest.email` est un `str` nu (donc la connexion marche) :
-> **l'application ne sait pas créer un compte suivant sa propre convention.** Concrètement, impossible
-> d'ajouter un second utilisateur en `@lesfontaines.local` depuis l'UI. Chantier **C11**.
+> **Second défaut trouvé en écrivant les tests — ✅ corrigé (C11, 2026-07-22).** `UserCreate.email`
+> était un `EmailStr`, et `email-validator` **rejette les domaines réservés** comme `.local` → `POST
+> /api/users` renvoyait 422, alors que `.env.example` impose `SEED_ADMIN_EMAIL=charles@lesfontaines.local`.
+> La seed écrivant en base directement (donc passait) et `LoginRequest.email` étant un `str` nu (donc
+> la connexion marchait), **l'application ne savait pas créer un compte suivant sa propre convention.**
+> Corrigé en remplaçant `EmailStr` par un validateur de format maison qui tolère les TLD internes tout
+> en refusant les emails cassés (vérifié : `@…local` → 201, `pas-un-email` → 422). `email-validator`,
+> devenu inutile, est retiré des dépendances. L'`xfail` est devenu un test de régression vert.
 
 ### Écarts README ↔ CI réelle
 
@@ -370,7 +373,7 @@ marqueur *doit* être retiré. Un défaut connu qui ne peut pas être oublié :
 |---|---|---|---|
 | ~~R1~~ | ~~**CI rouge**~~ | ✅ **résolu (étape 0)** | Était rouge depuis le commit initial, à l'étape lint (§6). `ruff check .` et `pytest -q` passent désormais. |
 | R2 | **Dérive modèles ↔ migrations** | 🟠 | `alembic check` échoue sur **3 points** : la migration `0008` crée `ix_milestone_project_milestone_id` et `ix_milestone_project_project_id` (l. 41-42) que le `Table` du modèle **ne déclare pas** ; et `user.py:19` (`unique=True, index=True`) diverge de la contrainte `users_email_key` posée par `0001`. Un `alembic revision --autogenerate` émettrait donc du **churn d'index** — suppression de deux index qui portent les jointures N-N, réécriture de l'unicité email. Pas de perte de données. |
-| ~~R3~~ | ~~**1 invariant testé sur 20**~~ | ✅ **résolu (C3)** | Les 25 invariants actifs sont couverts : 183 tests + 2 xfail, sur 3 couches (unitaire, API, Hypothesis), plus un garde-fou de couverture. Suite éprouvée par mutation : 8/8. |
+| ~~R3~~ | ~~**1 invariant testé sur 20**~~ | ✅ **résolu (C3)** | Les 25 invariants actifs sont couverts : **188 tests + 1 xfail**, sur 3 couches (unitaire, API, Hypothesis), plus un garde-fou de couverture. Suite éprouvée par mutation : 8/8. |
 | R4 | **RBAC : tout membre peut tout détruire** | 🟡 | 3 endpoints gardés par `require_admin` sur 40. **Conforme à la SPEC §6** (« membre : CRUD métier sans gestion users ») — la v1 de ce document le présentait à tort comme un écart. Reste une question de **conception**, pas de conformité : est-il voulu qu'un membre puisse supprimer un epic entier ? Y toucher serait un changement de besoin, à trancher dans la SPEC avant d'être codé. Seul écart réel : `GET /api/users` n'est pas gaté admin. |
 | R5 | **Gantt couplé au DOM de la lib** | 🟠 | mapping **par index DOM** entre `svg g[tabindex]` et le tableau de tâches (poignées, décorations, flèches). Un changement d'ordre de rendu de `gantt-task-react` → **suppression de la mauvaise dépendance**, en silence. Sélecteurs internes (`g[class~="arrow"]`), détection d'« aujourd'hui » en cherchant la chaîne `"255, 152, 0"` dans un `fill`. 3 `setInterval` permanents (250/300/500 ms). |
 | R6 | **Backup tolère la corruption** | 🟠 | `pg_dump \| gzip` sous `sh` **sans `pipefail`** : un dump en échec écrit un `.sql.gz` tronqué **compté comme réussi**. Rétention purement par âge, **sans plancher de copies** : une panne > 30 j + un passage de cron ⇒ **zéro backup**. Aucune vérification de restore, aucune copie hors-volume. |
@@ -402,7 +405,7 @@ correct si `models/__init__.py` était un jour allégé), mais ce n'était **pas
 | **C2** | ✅ **Fait (SPEC v0.2, 2026-07-17).** Équipes documentées + 5 invariants `INV-EQ-*`, non-invariants délibérés consignés, statut de livraison par écran, retraits INV-9/13/16/17 entérinés, écarts §6/§8 actés. **Découvert au passage** : les routers Équipe sont les seuls à ne pas passer par `app.invariants` — leurs violations ne remontent **aucun code** `INV-EQ-*`. Prérequis de C3, voir C10. | La spec est la référence de la phase 2 ; elle était fausse | S |
 | **C3** | ✅ **Fait (2026-07-17) — phase 2.** 183 tests + 2 xfail, les 25 invariants actifs couverts sur 3 couches (unitaire / API / Hypothesis) + un garde-fou de couverture. `test_smoke.py` retiré. Suite validée par mutation (8/8). 2 défauts encodés en `xfail(strict=True)`. **Reste** : les tests d'intégration tournent sur SQLite, pas PostgreSQL — les contraintes en base ne sont pas couvertes. | Le cœur métier n'était pas protégé | L |
 | **C10** | ✅ **Fait (2026-07-17).** 6 fonctions `check_*` ajoutées + câblées via `http_from_invariant` dans les 2 routers Équipe. Défaut `INV-EQ-1a` corrigé, `INV-EQ-5` aligné sur INV-4 (409+code). Exports d'`app.invariants` complétés (15→18+6). Vérifié 14/14. | Sans code stable, la règle « 1 test par `INV-X` » était inapplicable aux Équipes | S |
-| **C11** | **Domaine `.local` refusé à la création d'utilisateur** : `UserCreate.email` est un `EmailStr` et `email-validator` rejette les TLD réservés, alors que `.env.example` impose `charles@lesfontaines.local`. Piste : `EmailStr` avec `test_environment=True`, ou un validateur maison. Un `xfail(strict=True)` garde la trace. | L'app ne sait pas créer un compte suivant sa propre convention | S |
+| **C11** | ✅ **Fait (2026-07-22).** `EmailStr` remplacé par un validateur de format maison qui tolère les TLD internes (`.local`) sans tout accepter. Vérifié end-to-end (`@…local` → 201, email cassé → 422) et par test (l'ancien `xfail` est un test vert, + 4 cas de rejet). `email-validator` retiré des deps (devenu inutile). *Piste initialement notée `test_environment=True` : écartée — vérifié qu'email-validator refuse `.local` sous tous ses réglages.* | L'app ne savait pas créer un compte suivant sa propre convention | S |
 | **C12** | **Faire tomber les contraintes base en CI** : les tests d'intégration tournent sur SQLite, donc les `CheckConstraint` et l'unicité PostgreSQL ne sont pas éprouvées. Ajouter un service `postgres` au job `api` + `alembic upgrade head` (couvrirait aussi C5 via `alembic check`). | La dernière ligne de défense n'est pas testée | M |
 | **C13** | 🔴 **Protéger `main` — à faire poser par un administrateur.** Le déclencheur `push` de la CI a été retiré ; ce choix ne tient que si `main` est protégée. Aujourd'hui elle ne l'est pas du tout, et le compte disponible n'est pas admin du dépôt. **Fenêtre ouverte** : un push direct sur `main` n'est ni bloqué, ni testé. Réglage exact ci-dessous. | Sans protection, retirer `push:` laisse `main` sans filet | XS *(mais bloqué)* |
 
