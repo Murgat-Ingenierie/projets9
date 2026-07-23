@@ -8,6 +8,7 @@ import type {
   Milestone,
   Dependency,
   Equipe,
+  TacheEquipe,
   User,
 } from "../src/types";
 
@@ -46,4 +47,9 @@ export const DEPENDENCIES: Dependency[] = [
 
 export const EQUIPES: Equipe[] = [
   { id: 1, nom: "Equipe A", temps_dispo_hebdo: 35, created_at: "", updated_at: "" },
+];
+
+// La tâche 11 (projet 1) est allouée à Equipe A → permet de tester le filtre.
+export const TACHE_EQUIPE: TacheEquipe[] = [
+  { id: 1, tache_id: 11, equipe_id: 1, heures_allouees: 10 },
 ];

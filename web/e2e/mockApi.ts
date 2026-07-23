@@ -2,7 +2,7 @@
 // (Playwright route), renvoie les fixtures pour les GET et capture les mutations.
 // `users.me()` mocké => l'AuthProvider réussit, pas de redirection vers /login.
 import type { Page, Route } from "@playwright/test";
-import { ADMIN, EPICS, PROJECTS, TASKS, MILESTONES, DEPENDENCIES, EQUIPES } from "./fixtures";
+import { ADMIN, EPICS, PROJECTS, TASKS, MILESTONES, DEPENDENCIES, EQUIPES, TACHE_EQUIPE } from "./fixtures";
 
 export interface ApiCall {
   method: string;
@@ -33,7 +33,7 @@ export async function mockApi(page: Page): Promise<ApiCall[]> {
       if (path.endsWith("/api/dependencies")) return route.fulfill(json(DEPENDENCIES));
       if (path.endsWith("/api/milestones")) return route.fulfill(json(MILESTONES));
       if (path.endsWith("/api/equipes")) return route.fulfill(json(EQUIPES));
-      if (path.endsWith("/api/tache-equipe")) return route.fulfill(json([]));
+      if (path.endsWith("/api/tache-equipe")) return route.fulfill(json(TACHE_EQUIPE));
       return route.fulfill(json([]));
     }
 
