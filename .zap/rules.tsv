@@ -1,0 +1,31 @@
+# ZAP Baseline — exceptions documentées.
+# Les vrais findings ont été CORRIGÉS (en-têtes de sécurité + CSP stricte dans
+# docker/proxy/nginx.conf). Ne restent ici que des alertes bas-risque ou
+# informationnelles, acceptées sciemment.
+#
+# Format (3 colonnes tab-séparées) : <alertId> <TAB> <IGNORE|WARN|FAIL> <TAB> <nom>
+
+# Storable and Cacheable Content : les assets statiques (JS/CSS hashés) SONT
+# censés être mis en cache ; les réponses API sont derrière un token
+# Authorization (pas de cache partagé). Risque faible.
+10049	IGNORE	Storable and Cacheable Content
+
+# Modern Web Application : alerte purement informationnelle (l'app est une SPA),
+# pas une vulnérabilité.
+10109	IGNORE	Modern Web Application
+
+# Sub Resource Integrity absent sur la feuille Google Fonts (CDN de confiance).
+# La CSP `script-src 'self'` empêche de toute façon l'exécution de tout script
+# externe. Durcissement possible : auto-héberger les polices (suivi).
+90003	IGNORE	Sub Resource Integrity Attribute Missing
+
+# Cross-Origin-Embedder-Policy manquant : isolation cross-origin agressive, non
+# requise ici et incompatible avec le CDN de polices. Non applicable.
+90004	IGNORE	Cross-Origin-Embedder-Policy Header Missing or Invalid
+
+# CSP: style-src unsafe-inline : nécessaire aux styles inline React (style={{}})
+# omniprésents. Bien plus faible que script-src unsafe-inline (pas d'exécution
+# JS) — script-src reste strict à 'self'. Retrait = gros refacto des styles (C9).
+# Limite assumée : ignorer 10055 masque aussi d'autres faiblesses CSP éventuelles
+# → toute modif de la CSP (docker/proxy/nginx.conf) doit être relue attentivement.
+10055	IGNORE	CSP: style-src unsafe-inline
