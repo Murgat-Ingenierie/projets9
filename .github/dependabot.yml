@@ -1,0 +1,64 @@
+# Mises à jour de dépendances automatiques.
+#
+# Vérification hebdomadaire, avec un COOLDOWN de 7 jours : une nouvelle version
+# n'est proposée qu'après 7 jours d'existence. C'est une protection supply-chain
+# (une release compromise est souvent retirée en quelques jours) — et c'est ce
+# que le gate SAST (règle dependabot-missing-cooldown) impose.
+#
+# Les mises à jour mineures et de correctif sont groupées en une PR par
+# écosystème pour limiter le bruit ; les majeures restent des PR individuelles
+# (à relire, elles peuvent casser le build).
+version: 2
+updates:
+  # --- Backend Python (api/) ---
+  - package-ecosystem: "pip"
+    directory: "/api"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      backend-mineur-patch:
+        update-types: ["minor", "patch"]
+
+  # --- Frontend npm (web/) ---
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      # TypeScript 7 est refusé d'office : pas encore supporté par
+      # typescript-eslint (@typescript-eslint), il casserait le lint du front.
+      # À rouvrir quand typescript-eslint annoncera le support de TS 7.
+      - dependency-name: "typescript"
+        versions: ["7.x"]
+    groups:
+      frontend-mineur-patch:
+        update-types: ["minor", "patch"]
+
+  # --- Actions GitHub : garde les SHA épinglés (checkout, setup-*) à jour ---
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        update-types: ["minor", "patch"]
+
+  # --- Images Docker de base (python, node, nginx, postgres) ---
+  - package-ecosystem: "docker"
+    directories:
+      - "/api"
+      - "/web"
+      - "/docker/backup"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      docker-images:
+        update-types: ["minor", "patch"]
