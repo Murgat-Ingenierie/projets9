@@ -34,6 +34,18 @@ updates:
       # À rouvrir quand typescript-eslint annoncera le support de TS 7.
       - dependency-name: "typescript"
         versions: ["7.x"]
+      # React 19 est différé : gantt-task-react@0.3.9 (la lib du Gantt) déclare
+      # `peer react ^18.0.0`. React 19 casse ce peer et très probablement le
+      # rendu du Gantt. La montée est donc couplée au remplacement de cette lib,
+      # c.-à-d. au chantier C9 (cf. INVENTAIRE.md §C9). À rouvrir à ce moment-là.
+      - dependency-name: "react"
+        versions: ["19.x"]
+      - dependency-name: "react-dom"
+        versions: ["19.x"]
+      - dependency-name: "@types/react"
+        versions: ["19.x"]
+      - dependency-name: "@types/react-dom"
+        versions: ["19.x"]
     groups:
       frontend-mineur-patch:
         update-types: ["minor", "patch"]
