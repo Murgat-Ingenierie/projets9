@@ -1,20 +1,31 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from app.config import settings
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt ne prend en compte que les 72 premiers octets d'un mot de passe ;
+# depuis bcrypt 5 il lève au-delà au lieu de tronquer en silence. On tronque
+# donc explicitement, ce qui reproduit exactement l'ancien comportement de
+# passlib — dont on se débarrasse : passlib n'est plus maintenu (depuis 2020) et
+# casse dès bcrypt 4.1+ (il lit `bcrypt.__about__`, supprimé depuis). Les
+# hachages `$2b$` déjà en base restent vérifiables (même algorithme, même
+# format) — vérifié contre bcrypt 5.0.0 avant migration.
+_BCRYPT_MAX_BYTES = 72
 
 
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    digest = bcrypt.hashpw(password.encode("utf-8")[:_BCRYPT_MAX_BYTES], bcrypt.gensalt())
+    return digest.decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return _pwd_context.verify(password, hashed)
+    try:
+        return bcrypt.checkpw(password.encode("utf-8")[:_BCRYPT_MAX_BYTES], hashed.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> str:
