@@ -29,3 +29,14 @@
 # Limite assumée : ignorer 10055 masque aussi d'autres faiblesses CSP éventuelles
 # → toute modif de la CSP (docker/proxy/nginx.conf) doit être relue attentivement.
 10055	IGNORE	CSP: style-src unsafe-inline
+
+# Information Disclosure - Suspicious Comments : règle passive qui signale des
+# mots-clés (select, delete, password, admin, TODO…) dans les « commentaires ».
+# Déclenchée par le bundle minifié de react-router 7 (code tiers). Vérifié :
+# aucun commentaire sensible expédié — esbuild retire les commentaires en prod ;
+# ne restent que des URLs de doc (reactrouter.com, w3.org/svg) et du vocabulaire
+# CRUD ordinaire (l'app EST un CRUD). Aucun TODO/FIXME, aucun secret.
+# Limite assumée : IGNORE désactive la détection sur tout le site. Acceptable
+# car le build de prod est minifié (0 commentaire applicatif expédié) ; à
+# réactiver si un jour du JS non minifié est servi.
+10027	IGNORE	Information Disclosure - Suspicious Comments
