@@ -46,3 +46,7 @@ data/
 # Local DB dumps / exports (la stratégie backup réelle vit dans le service backup)
 backups/
 exports/
+
+# Rapports ZAP générés localement — on ne versionne que la config des règles
+.zap/*
+!.zap/rules.tsv

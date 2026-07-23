@@ -119,3 +119,36 @@ jobs:
           --config p/python --config p/typescript --config p/react
           --config p/secrets --config p/security-audit
           --config p/owasp-top-ten --config p/dockerfile --config p/github-actions
+
+  dast:
+    name: DAST — ZAP Baseline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Démarrer la stack
+        run: |
+          cp .env.example .env
+          docker compose up -d --build
+      # On attend /api/health : il ne répond 200 qu'une fois l'API prête
+      # (migrations + seed + uvicorn), donc toute la stack est debout avant ZAP.
+      - name: Attendre la stack
+        run: |
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null http://localhost:8080/api/health && { echo "stack prête"; exit 0; }
+            sleep 3
+          done
+          echo "stack pas prête à temps"; docker compose logs; exit 1
+      # ZAP Baseline : scan passif (spider + règles passives, aucune attaque
+      # active). Les exceptions assumées sont dans .zap/rules.tsv. Sans `-I`,
+      # zap-baseline sort non nul au moindre WARN → job rouge, PR non fusionnable.
+      - name: ZAP Baseline (bloquant)
+        run: |
+          docker run --network host -v "$PWD/.zap:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:8080 -c rules.tsv
+      - name: Logs de la stack (si échec)
+        if: failure()
+        run: docker compose logs
+      - name: Arrêter la stack
+        if: always()
+        run: docker compose down -v
