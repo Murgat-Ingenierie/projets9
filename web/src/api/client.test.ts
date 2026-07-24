@@ -111,26 +111,15 @@ describe("api() — erreurs", () => {
   });
 });
 
-describe("api() — 401", () => {
-  it("vide le token, redirige vers /login et lève une ApiError 401", async () => {
-    setToken("expiré");
+describe("api() — 401 (auth débrayée : plus de redirect vers /login)", () => {
+  it("lève une ApiError 401 sans vider le token ni rediriger", async () => {
+    setToken("tok");
     const loc = { pathname: "/epics", href: "" };
     setLocation(loc);
     fetchMock.mockResolvedValue(fakeResponse(401, ""));
 
     await expect(api("/api/epics")).rejects.toMatchObject({ status: 401 });
-    expect(getToken()).toBeNull();
-    expect(loc.href).toBe("/login");
-  });
-
-  it("ne reboucle pas si on est déjà sur /login", async () => {
-    const loc = { pathname: "/login", href: "/login" };
-    setLocation(loc);
-    fetchMock.mockResolvedValue(fakeResponse(401, ""));
-
-    await expect(
-      api("/api/auth/login", { method: "POST", body: "{}" })
-    ).rejects.toMatchObject({ status: 401 });
-    expect(loc.href).toBe("/login");
+    expect(getToken()).toBe("tok"); // token conservé (plus de purge)
+    expect(loc.href).toBe(""); // pas de redirection
   });
 });

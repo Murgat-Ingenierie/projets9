@@ -27,7 +27,10 @@ services:
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME}
       SEED_CSV_PATH: /seed/epics.csv
-      AUTH_DISABLED: ${AUTH_DISABLED:-false}
+      # Auth débrayée par défaut en attendant Keycloak (login + guards retirés
+      # côté front). get_current_user renvoie l'admin par défaut. Repasser à
+      # false quand Keycloak sera branché.
+      AUTH_DISABLED: ${AUTH_DISABLED:-true}
       SEED_DEMO: ${SEED_DEMO:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
