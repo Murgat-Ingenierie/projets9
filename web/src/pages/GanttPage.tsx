@@ -3,21 +3,18 @@ import { Gantt, Task as GanttTask, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
 import {
   dependencies as depsApi,
-  epics,
-  equipes as equipesApi,
-  milestones as milestonesApi,
   projects,
-  tacheEquipe,
   tasks,
 } from "../api/endpoints";
 import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import { IconButton } from "../components/IconButton";
 import { ErrorBanner } from "../components/ErrorBanner";
-import type { Dependency, Epic, Equipe, Milestone, Project, TacheEquipe, Task } from "../types";
+import type { Milestone, Project, Task } from "../types";
 import { toDate, isoDate, fmtDate } from "../planning/dates";
 import { buildDependencyMaps, findDependencyId } from "../planning/dependencies";
 import { computeCascade } from "../planning/cascade";
 import { useUndo } from "../planning/useUndo";
+import { usePlanningData } from "../planning/usePlanningData";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
 
@@ -110,20 +107,24 @@ function TaskListHeader({
 }
 
 export default function GanttPage() {
-  const [epicsList, setEpics] = useState<Epic[]>([]);
-  const [projectsList, setProjects] = useState<Project[]>([]);
-  const [tasksList, setTasks] = useState<Task[]>([]);
   const [err, setErr] = useState<unknown>(null);
+  // Chargement des 7 collections + rechargement après mutation — cf. src/planning/usePlanningData.
+  const {
+    epics: epicsList,
+    projects: projectsList,
+    tasks: tasksList,
+    dependencies: allDeps,
+    milestones: allMilestones,
+    equipes: allEquipes,
+    allocations: allAllocations,
+    reload: load,
+  } = usePlanningData({ onError: setErr });
   const [view, setView] = useState<ViewMode>(ViewMode.Month);
   const viewRef = useRef<ViewMode>(ViewMode.Month);
   useEffect(() => { viewRef.current = view; }, [view]);
   const [editMode, setEditMode] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
-  const [allDeps, setAllDeps] = useState<Dependency[]>([]);
-  const [allMilestones, setAllMilestones] = useState<Milestone[]>([]);
-  const [allEquipes, setAllEquipes] = useState<Equipe[]>([]);
-  const [allAllocations, setAllAllocations] = useState<TacheEquipe[]>([]);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
   // Regroupement par epic : ajoute une ligne d'en-tête par epic, repliable.
   const [groupByEpic, setGroupByEpic] = useState(false);
@@ -167,28 +168,6 @@ export default function GanttPage() {
   const ganttTasksRef = useRef<GanttTask[]>([]);
   const linkSourceRefStable = useRef<string | null>(null);
 
-  function load() {
-    Promise.all([
-      epics.list(),
-      projects.list(),
-      tasks.list(),
-      depsApi.list(),
-      milestonesApi.list(),
-      equipesApi.list(),
-      tacheEquipe.list(),
-    ])
-      .then(([e, p, t, d, m, eq, alloc]) => {
-        setEpics(e);
-        setProjects(p);
-        setTasks(t);
-        setAllDeps(d);
-        setAllMilestones(m);
-        setAllEquipes(eq);
-        setAllAllocations(alloc);
-      })
-      .catch(setErr);
-  }
-
   // Maps de dépendances (FS) dans les deux sens — cf. src/planning/dependencies.
   const { depsByAval, dependentsByAmont } = useMemo(
     () => buildDependencyMaps(allDeps),
@@ -200,7 +179,6 @@ export default function GanttPage() {
   function findDepIdByPair(amontId: number, avalId: number): number | null {
     return findDependencyId(allDeps, amontId, avalId);
   }
-  useEffect(load, []);
 
   // --- Mode Lier (drag depuis un handle visible sur chaque barre) ---
   function cancelLink() {
@@ -303,7 +281,7 @@ export default function GanttPage() {
       document.removeEventListener("mouseup", onUp);
       document.removeEventListener("keydown", onKey);
     };
-  }, [linkSource, pushUndo]);
+  }, [linkSource, pushUndo, load]);
 
   // Calendrier figé : on clone le <g class="calendar"> du SVG dans un
   // overlay SVG position:fixed quand l'original passe au-dessus du viewport.
@@ -831,7 +809,7 @@ export default function GanttPage() {
 
     root.addEventListener("click", onClick);
     return () => root.removeEventListener("click", onClick);
-  }, [editMode, arrowPairs, pushUndo]);
+  }, [editMode, arrowPairs, pushUndo, load]);
 
   // Position des handles "Lier" : un par tâche, sur le côté droit de sa barre.
   useEffect(() => {
