@@ -17,6 +17,7 @@ import type { Dependency, Epic, Equipe, Milestone, Project, TacheEquipe, Task } 
 import { toDate, isoDate, fmtDate } from "../planning/dates";
 import { buildDependencyMaps, findDependencyId } from "../planning/dependencies";
 import { computeCascade } from "../planning/cascade";
+import { useUndo } from "../planning/useUndo";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
 
@@ -133,13 +134,12 @@ export default function GanttPage() {
   const milestoneRowCountRef = useRef(1);
   milestoneRowCountRef.current = milestoneRowCount;
 
-  // Pile d'annulation : chaque action réversible (drag, lien, suppression de
-  // lien) empile une opération inverse. Le bouton retour / Ctrl+Z dépile.
-  const [undoStack, setUndoStack] = useState<{ label: string; undo: () => Promise<void> }[]>([]);
-  function pushUndo(label: string, undo: () => Promise<void>) {
-    setUndoStack((s) => [...s, { label, undo }]);
-  }
-  const [undoing, setUndoing] = useState(false);
+  // Pile d'annulation (drag, lien, suppression de lien) — cf. src/planning/useUndo.
+  const { undoStack, pushUndo, performUndo, undoing } = useUndo({
+    onError: (e) => setErr(e),
+    onSuccess: load,
+    clearError: () => setErr(null),
+  });
   // Sélection multiple : ensemble d'ids "task-N". Drag d'une tâche sélectionnée
   // décale toutes les autres du même delta.
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
@@ -303,7 +303,7 @@ export default function GanttPage() {
       document.removeEventListener("mouseup", onUp);
       document.removeEventListener("keydown", onKey);
     };
-  }, [linkSource]);
+  }, [linkSource, pushUndo]);
 
   // Calendrier figé : on clone le <g class="calendar"> du SVG dans un
   // overlay SVG position:fixed quand l'original passe au-dessus du viewport.
@@ -607,38 +607,6 @@ export default function GanttPage() {
     }
   }
 
-  async function performUndo() {
-    if (undoStack.length === 0 || undoing) return;
-    const action = undoStack[undoStack.length - 1];
-    setUndoStack((s) => s.slice(0, -1));
-    setUndoing(true);
-    setErr(null);
-    try {
-      await action.undo();
-      load();
-    } catch (e) {
-      setErr(e);
-    } finally {
-      setUndoing(false);
-    }
-  }
-
-  // Ctrl+Z (ou Cmd+Z) pour annuler la dernière action du planning
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
-        const tgt = e.target as HTMLElement | null;
-        // On ignore si l'utilisateur est en train d'éditer un champ (le Ctrl+Z
-        // natif de l'input doit primer).
-        if (tgt && /^(INPUT|TEXTAREA|SELECT)$/.test(tgt.tagName)) return;
-        e.preventDefault();
-        performUndo();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undoStack, undoing]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const tasksByProject = useMemo(() => {
     const m = new Map<number, Task[]>();
     for (const t of tasksList) {
@@ -863,7 +831,7 @@ export default function GanttPage() {
 
     root.addEventListener("click", onClick);
     return () => root.removeEventListener("click", onClick);
-  }, [editMode, arrowPairs]);
+  }, [editMode, arrowPairs, pushUndo]);
 
   // Position des handles "Lier" : un par tâche, sur le côté droit de sa barre.
   useEffect(() => {
