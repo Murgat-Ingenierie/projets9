@@ -81,10 +81,18 @@ describe("buildSvarTasks", () => {
     expect(structural).toEqual(["epic:ZZZ", "proj:9", "epic:AAA", "proj:3", "proj:5"]);
   });
 
-  it("epic ouvert (open:true), projet replié (open:false)", () => {
-    const out = buildSvarTasks(base({ epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")] }));
+  it("epic ouvert (open:true) ; projet avec tâches = summary replié (open:false)", () => {
+    const out = buildSvarTasks(base({
+      epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")],
+      tasksByProject: new Map([[1, [task(11, 1, "T")]]]),
+    }));
     const m = byId(out);
     expect(m.get("epic:O50")).toMatchObject({ open: true });
-    expect(m.get("proj:1")).toMatchObject({ open: false });
+    expect(m.get("proj:1")).toMatchObject({ type: "summary", open: false });
+  });
+
+  it("un projet sans tâche est une feuille (type task), pas un summary vide", () => {
+    const out = buildSvarTasks(base({ epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")] }));
+    expect(byId(out).get("proj:1")).toMatchObject({ type: "task" });
   });
 });

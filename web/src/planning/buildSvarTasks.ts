@@ -49,17 +49,21 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
     out.push({ id: `epic:${tri}`, text: epic?.nom ?? tri, type: "summary", open: true });
 
     for (const p of epicProjects) {
+      const pTasks = (tasksByProject.get(p.id) ?? []).filter(
+        (t) => !teamFilterTaskIds || teamFilterTaskIds.has(t.id),
+      );
       out.push({
         id: `proj:${p.id}`,
         text: p.nom,
-        type: "summary",
+        // Summary seulement s'il a des sous-tâches ; sinon feuille (SVAR refuse
+        // un summary sans sous-tâches). Le projet garde ses dates propres.
+        type: pTasks.length > 0 ? "summary" : "task",
         parent: `epic:${tri}`,
         start: toDate(p.date_debut),
         end: toDate(p.date_fin),
         open: false, // projets repliés par défaut (parité avec l'actuel)
       });
-      for (const t of tasksByProject.get(p.id) ?? []) {
-        if (teamFilterTaskIds && !teamFilterTaskIds.has(t.id)) continue;
+      for (const t of pTasks) {
         out.push({
           id: `task:${t.id}`,
           text: t.nom,
