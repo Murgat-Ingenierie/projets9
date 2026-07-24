@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { setToken } from "./api/client";
 import { users } from "./api/endpoints";
 import type { User } from "./types";
 
+// Auth débrayée en attendant Keycloak : plus de login ni de guard côté front.
+// L'API tourne en AUTH_DISABLED, donc users.me() renvoie l'admin par défaut —
+// on le garde pour l'affichage (nom, nav admin) et l'audit updated_by.
 interface AuthCtx {
   user: User | null;
   loading: boolean;
-  login: (user: User, token: string) => void;
-  logout: () => void;
 }
 
 const Ctx = createContext<AuthCtx>(null!);
@@ -17,25 +17,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // On tente toujours users.me() : si AUTH_DISABLED côté API, ça renvoie
-    // l'admin par défaut même sans token. Sinon, le 401 nous renvoie au login.
     users
       .me()
       .then(setUser)
-      .catch(() => setToken(null))
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
-  function login(u: User, token: string) {
-    setToken(token);
-    setUser(u);
-  }
-  function logout() {
-    setToken(null);
-    setUser(null);
-  }
-
-  return <Ctx.Provider value={{ user, loading, login, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

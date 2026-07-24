@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { useState, type ReactNode } from "react";
+import { NavLink, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
-import LoginPage from "./pages/LoginPage";
 import GanttPage from "./pages/GanttPage";
 import EpicsPage from "./pages/EpicsPage";
 import EpicNewPage from "./pages/EpicNewPage";
@@ -34,8 +33,7 @@ function Icon({ name }: { name: string }) {
 }
 
 function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
-  const { user, logout } = useAuth();
-  const nav = useNavigate();
+  const { user } = useAuth();
 
   const items: NavItem[] = [
     { to: "/", end: true, icon: "view_timeline", label: "Planning" },
@@ -72,30 +70,22 @@ function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => vo
           </NavLink>
         ))}
       </nav>
-      <div className="me">
-        <div className="user-name">{user?.nom}</div>
-        <button
-          type="button"
-          className="logout"
-          title="Déconnexion"
-          onClick={() => {
-            logout();
-            nav("/login");
-          }}
-        >
-          <Icon name="logout" />
-          <span className="label">Déconnexion</span>
-        </button>
-      </div>
+      {user && (
+        <div className="me">
+          <div className="user-name">{user.nom}</div>
+        </div>
+      )}
     </aside>
   );
 }
 
-function Protected({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+// Auth débrayée (AUTH_DISABLED côté API, Keycloak à venir) : plus de guard ni de
+// redirection login, juste la mise en page. On attend que users.me() résolve
+// (l'admin par défaut) pour éviter un flash de sidebar sans nom.
+function Layout({ children }: { children: ReactNode }) {
+  const { loading } = useAuth();
   const [expanded, setExpanded] = useState(false);
   if (loading) return <div className="layout"><main className="main">Chargement…</main></div>;
-  if (!user) return <Navigate to="/login" replace />;
   return (
     <div className={`layout ${expanded ? "sidebar-expanded" : ""}`}>
       <Sidebar expanded={expanded} onToggle={() => setExpanded((v) => !v)} />
@@ -108,34 +98,33 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<Protected><GanttPage /></Protected>} />
+        <Route path="/" element={<Layout><GanttPage /></Layout>} />
 
-        <Route path="/epics" element={<Protected><EpicsPage /></Protected>} />
-        <Route path="/epics/new" element={<Protected><EpicNewPage /></Protected>} />
-        <Route path="/epics/:trigramme/edit" element={<Protected><EpicDetailPage /></Protected>} />
-        <Route path="/epics/:trigramme" element={<Protected><EpicDetailPage /></Protected>} />
+        <Route path="/epics" element={<Layout><EpicsPage /></Layout>} />
+        <Route path="/epics/new" element={<Layout><EpicNewPage /></Layout>} />
+        <Route path="/epics/:trigramme/edit" element={<Layout><EpicDetailPage /></Layout>} />
+        <Route path="/epics/:trigramme" element={<Layout><EpicDetailPage /></Layout>} />
 
-        <Route path="/projects" element={<Protected><ProjectsPage /></Protected>} />
-        <Route path="/projects/new" element={<Protected><ProjectNewPage /></Protected>} />
-        <Route path="/projects/:id/edit" element={<Protected><ProjectEditPage /></Protected>} />
+        <Route path="/projects" element={<Layout><ProjectsPage /></Layout>} />
+        <Route path="/projects/new" element={<Layout><ProjectNewPage /></Layout>} />
+        <Route path="/projects/:id/edit" element={<Layout><ProjectEditPage /></Layout>} />
 
-        <Route path="/tasks" element={<Protected><TasksPage /></Protected>} />
-        <Route path="/tasks/new" element={<Protected><TaskNewPage /></Protected>} />
-        <Route path="/tasks/:id/edit" element={<Protected><TaskEditPage /></Protected>} />
+        <Route path="/tasks" element={<Layout><TasksPage /></Layout>} />
+        <Route path="/tasks/new" element={<Layout><TaskNewPage /></Layout>} />
+        <Route path="/tasks/:id/edit" element={<Layout><TaskEditPage /></Layout>} />
 
-        <Route path="/milestones" element={<Protected><MilestonesPage /></Protected>} />
-        <Route path="/milestones/new" element={<Protected><MilestoneNewPage /></Protected>} />
+        <Route path="/milestones" element={<Layout><MilestonesPage /></Layout>} />
+        <Route path="/milestones/new" element={<Layout><MilestoneNewPage /></Layout>} />
 
-        <Route path="/dependencies" element={<Protected><DependenciesPage /></Protected>} />
-        <Route path="/dependencies/new" element={<Protected><DependencyNewPage /></Protected>} />
+        <Route path="/dependencies" element={<Layout><DependenciesPage /></Layout>} />
+        <Route path="/dependencies/new" element={<Layout><DependencyNewPage /></Layout>} />
 
-        <Route path="/users" element={<Protected><UsersPage /></Protected>} />
-        <Route path="/users/new" element={<Protected><UserNewPage /></Protected>} />
+        <Route path="/users" element={<Layout><UsersPage /></Layout>} />
+        <Route path="/users/new" element={<Layout><UserNewPage /></Layout>} />
 
-        <Route path="/equipes" element={<Protected><EquipesPage /></Protected>} />
-        <Route path="/equipes/new" element={<Protected><EquipeNewPage /></Protected>} />
-        <Route path="/charge" element={<Protected><ChargeEquipesPage /></Protected>} />
+        <Route path="/equipes" element={<Layout><EquipesPage /></Layout>} />
+        <Route path="/equipes/new" element={<Layout><EquipeNewPage /></Layout>} />
+        <Route path="/charge" element={<Layout><ChargeEquipesPage /></Layout>} />
       </Routes>
     </AuthProvider>
   );

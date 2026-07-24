@@ -25,16 +25,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const res = await fetch(path, { ...init, headers });
 
-  // 401 : token invalide / user déconnecté → on vide le token et on
-  // redirige vers /login (sauf si on est déjà dessus pour éviter une boucle).
-  if (res.status === 401) {
-    setToken(null);
-    if (!window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
-    }
-    throw new ApiError(401, null, "Session expirée. Reconnecte-toi.");
-  }
-
+  // Auth débrayée (AUTH_DISABLED, Keycloak à venir) : plus de page /login, donc
+  // plus de redirection sur 401 — l'erreur remonte comme n'importe quelle autre.
   if (res.status === 204) return undefined as T;
 
   const text = await res.text();
