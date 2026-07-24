@@ -15,28 +15,8 @@ import { buildDependencyMaps, findDependencyId } from "../planning/dependencies"
 import { computeCascade } from "../planning/cascade";
 import { useUndo } from "../planning/useUndo";
 import { usePlanningData } from "../planning/usePlanningData";
-
-const DEFAULT_EPIC_COLOR = "#3f51b5";
-
-function adjustBrightness(hex: string, factor: number): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return hex;
-  const num = parseInt(m[1], 16);
-  const channels = [(num >> 16) & 0xff, (num >> 8) & 0xff, num & 0xff].map((c) => {
-    if (factor < 1) return Math.round(c * factor);
-    return Math.round(c + (255 - c) * (1 - 1 / factor));
-  });
-  return `#${channels.map((x) => Math.max(0, Math.min(255, x)).toString(16).padStart(2, "0")).join("")}`;
-}
-
-function stylesFor(color: string) {
-  return {
-    backgroundColor: color,
-    backgroundSelectedColor: adjustBrightness(color, 0.8),
-    progressColor: color,
-    progressSelectedColor: adjustBrightness(color, 0.8),
-  };
-}
+import { buildGanttTasks } from "../planning/buildGanttTasks";
+import { DEFAULT_EPIC_COLOR } from "../planning/ganttStyles";
 
 const COLUMN_WIDTH_BY_VIEW: Partial<Record<ViewMode, number>> = {
   [ViewMode.Hour]: 30,
@@ -621,128 +601,24 @@ export default function GanttPage() {
     return out;
   }, [teamFilterTaskIds, tasksList]);
 
-  const ganttTasks: GanttTask[] = useMemo(() => {
-    const out: GanttTask[] = [];
-    const epicByTri = new Map(epicsList.map((e) => [e.trigramme, e]));
-
-    // Swimlane jalons : UNE seule ligne d'ancre (anchor = jalon le plus tôt),
-    // les autres jalons sont rendus manuellement via update() à leur x calculé
-    // depuis columnWidth + viewMode. Permet une swimlane unique avec collision
-    // detection sur les noms.
-    const sortedMs = [...allMilestones].sort((a, b) => a.date.localeCompare(b.date));
-    const MILESTONE_COLOR = "#f57c00";
-    if (sortedMs.length > 0) {
-      // On réserve `milestoneRowCount` lignes pour la swimlane (calculé dans
-      // update() selon le nombre de pistes nécessaires en cas de collisions).
-      // La 1ère porte le label "Jalons", les suivantes sont des espaceuses.
-      for (let r = 0; r < milestoneRowCount; r++) {
-        out.push({
-          id: r === 0 ? "milestone-anchor" : `milestone-spacer-${r}`,
-          name: r === 0 ? "Jalons" : "",
-          type: "milestone",
-          start: toDate(sortedMs[0].date),
-          end: toDate(sortedMs[0].date),
-          progress: 0,
-          isDisabled: true,
-          styles: {
-            backgroundColor: MILESTONE_COLOR,
-            backgroundSelectedColor: MILESTONE_COLOR,
-            progressColor: MILESTONE_COLOR,
-            progressSelectedColor: MILESTONE_COLOR,
-          },
-        });
-      }
-    }
-
-    const byEpic = new Map<string, Project[]>();
-    for (const p of projectsList) {
-      if (!byEpic.has(p.epic_trigramme)) byEpic.set(p.epic_trigramme, []);
-      byEpic.get(p.epic_trigramme)!.push(p);
-    }
-
-    const sortedTris = Array.from(byEpic.keys()).sort((a, b) => {
-      const na = epicByTri.get(a)?.nom ?? a;
-      const nb = epicByTri.get(b)?.nom ?? b;
-      return na.localeCompare(nb, "fr", { sensitivity: "base" });
-    });
-
-    for (const tri of sortedTris) {
-      const epic = epicByTri.get(tri);
-      const epicProjects = byEpic.get(tri)!;
-      if (epicProjects.length === 0) continue;
-      const color = epic?.couleur ?? DEFAULT_EPIC_COLOR;
-      const taskColor = adjustBrightness(color, 1.6);
-
-      // Ordre stable par id pour ne pas permuter quand on drag une barre.
-      const sortedProjects = [...epicProjects].sort((a, b) => a.id - b.id);
-
-      // Filtre équipes appliqué au niveau epic : si aucun de ses projets n'est
-      // dans le scope, on saute l'epic entier.
-      const visibleProjects = teamFilterProjectIds
-        ? sortedProjects.filter((p) => teamFilterProjectIds.has(p.id))
-        : sortedProjects;
-      if (visibleProjects.length === 0) continue;
-
-      // Ligne d'en-tête epic (mode groupé) : barre bracket couvrant la plage
-      // de dates de ses projets, repliable.
-      if (groupByEpic) {
-        const starts = visibleProjects.map((p) => p.date_debut).sort();
-        const ends = visibleProjects.map((p) => p.date_fin).sort();
-        out.push({
-          id: `epic-${tri}`,
-          name: epic?.nom ?? tri,
-          type: "project",
-          start: toDate(starts[0]),
-          end: toDate(ends[ends.length - 1]),
-          progress: 0,
-          isDisabled: true,
-          styles: {
-            backgroundColor: color,
-            backgroundSelectedColor: color,
-            progressColor: color,
-            progressSelectedColor: color,
-          },
-        });
-        if (collapsedEpics.has(tri)) continue; // epic replié → on masque ses projets
-      }
-
-      for (const p of sortedProjects) {
-        // Filtre équipes : on masque les projets qui n'ont pas de tâche
-        // dans le scope sélectionné.
-        if (teamFilterProjectIds && !teamFilterProjectIds.has(p.id)) continue;
-        out.push({
-          id: `proj-${p.id}`,
-          name: p.nom,
-          type: "task",
-          start: toDate(p.date_debut),
-          end: toDate(p.date_fin),
-          progress: 0,
-          isDisabled: !editMode,
-          styles: stylesFor(color),
-        });
-        if (expandedProjects.has(p.id)) {
-          const pTasks = tasksByProject.get(p.id) ?? [];
-          for (const t of pTasks) {
-            // Filtre équipes : seules les tâches en scope sont visibles.
-            if (teamFilterTaskIds && !teamFilterTaskIds.has(t.id)) continue;
-            const dependsOn = depsByAval.get(t.id) ?? [];
-            out.push({
-              id: `task-${t.id}`,
-              name: t.nom,
-              type: "task",
-              start: toDate(t.date_debut),
-              end: toDate(t.date_fin),
-              progress: 0,
-              isDisabled: !editMode,
-              styles: stylesFor(taskColor),
-              dependencies: dependsOn.map((amontId) => `task-${amontId}`),
-            });
-          }
-        }
-      }
-    }
-    return out;
-  }, [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval, allMilestones, teamFilterTaskIds, teamFilterProjectIds, milestoneRowCount, groupByEpic, collapsedEpics]);
+  const ganttTasks: GanttTask[] = useMemo(
+    () =>
+      buildGanttTasks({
+        epics: epicsList,
+        projects: projectsList,
+        tasksByProject,
+        milestones: allMilestones,
+        depsByAval,
+        expandedProjects,
+        editMode,
+        groupByEpic,
+        collapsedEpics,
+        teamFilterTaskIds,
+        teamFilterProjectIds,
+        milestoneRowCount,
+      }),
+    [epicsList, projectsList, tasksByProject, expandedProjects, editMode, depsByAval, allMilestones, teamFilterTaskIds, teamFilterProjectIds, milestoneRowCount, groupByEpic, collapsedEpics],
+  );
   ganttTasksRef.current = ganttTasks;
 
   // Liste des flèches dans l'ordre où la lib les rend (pour les clics
