@@ -14,6 +14,9 @@ import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import { IconButton } from "../components/IconButton";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Dependency, Epic, Equipe, Milestone, Project, TacheEquipe, Task } from "../types";
+import { toDate, isoDate, fmtDate } from "../planning/dates";
+import { buildDependencyMaps, findDependencyId } from "../planning/dependencies";
+import { computeCascade } from "../planning/cascade";
 
 const DEFAULT_EPIC_COLOR = "#3f51b5";
 
@@ -46,23 +49,6 @@ const COLUMN_WIDTH_BY_VIEW: Partial<Record<ViewMode, number>> = {
   [ViewMode.Month]: 130,
   [ViewMode.Year]: 220,
 };
-
-function toDate(s: string): Date {
-  return new Date(s + "T00:00:00");
-}
-
-function isoDate(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function fmtDate(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${d.getFullYear()}`;
-}
 
 function TooltipContent({ task }: { task: GanttTask }) {
   return (
@@ -203,36 +189,16 @@ export default function GanttPage() {
       .catch(setErr);
   }
 
-  // Map aval_task_id → [amont_task_ids] pour piloter task.dependencies
-  const depsByAval = useMemo(() => {
-    const m = new Map<number, number[]>();
-    for (const d of allDeps) {
-      if (d.type !== "FS") continue;
-      if (!m.has(d.tache_aval_id)) m.set(d.tache_aval_id, []);
-      m.get(d.tache_aval_id)!.push(d.tache_amont_id);
-    }
-    return m;
-  }, [allDeps]);
-
-  // Map inverse amont_task_id → [aval_task_ids] : pour cascader le décalage
-  // d'une tâche vers ses dépendantes situées en aval.
-  const dependentsByAmont = useMemo(() => {
-    const m = new Map<number, number[]>();
-    for (const d of allDeps) {
-      if (d.type !== "FS") continue;
-      if (!m.has(d.tache_amont_id)) m.set(d.tache_amont_id, []);
-      m.get(d.tache_amont_id)!.push(d.tache_aval_id);
-    }
-    return m;
-  }, [allDeps]);
+  // Maps de dépendances (FS) dans les deux sens — cf. src/planning/dependencies.
+  const { depsByAval, dependentsByAmont } = useMemo(
+    () => buildDependencyMaps(allDeps),
+    [allDeps],
+  );
 
   // Recherche d'une dépendance par paire (amont, aval) — utilisé pour la
   // suppression au clic sur une flèche du Gantt.
   function findDepIdByPair(amontId: number, avalId: number): number | null {
-    const d = allDeps.find(
-      (x) => x.tache_amont_id === amontId && x.tache_aval_id === avalId && x.type === "FS"
-    );
-    return d?.id ?? null;
+    return findDependencyId(allDeps, amontId, avalId);
   }
   useEffect(load, []);
 
@@ -599,26 +565,13 @@ export default function GanttPage() {
         // dépendantes en aval (postérieures), de proche en proche.
         const oldEndMs = new Date(old.date_fin + "T00:00:00").getTime();
         const cascadeDelta = Math.round((task.end.getTime() - oldEndMs) / 86400000);
-        const oldStartMs = new Date(old.date_debut + "T00:00:00").getTime();
         const tasksById = new Map(tasksList.map((t) => [t.id, t]));
 
-        const toShift = new Set<number>();
-        if (cascadeDelta !== 0) {
-          const queue = [id];
-          while (queue.length) {
-            const cur = queue.shift()!;
-            for (const dep of dependentsByAmont.get(cur) ?? []) {
-              if (toShift.has(dep) || dep === id) continue;
-              const dt = tasksById.get(dep);
-              if (!dt) continue;
-              // Postérieure : commence à/après le début original de la tâche déplacée
-              if (new Date(dt.date_debut + "T00:00:00").getTime() >= oldStartMs) {
-                toShift.add(dep);
-                queue.push(dep);
-              }
-            }
-          }
-        }
+        // Cascade FS (cf. src/planning/cascade) : dépendantes postérieures à décaler.
+        const toShift =
+          cascadeDelta !== 0
+            ? computeCascade({ movedId: id, oldStartIso: old.date_debut, dependentsByAmont, tasksById })
+            : new Set<number>();
 
         const before = [{ id, date_debut: old.date_debut, date_fin: old.date_fin }];
         const ops: Promise<unknown>[] = [tasks.update(id, { date_debut, date_fin })];
