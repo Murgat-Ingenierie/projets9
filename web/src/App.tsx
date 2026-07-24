@@ -20,6 +20,7 @@ import UserNewPage from "./pages/UserNewPage";
 import EquipesPage from "./pages/EquipesPage";
 import EquipeNewPage from "./pages/EquipeNewPage";
 import ChargeEquipesPage from "./pages/ChargeEquipesPage";
+import GanttSvarPrototype from "./pages/GanttSvarPrototype"; // PROTO Phase 2a — à retirer
 
 interface NavItem {
   to: string;
@@ -98,6 +99,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        <Route path="/proto-svar" element={<GanttSvarPrototype />} /> {/* PROTO Phase 2a — non listé, à retirer */}
         <Route path="/" element={<Layout><GanttPage /></Layout>} />
 
         <Route path="/epics" element={<Layout><EpicsPage /></Layout>} />
