@@ -20,6 +20,7 @@ import UserNewPage from "./pages/UserNewPage";
 import EquipesPage from "./pages/EquipesPage";
 import EquipeNewPage from "./pages/EquipeNewPage";
 import ChargeEquipesPage from "./pages/ChargeEquipesPage";
+import GanttSvarPage from "./pages/GanttSvarPage"; // C9 Phase 2b — aperçu, non listé
 
 interface NavItem {
   to: string;
@@ -99,6 +100,7 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/" element={<Layout><GanttPage /></Layout>} />
+        <Route path="/planning-svar" element={<Layout><GanttSvarPage /></Layout>} /> {/* Phase 2b — aperçu */}
 
         <Route path="/epics" element={<Layout><EpicsPage /></Layout>} />
         <Route path="/epics/new" element={<Layout><EpicNewPage /></Layout>} />
