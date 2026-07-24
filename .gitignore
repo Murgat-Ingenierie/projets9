@@ -19,6 +19,11 @@ dist/
 # Cache incrémental de `tsc -b`, régénéré à chaque build
 *.tsbuildinfo
 
+# Playwright (e2e) — sorties générées ; on versionne la config et les specs, pas les rapports
+web/test-results/
+web/playwright-report/
+web/blob-report/
+
 # Env / secrets
 .env
 .env.local
