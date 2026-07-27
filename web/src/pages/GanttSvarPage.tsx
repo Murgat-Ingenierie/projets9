@@ -12,7 +12,7 @@ import { usePlanningData } from "../planning/usePlanningData";
 import { buildSvarTasks } from "../planning/buildSvarTasks";
 import { buildSvarLinks, svarLinkToDependency } from "../planning/buildSvarLinks";
 import { parseSvarId } from "../planning/svarAdapter";
-import { isoDate, toDate, daysBetweenIso } from "../planning/dates";
+import { isoDate, toDate, daysBetweenIso, fmtDate } from "../planning/dates";
 import { planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
 import {
   tasks as tasksApi,
@@ -23,10 +23,43 @@ import {
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Task } from "../types";
 
-const SCALES = [
-  { unit: "month", step: 1, format: (d: Date) => d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) },
-  { unit: "day", step: 1, format: (d: Date) => String(d.getDate()) },
-];
+type Scale = { unit: "year" | "month" | "week" | "day"; step: number; format: (d: Date) => string };
+type ZoomLevel = "day" | "week" | "month";
+
+const MONTH_TOP: Scale = {
+  unit: "month",
+  step: 1,
+  format: (d) => d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
+};
+
+// Niveaux de zoom Jour / Semaine / Mois : échelles + largeur de cellule.
+const ZOOMS: Record<ZoomLevel, { label: string; cellWidth: number; scales: Scale[] }> = {
+  day: {
+    label: "Jour",
+    cellWidth: 36,
+    scales: [MONTH_TOP, { unit: "day", step: 1, format: (d) => String(d.getDate()) }],
+  },
+  week: {
+    label: "Semaine",
+    cellWidth: 52,
+    scales: [MONTH_TOP, { unit: "week", step: 1, format: (d) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) }],
+  },
+  month: {
+    label: "Mois",
+    cellWidth: 90,
+    scales: [
+      { unit: "year", step: 1, format: (d) => String(d.getFullYear()) },
+      { unit: "month", step: 1, format: (d) => d.toLocaleDateString("fr-FR", { month: "short" }) },
+    ],
+  },
+};
+const ZOOM_ORDER: ZoomLevel[] = ["day", "week", "month"];
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 // Graphe FS et dates courantes lus depuis le STORE SVAR (source de vérité après des
 // drags successifs — l'état React de usePlanningData n'est pas rechargé côté SVAR).
@@ -73,9 +106,15 @@ function selectedTaskIds(api: IApi): number[] {
 
 export default function GanttSvarPage() {
   const [err, setErr] = useState<unknown>(null);
+  const [zoom, setZoom] = useState<ZoomLevel>("day");
+  const apiRef = useRef<IApi | null>(null);
   const { epics, projects, tasks, dependencies, milestones } = usePlanningData({
     onError: setErr,
   });
+
+  // Colonne « aujourd'hui » surlignée (parité todayColor de l'ancien Gantt).
+  const todayIso = useMemo(() => isoDate(startOfToday()), []);
+  const highlightToday = useMemo(() => (d: Date) => (isoDate(d) === todayIso ? "wx-today-col" : ""), [todayIso]);
 
   const tasksByProject = useMemo(() => {
     const m = new Map<number, Task[]>();
@@ -106,6 +145,7 @@ export default function GanttSvarPage() {
   const deletedLinkRef = useRef<Map<TID, Pick<ILink, "source" | "target" | "type">>>(new Map());
 
   const onInit = (api: IApi) => {
+    apiRef.current = api;
     api.intercept("update-task", (ev) => {
       // Ne capturer l'origine que pour un vrai geste utilisateur (pas nos ré-émissions).
       if (ev.eventSource === "rollback" || ev.eventSource === "cascade") return true;
@@ -275,10 +315,41 @@ export default function GanttSvarPage() {
   return (
     <>
       <h2>Planning (SVAR) — aperçu Phase 2b</h2>
+      <div className="svar-controls">
+        <div className="svar-zoom" role="group" aria-label="Zoom">
+          {ZOOM_ORDER.map((z) => (
+            <button
+              key={z}
+              type="button"
+              className={zoom === z ? "active" : ""}
+              aria-pressed={zoom === z}
+              onClick={() => setZoom(z)}
+            >
+              {ZOOMS[z].label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="svar-today"
+          onClick={() => apiRef.current?.exec("scroll-chart", { date: startOfToday() })}
+          title="Recentrer sur aujourd'hui"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">today</span>
+          Aujourd'hui : {fmtDate(new Date())}
+        </button>
+      </div>
       <ErrorBanner error={err} />
-      <div style={{ height: "82vh", border: "1px solid #e5e7eb" }}>
+      <div style={{ height: "78vh", border: "1px solid #e5e7eb" }}>
         <Willow>
-          <Gantt tasks={svarTasks} links={svarLinks} scales={SCALES} cellWidth={36} init={onInit} />
+          <Gantt
+            tasks={svarTasks}
+            links={svarLinks}
+            scales={ZOOMS[zoom].scales}
+            cellWidth={ZOOMS[zoom].cellWidth}
+            highlightTime={highlightToday}
+            init={onInit}
+          />
         </Willow>
       </div>
     </>
