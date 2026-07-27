@@ -103,6 +103,10 @@
 .svar-today .material-symbols-outlined {
   font-size: 18px;
 }
+.svar-controls button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
 /* Colonne « aujourd'hui » surlignée (highlightTime → wx-today-col). */
 .wx-today-col {

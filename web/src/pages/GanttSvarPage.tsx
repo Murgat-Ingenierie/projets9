@@ -15,6 +15,7 @@ import { parseSvarId } from "../planning/svarAdapter";
 import { isoDate, toDate, daysBetweenIso, fmtDate } from "../planning/dates";
 import { planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
 import { deriveTeamFilter } from "../planning/teamFilter";
+import { useUndo } from "../planning/useUndo";
 import {
   tasks as tasksApi,
   projects as projectsApi,
@@ -92,6 +93,22 @@ function selectedTaskIds(api: IApi): number[] {
   return ids;
 }
 
+// Dates d'origine des tâches affectées par un drag (déplacée + décalées) pour l'undo.
+function beforeState(
+  movedId: number,
+  orig: { start: Date; end: Date } | undefined,
+  shifts: { id: number }[],
+  dates: Map<number, TaskDates>,
+): { id: number; date_debut: string; date_fin: string }[] {
+  const before: { id: number; date_debut: string; date_fin: string }[] = [];
+  if (orig) before.push({ id: movedId, date_debut: isoDate(orig.start), date_fin: isoDate(orig.end) });
+  for (const s of shifts) {
+    const od = dates.get(s.id);
+    if (od) before.push({ id: s.id, date_debut: od.date_debut, date_fin: od.date_fin });
+  }
+  return before;
+}
+
 // Contenu personnalisé des barres (taskTemplate) : couleur d'epic + décorations des
 // tâches archivées (hachure + coche « fait »). Le template REMPLACE le contenu natif
 // de la barre → on re-rend le libellé nous-mêmes. Champs custom posés par buildSvarTasks.
@@ -136,6 +153,14 @@ export default function GanttSvarPage() {
   useEffect(() => {
     tasksRef.current = tasks;
     depsRef.current = dependencies;
+  });
+
+  // Pile d'annulation (Ctrl+Z) : chaque mutation empile son inverse (persisté). Le
+  // reload (onSuccess) rafraîchit l'arbre. Parité avec l'ancien Gantt (useUndo).
+  const { undoStack, pushUndo, performUndo, undoing } = useUndo({
+    onError: setErr,
+    onSuccess: reload,
+    clearError: () => setErr(null),
   });
 
   // Filtre équipe : tâches/projets en scope (null = pas de filtre). Pur, testé.
@@ -229,6 +254,8 @@ export default function GanttSvarPage() {
       movedId: number,
       moved: { date_debut: string; date_fin: string },
       shifts: { id: number; date_debut: string; date_fin: string }[],
+      before: { id: number; date_debut: string; date_fin: string }[],
+      label: string,
     ) => {
       for (const s of shifts) {
         if (api.getTask(`task:${s.id}`)) {
@@ -245,6 +272,12 @@ export default function GanttSvarPage() {
           tasksApi.update(movedId, moved),
           ...shifts.map((s) => tasksApi.update(s.id, { date_debut: s.date_debut, date_fin: s.date_fin })),
         ]);
+        // Annulation : re-persister les dates d'origine de toutes les tâches affectées.
+        pushUndo(label, () =>
+          Promise.all(
+            before.map((b) => tasksApi.update(b.id, { date_debut: b.date_debut, date_fin: b.date_fin })),
+          ).then(() => {}),
+        );
       } catch (e) {
         setErr(e);
       }
@@ -273,35 +306,48 @@ export default function GanttSvarPage() {
         if (selected.length > 1 && selected.includes(movedId)) {
           // Groupe : les sélectionnées suivent le delta du DÉBUT ; pas de cascade.
           const deltaDays = orig ? daysBetweenIso(isoDate(orig.start), date_debut) : 0;
-          const shifts = planGroupShifts({
-            movedId,
-            deltaDays,
-            selectedIds: selected,
-            taskDates: taskDatesFromTasks(tasksRef.current),
-          });
-          await applyShiftsAndPersist(movedId, moved, shifts);
+          const dates = taskDatesFromTasks(tasksRef.current);
+          const shifts = planGroupShifts({ movedId, deltaDays, selectedIds: selected, taskDates: dates });
+          const before = beforeState(movedId, orig, shifts, dates);
+          await applyShiftsAndPersist(movedId, moved, shifts, before, `Décalage de ${before.length} tâche${before.length > 1 ? "s" : ""}`);
           return;
         }
 
         // Cascade FS sur le graphe COMPLET (dépendances + toutes les tâches, état React
         // frais) : propage même vers un successeur masqué par le filtre équipe.
         const deltaDays = orig && t.end ? daysBetweenIso(isoDate(orig.end), date_fin) : 0;
+        const dates = taskDatesFromTasks(tasksRef.current);
         const shifts = planCascadeShifts({
           movedId,
           oldStartIso: orig ? isoDate(orig.start) : date_debut,
           deltaDays,
           edges: fsEdgesFromDeps(depsRef.current),
-          taskDates: taskDatesFromTasks(tasksRef.current),
+          taskDates: dates,
         });
-        await applyShiftsAndPersist(movedId, moved, shifts);
+        const before = beforeState(movedId, orig, shifts, dates);
+        await applyShiftsAndPersist(
+          movedId,
+          moved,
+          shifts,
+          before,
+          shifts.length ? `Déplacement + ${shifts.length} dépendante${shifts.length > 1 ? "s" : ""}` : "Déplacement tâche",
+        );
         return;
       }
 
       // Projet / jalon : persistance simple (pas de cascade).
+      const ref = Number(parsed.ref);
       try {
-        if (parsed.kind === "proj") await projectsApi.update(Number(parsed.ref), { date_debut, date_fin });
-        else if (parsed.kind === "ms") await milestonesApi.update(Number(parsed.ref), { date: date_debut });
-        else return; // epic (summary) : pas de persistance
+        if (parsed.kind === "proj") {
+          await projectsApi.update(ref, { date_debut, date_fin });
+          if (orig)
+            pushUndo("Déplacement projet", () =>
+              projectsApi.update(ref, { date_debut: isoDate(orig.start), date_fin: isoDate(orig.end) }).then(() => {}),
+            );
+        } else if (parsed.kind === "ms") {
+          await milestonesApi.update(ref, { date: date_debut });
+          if (orig) pushUndo("Déplacement jalon", () => milestonesApi.update(ref, { date: isoDate(orig.start) }).then(() => {}));
+        } else return; // epic (summary) : pas de persistance
         reload();
       } catch (e) {
         setErr(e);
@@ -344,6 +390,7 @@ export default function GanttSvarPage() {
         const created = await depsApi.create(draft);
         if (created?.id != null) {
           api.exec("update-link", { id, link: { id: created.id } });
+          pushUndo("Création de dépendance", () => depsApi.remove(created.id).then(() => {}));
         }
         reload();
       } catch (e) {
@@ -362,6 +409,8 @@ export default function GanttSvarPage() {
       setErr(null);
       try {
         await depsApi.remove(ev.id);
+        const draft = captured ? svarLinkToDependency(captured) : null;
+        if (draft) pushUndo("Suppression de dépendance", () => depsApi.create(draft).then(() => {}));
         reload();
       } catch (e) {
         setErr(e);
@@ -409,6 +458,20 @@ export default function GanttSvarPage() {
         >
           <span className="material-symbols-outlined" aria-hidden="true">today</span>
           Aujourd'hui : {fmtDate(new Date())}
+        </button>
+        <button
+          type="button"
+          className="svar-today svar-undo"
+          disabled={undoStack.length === 0 || undoing}
+          title={
+            undoStack.length > 0
+              ? `Annuler : ${undoStack[undoStack.length - 1].label} (Ctrl+Z)`
+              : "Rien à annuler"
+          }
+          onClick={performUndo}
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">undo</span>
+          Annuler{undoStack.length > 0 ? ` (${undoStack.length})` : ""}
         </button>
       </div>
       {equipes.length > 0 && (

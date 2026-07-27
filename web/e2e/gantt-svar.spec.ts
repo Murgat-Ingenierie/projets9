@@ -152,4 +152,27 @@ test.describe("Planning SVAR — parité 2b", () => {
     await page.getByRole("button", { name: "Equipe A", exact: true }).click();
     await expect(page.getByText("Choix capteurs").first()).toBeVisible();
   });
+
+  test("undo : annuler une création de lien (bouton + DELETE)", async ({ page }) => {
+    const calls = await gotoSvar(page);
+    await expandRow(page, "Capteurs O2");
+    await expandRow(page, "Regulation flux");
+    await expect(page.getByText("Etude debit").first()).toBeVisible();
+
+    const undoBtn = page.getByRole("button", { name: /Annuler/ });
+    await expect(undoBtn).toBeDisabled(); // rien à annuler au départ
+
+    // Créer un lien (2 clics) → empile une action d'annulation.
+    await clickHandle(page, "12", "left");
+    await clickHandle(page, "13", "left");
+    await expect.poll(() => postDep(calls), { timeout: 5000 }).toBeTruthy();
+    await expect(undoBtn).toBeEnabled();
+
+    // Annuler → DELETE de la dépendance créée (id 999 échoé par le mock).
+    await undoBtn.click();
+    await expect
+      .poll(() => calls.find((c) => c.method === "DELETE" && c.path.includes("/api/dependencies/999")), { timeout: 5000 })
+      .toBeTruthy();
+    await expect(undoBtn).toBeDisabled();
+  });
 });
