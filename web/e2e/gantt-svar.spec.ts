@@ -73,4 +73,23 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expect.poll(() => postDep(calls), { timeout: 5000 }).toBeTruthy();
     expect(postDep(calls)!.body).toMatchObject({ tache_amont_id: 12, tache_aval_id: 13, type: "SS" });
   });
+
+  test("contrôles : zoom Jour/Semaine/Mois + colonne aujourd'hui", async ({ page }) => {
+    await gotoSvar(page);
+    const jour = page.getByRole("button", { name: "Jour", exact: true });
+    const semaine = page.getByRole("button", { name: "Semaine", exact: true });
+    const mois = page.getByRole("button", { name: "Mois", exact: true });
+    await expect(jour).toHaveAttribute("aria-pressed", "true"); // Jour actif par défaut
+    await expect(semaine).toHaveAttribute("aria-pressed", "false");
+
+    await mois.click();
+    await expect(mois).toHaveAttribute("aria-pressed", "true");
+    await expect(jour).toHaveAttribute("aria-pressed", "false");
+
+    await expect(page.getByRole("button", { name: /Aujourd'hui/ })).toBeVisible();
+
+    // Colonne « aujourd'hui » surlignée (horloge figée au 2026-07-20, dans la fenêtre).
+    await jour.click();
+    await expect(page.locator(".wx-today-col").first()).toBeVisible();
+  });
 });
