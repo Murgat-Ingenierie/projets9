@@ -15,10 +15,13 @@ export interface BuildSvarTasksInput {
   /** null = pas de filtre équipe. */
   teamFilterProjectIds: Set<number> | null;
   teamFilterTaskIds: Set<number> | null;
+  /** true (défaut) = lignes d'en-tête epic (projets sous l'epic) ; false = projets
+   *  à plat au niveau racine (pas de ligne epic), triés par nom d'epic puis id. */
+  groupByEpic?: boolean;
 }
 
 export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
-  const { epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds } = input;
+  const { epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds, groupByEpic = true } = input;
   const out: ITask[] = [];
   const epicByTri = new Map(epics.map((e) => [e.trigramme, e]));
 
@@ -46,7 +49,10 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
     const epicProjects = [...byEpic.get(tri)!].sort((a, b) => a.id - b.id);
     if (epicProjects.length === 0) continue;
 
-    out.push({ id: `epic:${tri}`, text: epic?.nom ?? tri, type: "summary", open: true });
+    // Ligne d'en-tête epic seulement en mode groupé ; sinon projets à la racine.
+    if (groupByEpic) {
+      out.push({ id: `epic:${tri}`, text: epic?.nom ?? tri, type: "summary", open: true });
+    }
 
     for (const p of epicProjects) {
       const pTasks = (tasksByProject.get(p.id) ?? []).filter(
@@ -58,7 +64,7 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
         // Summary seulement s'il a des sous-tâches ; sinon feuille (SVAR refuse
         // un summary sans sous-tâches). Le projet garde ses dates propres.
         type: pTasks.length > 0 ? "summary" : "task",
-        parent: `epic:${tri}`,
+        parent: groupByEpic ? `epic:${tri}` : undefined,
         start: toDate(p.date_debut),
         end: toDate(p.date_fin),
         open: false, // projets repliés par défaut (parité avec l'actuel)

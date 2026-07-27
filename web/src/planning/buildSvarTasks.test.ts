@@ -95,4 +95,40 @@ describe("buildSvarTasks", () => {
     const out = buildSvarTasks(base({ epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")] }));
     expect(byId(out).get("proj:1")).toMatchObject({ type: "task" });
   });
+
+  it("groupByEpic:false → aucune ligne epic ; projets à la racine (parent absent)", () => {
+    const out = buildSvarTasks(base({
+      epics: [epic("O50", "Optimisation")],
+      projects: [proj(1, "O50", "Capteurs")],
+      tasksByProject: new Map([[1, [task(11, 1, "Choix")]]]),
+      groupByEpic: false,
+    }));
+    expect(out.map((r) => r.id)).not.toContain("epic:O50");
+    expect(byId(out).get("proj:1")).toMatchObject({ type: "summary", parent: undefined });
+    expect(byId(out).get("task:11")).toMatchObject({ parent: "proj:1" });
+  });
+
+  it("groupByEpic:false garde le tri (epic par nom, projets par id)", () => {
+    const out = buildSvarTasks(base({
+      epics: [epic("ZZZ", "Alpha"), epic("AAA", "Zeta")],
+      projects: [proj(5, "AAA", "p5"), proj(3, "AAA", "p3"), proj(9, "ZZZ", "p9")],
+      groupByEpic: false,
+    }));
+    expect(out.filter((r) => r.type !== "milestone").map((r) => r.id)).toEqual(["proj:9", "proj:3", "proj:5"]);
+  });
+
+  it("filtres équipe combinés (projet + tâche) : masque hors scope", () => {
+    const out = buildSvarTasks(base({
+      epics: [epic("O50", "A")],
+      projects: [proj(1, "O50", "P1"), proj(2, "O50", "P2")],
+      tasksByProject: new Map([[1, [task(11, 1, "T1"), task(12, 1, "T2")]]]),
+      teamFilterProjectIds: new Set([1]),
+      teamFilterTaskIds: new Set([11]),
+    }));
+    const ids = out.map((r) => r.id);
+    expect(ids).toContain("proj:1");
+    expect(ids).not.toContain("proj:2");
+    expect(ids).toContain("task:11");
+    expect(ids).not.toContain("task:12");
+  });
 });
