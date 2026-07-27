@@ -62,3 +62,32 @@ export function planCascadeShifts(input: PlanCascadeInput): CascadeShift[] {
   }
   return shifts;
 }
+
+// Décalage de GROUPE (multi-sélection) : décale chaque tâche sélectionnée (hors la
+// tâche déplacée, déjà bougée par SVAR) du même delta. Exclusif de la cascade — le
+// geste groupé remplace la propagation FS (parité avec l'ancien Gantt). Pur.
+export function planGroupShifts(input: {
+  /** Tâche effectivement glissée (exclue du résultat). */
+  movedId: number;
+  /** Décalage du geste, en jours (delta du DÉBUT de la tâche déplacée). */
+  deltaDays: number;
+  /** Ids des tâches sélectionnées (inclut movedId). */
+  selectedIds: number[];
+  /** id → dates courantes de chaque tâche sélectionnée. */
+  taskDates: Map<number, TaskDates>;
+}): CascadeShift[] {
+  const { movedId, deltaDays, selectedIds, taskDates } = input;
+  if (deltaDays === 0) return [];
+  const shifts: CascadeShift[] = [];
+  for (const id of selectedIds) {
+    if (id === movedId) continue;
+    const t = taskDates.get(id);
+    if (!t) continue;
+    shifts.push({
+      id,
+      date_debut: shiftIso(t.date_debut, deltaDays),
+      date_fin: shiftIso(t.date_fin, deltaDays),
+    });
+  }
+  return shifts;
+}
