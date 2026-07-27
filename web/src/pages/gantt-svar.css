@@ -186,3 +186,49 @@
 .svar-chip-reset .material-symbols-outlined {
   font-size: 16px;
 }
+
+/* — Décorations des barres (taskTemplate + champs custom de buildSvarTasks). — */
+/* Couleur d'epic : overlay plein-barre (projet = couleur epic, tâche = éclaircie). */
+.wx-bar .deco-bar {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 1;
+  pointer-events: none;
+}
+/* Tâche archivée : hachures 45° translucides par-dessus la couleur. */
+.wx-bar .deco-archive-hatch {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.14) 0 4px, transparent 4px 8px);
+}
+/* Libellé au-dessus des overlays (garde le style natif .wx-content). */
+.wx-bar .deco-label {
+  position: relative;
+  z-index: 3;
+}
+/* Coche « fait » à droite dans la barre (Material Symbols, comme la corbeille). */
+.wx-bar .deco-done {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  font-size: 16px;
+  color: #2e7d32;
+  pointer-events: none;
+}
+
+/* Jalons en orange (parité ancien Gantt #f57c00). */
+.wx-bar.wx-milestone .wx-content {
+  background-color: #f57c00 !important;
+}
+
+/* Contour de sélection groupée (Ctrl+clic) — parité du stroke bleu de l'ancien Gantt. */
+.wx-bar.wx-selected {
+  outline: 2px solid #1976d2;
+  outline-offset: -1px;
+}

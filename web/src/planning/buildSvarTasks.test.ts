@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildSvarTasks, type BuildSvarTasksInput } from "./buildSvarTasks";
+import { adjustBrightness } from "./ganttStyles";
 import type { Epic, Milestone, Project, Task } from "../types";
 
 const epic = (trigramme: string, nom: string): Epic => ({ trigramme, nom }) as unknown as Epic;
@@ -40,12 +41,22 @@ describe("buildSvarTasks", () => {
     expect(out[0]).toMatchObject({ type: "milestone", start: new Date("2026-02-01T00:00:00") });
   });
 
-  it("progress 100 pour une tâche archivée", () => {
+  it("tâche archivée marquée archived (hachure + coche dans le template)", () => {
     const out = buildSvarTasks(base({
       epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")],
       tasksByProject: new Map([[1, [task(11, 1, "T", "archive")]]]),
     }));
-    expect(byId(out).get("task:11")).toMatchObject({ progress: 100 });
+    expect(byId(out).get("task:11")).toMatchObject({ archived: true });
+  });
+
+  it("barColor : projet = couleur epic ; tâche = éclaircie", () => {
+    const e = { trigramme: "O50", nom: "A", couleur: "#2563eb" } as unknown as Epic;
+    const out = buildSvarTasks(base({
+      epics: [e], projects: [proj(1, "O50", "P")],
+      tasksByProject: new Map([[1, [task(11, 1, "T")]]]),
+    }));
+    expect(byId(out).get("proj:1")).toMatchObject({ barColor: "#2563eb" });
+    expect(byId(out).get("task:11")).toMatchObject({ barColor: adjustBrightness("#2563eb", 1.6) });
   });
 
   it("filtre équipe (projet) : masque hors scope et saute l'epic vide", () => {

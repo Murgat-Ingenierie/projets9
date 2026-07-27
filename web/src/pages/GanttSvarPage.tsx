@@ -5,7 +5,7 @@
 // undo, panneau : incréments suivants.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Gantt, Willow } from "@svar-ui/react-gantt";
-import type { IApi, TID, ILink } from "@svar-ui/react-gantt";
+import type { IApi, TID, ILink, ITask } from "@svar-ui/react-gantt";
 import "@svar-ui/react-gantt/all.css";
 import "./gantt-svar.css"; // correctifs thème (icône corbeille cliquable — cf. fichier)
 import { usePlanningData } from "../planning/usePlanningData";
@@ -90,6 +90,28 @@ function selectedTaskIds(api: IApi): number[] {
     if (p?.kind === "task") ids.push(Number(p.ref));
   }
   return ids;
+}
+
+// Contenu personnalisé des barres (taskTemplate) : couleur d'epic + décorations des
+// tâches archivées (hachure + coche « fait »). Le template REMPLACE le contenu natif
+// de la barre → on re-rend le libellé nous-mêmes. Champs custom posés par buildSvarTasks.
+function TaskBar({ data }: { data: ITask }) {
+  const d = data as ITask & { barColor?: string; archived?: boolean };
+  if (d.type === "milestone") {
+    return <span className="wx-text-out">{d.text}</span>;
+  }
+  return (
+    <>
+      {d.barColor && <span className="deco-bar" style={{ background: d.barColor }} aria-hidden />}
+      {d.archived && <span className="deco-archive-hatch" aria-hidden />}
+      <span className="wx-content deco-label">{d.text}</span>
+      {d.archived && (
+        <span className="material-symbols-outlined deco-done" aria-hidden>
+          check_circle
+        </span>
+      )}
+    </>
+  );
 }
 
 export default function GanttSvarPage() {
@@ -439,6 +461,7 @@ export default function GanttSvarPage() {
             scales={ZOOMS[zoom].scales}
             cellWidth={ZOOMS[zoom].cellWidth}
             highlightTime={highlightToday}
+            taskTemplate={TaskBar}
             init={onInit}
           />
         </Willow>

@@ -1,6 +1,7 @@
 import type { ITask } from "@svar-ui/react-gantt";
 import type { Epic, Milestone, Project, Task } from "../types";
 import { toDate } from "./dates";
+import { DEFAULT_EPIC_COLOR, adjustBrightness } from "./ganttStyles";
 
 // État du planning → arbre de tâches SVAR (ITask[]), via la hiérarchie NATIVE de
 // SVAR (`parent` + `type`) : epic (summary) → projet (summary) → tâche. Les jalons
@@ -49,16 +50,19 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
 
   for (const tri of sortedTris) {
     const epic = epicByTri.get(tri);
+    const epicColor = epic?.couleur ?? DEFAULT_EPIC_COLOR;
     const epicProjects = [...byEpic.get(tri)!].sort((a, b) => a.id - b.id);
     if (epicProjects.length === 0) continue;
 
     // Ligne d'en-tête epic seulement en mode groupé ; sinon projets à la racine.
+    // barColor / archived : champs custom lus par le taskTemplate pour la déco.
     if (groupByEpic) {
       out.push({
         id: `epic:${tri}`,
         text: epic?.nom ?? tri,
         type: "summary",
         open: openState?.get(`epic:${tri}`) ?? true,
+        barColor: epicColor,
       });
     }
 
@@ -76,8 +80,10 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
         start: toDate(p.date_debut),
         end: toDate(p.date_fin),
         open: openState?.get(`proj:${p.id}`) ?? false, // repliés par défaut
+        barColor: epicColor, // projet = couleur de l'epic
       });
       for (const t of pTasks) {
+        const archived = t.statut === "archive";
         out.push({
           id: `task:${t.id}`,
           text: t.nom,
@@ -85,7 +91,8 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
           parent: `proj:${p.id}`,
           start: toDate(t.date_debut),
           end: toDate(t.date_fin),
-          progress: t.statut === "archive" ? 100 : 0,
+          barColor: adjustBrightness(epicColor, 1.6), // tâche = couleur epic éclaircie
+          archived, // tâche terminée → hachure + coche « fait » dans le template
         });
       }
     }
