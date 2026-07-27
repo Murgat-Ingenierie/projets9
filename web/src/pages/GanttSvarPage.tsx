@@ -3,7 +3,7 @@
 // mappings purs buildSvarTasks/buildSvarLinks. Incrément 1 : rendu lecture seule
 // (hiérarchie + jalons + dépendances). Drag/persist, contrôles, décorations,
 // undo, panneau : incréments suivants.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Gantt, Willow } from "@svar-ui/react-gantt";
 import type { IApi, TID, ILink } from "@svar-ui/react-gantt";
 import "@svar-ui/react-gantt/all.css";
@@ -22,7 +22,7 @@ import {
   dependencies as depsApi,
 } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
-import type { Task } from "../types";
+import type { Dependency, Task } from "../types";
 
 type Scale = { unit: "year" | "month" | "week" | "day"; step: number; format: (d: Date) => string };
 type ZoomLevel = "day" | "week" | "month";
@@ -65,37 +65,21 @@ function startOfToday(): Date {
   return d;
 }
 
-// Graphe FS et dates courantes lus depuis le STORE SVAR (source de vérité après des
-// drags successifs — l'état React de usePlanningData n'est pas rechargé côté SVAR).
-function fsEdgesFromStore(api: IApi): FsEdge[] {
+// Graphe FS et dates depuis l'état React COMPLET (usePlanningData), PAS le store SVAR
+// qui peut être filtré par équipe : la cascade doit propager même vers des tâches
+// masquées (parité ancien Gantt). L'état React est frais (reload après chaque mutation).
+function fsEdgesFromDeps(deps: Dependency[]): FsEdge[] {
   const edges: FsEdge[] = [];
-  api.getState().links.forEach((l) => {
-    if (l.type !== "e2s") return; // FS seulement (cf. buildSvarLinks)
-    const s = parseSvarId(String(l.source));
-    const t = parseSvarId(String(l.target));
-    if (s?.kind === "task" && t?.kind === "task") {
-      edges.push({ amontId: Number(s.ref), avalId: Number(t.ref) });
-    }
-  });
+  for (const d of deps) {
+    if (d.type === "FS") edges.push({ amontId: d.tache_amont_id, avalId: d.tache_aval_id });
+  }
   return edges;
 }
 
-function taskDatesForIds(api: IApi, ids: Iterable<number>): Map<number, TaskDates> {
+function taskDatesFromTasks(tasks: Task[]): Map<number, TaskDates> {
   const m = new Map<number, TaskDates>();
-  for (const id of ids) {
-    const st = api.getTask(`task:${id}`);
-    if (st?.start && st?.end) m.set(id, { date_debut: isoDate(st.start), date_fin: isoDate(st.end) });
-  }
+  for (const t of tasks) m.set(t.id, { date_debut: t.date_debut, date_fin: t.date_fin });
   return m;
-}
-
-function taskDatesFromStore(api: IApi, edges: FsEdge[]): Map<number, TaskDates> {
-  const ids = new Set<number>();
-  for (const e of edges) {
-    ids.add(e.amontId);
-    ids.add(e.avalId);
-  }
-  return taskDatesForIds(api, ids);
 }
 
 // Ids des tâches actuellement sélectionnées (multi-sélection SVAR : Ctrl/⌘+clic).
@@ -121,6 +105,15 @@ export default function GanttSvarPage() {
   const openStateRef = useRef<Map<string, boolean>>(new Map());
   const { epics, projects, tasks, dependencies, milestones, equipes, allocations, reload } = usePlanningData({
     onError: setErr,
+  });
+
+  // Données React fraîches pour les handlers (closure onInit) : la cascade lit le
+  // graphe COMPLET (toutes les tâches + dépendances), pas le store filtré → parité.
+  const tasksRef = useRef(tasks);
+  const depsRef = useRef(dependencies);
+  useEffect(() => {
+    tasksRef.current = tasks;
+    depsRef.current = dependencies;
   });
 
   // Filtre équipe : tâches/projets en scope (null = pas de filtre). Pur, testé.
@@ -206,43 +199,34 @@ export default function GanttSvarPage() {
       return true;
     });
 
-    // Applique une liste de décalages (cascade OU groupe) : visuel immédiat (exec
-    // eventSource "cascade" pour ne pas re-déclencher le handler), puis persistance
-    // groupée ; rollback visuel de la tâche déplacée ET des décalées si l'API refuse.
+    // Applique une liste de décalages (cascade OU groupe) : visuel immédiat pour les
+    // tâches VISIBLES (les masquées sont persistées sans exec puis rapatriées par
+    // reload), puis persistance groupée et reload() — qui RÉCONCILIE succès ET échec
+    // depuis la vérité serveur (comme l'ancien Gantt ; pas de rollback manuel).
     const applyShiftsAndPersist = async (
       movedId: number,
       moved: { date_debut: string; date_fin: string },
       shifts: { id: number; date_debut: string; date_fin: string }[],
-      orig: { start: Date; end: Date } | undefined,
-      movedTid: TID,
     ) => {
-      const applied: { id: number; start: Date; end: Date }[] = [];
       for (const s of shifts) {
-        const st = api.getTask(`task:${s.id}`);
-        if (!st?.start || !st?.end) continue;
-        applied.push({ id: s.id, start: st.start, end: st.end });
-        api.exec("update-task", {
-          id: `task:${s.id}`,
-          task: { start: toDate(s.date_debut), end: toDate(s.date_fin) },
-          skipUndo: true,
-          eventSource: "cascade",
-        });
+        if (api.getTask(`task:${s.id}`)) {
+          api.exec("update-task", {
+            id: `task:${s.id}`,
+            task: { start: toDate(s.date_debut), end: toDate(s.date_fin) },
+            skipUndo: true,
+            eventSource: "cascade",
+          });
+        }
       }
       try {
         await Promise.all([
           tasksApi.update(movedId, moved),
           ...shifts.map((s) => tasksApi.update(s.id, { date_debut: s.date_debut, date_fin: s.date_fin })),
         ]);
-        reload(); // état React frais → un filtre/groupe ultérieur repart des dates persistées
       } catch (e) {
         setErr(e);
-        if (orig) {
-          api.exec("update-task", { id: movedTid, task: { start: orig.start, end: orig.end }, skipUndo: true, eventSource: "rollback" });
-        }
-        for (const a of applied) {
-          api.exec("update-task", { id: `task:${a.id}`, task: { start: a.start, end: a.end }, skipUndo: true, eventSource: "rollback" });
-        }
       }
+      reload();
     };
 
     // Au commit du drag (inProgress=false) : persister ; sur refus API, rollback.
@@ -271,23 +255,23 @@ export default function GanttSvarPage() {
             movedId,
             deltaDays,
             selectedIds: selected,
-            taskDates: taskDatesForIds(api, selected),
+            taskDates: taskDatesFromTasks(tasksRef.current),
           });
-          await applyShiftsAndPersist(movedId, moved, shifts, orig, ev.id);
+          await applyShiftsAndPersist(movedId, moved, shifts);
           return;
         }
 
-        // Cascade FS : delta de la FIN propagé aux tâches postérieures.
+        // Cascade FS sur le graphe COMPLET (dépendances + toutes les tâches, état React
+        // frais) : propage même vers un successeur masqué par le filtre équipe.
         const deltaDays = orig && t.end ? daysBetweenIso(isoDate(orig.end), date_fin) : 0;
-        const edges = fsEdgesFromStore(api);
         const shifts = planCascadeShifts({
           movedId,
           oldStartIso: orig ? isoDate(orig.start) : date_debut,
           deltaDays,
-          edges,
-          taskDates: taskDatesFromStore(api, edges),
+          edges: fsEdgesFromDeps(depsRef.current),
+          taskDates: taskDatesFromTasks(tasksRef.current),
         });
-        await applyShiftsAndPersist(movedId, moved, shifts, orig, ev.id);
+        await applyShiftsAndPersist(movedId, moved, shifts);
         return;
       }
 
