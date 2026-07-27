@@ -7,6 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import { Gantt, Willow } from "@svar-ui/react-gantt";
 import type { IApi, TID, ILink } from "@svar-ui/react-gantt";
 import "@svar-ui/react-gantt/all.css";
+import "./gantt-svar.css"; // correctifs thème (icône corbeille cliquable — cf. fichier)
 import { usePlanningData } from "../planning/usePlanningData";
 import { buildSvarTasks } from "../planning/buildSvarTasks";
 import { buildSvarLinks, svarLinkToDependency } from "../planning/buildSvarLinks";

@@ -1,0 +1,27 @@
+/* Correctifs locaux du thème SVAR (C9 Phase 2b). Cf. mémoire svar-dnd-headless-limite.
+ *
+ * SVAR ne fournit PAS sa police d'icônes « wxi » dans ces versions du paquet et la
+ * CSP bloque cdn.svar.dev : les <i class="wxi-…"> sont donc vides (aucun glyphe).
+ *
+ * Conséquence FONCTIONNELLE sur la suppression d'un lien : l'icône corbeille vide a
+ * une hauteur nulle. Or SVAR ne déclenche exec("delete-link") QUE si la cible du clic
+ * porte la classe .wx-delete-button-icon. Icône de hauteur 0 → le clic tombe sur le
+ * bouton (.wx-delete-button) et non sur l'icône → « rien ne se passe ».
+ *
+ * On rend l'icône pleine (donc cliquable quelle que soit sa hauteur de glyphe) et on
+ * restaure un glyphe via Material Symbols, déjà chargée par l'app et servie en propre
+ * (même origine → compatible CSP, pas de dépendance externe). Le correctif du clic ne
+ * dépend PAS du glyphe : même sans police d'icône, le bouton redevient fonctionnel. */
+.wx-delete-button-icon {
+  width: 100%;
+  height: 100%;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-family: "Material Symbols Outlined";
+  font-size: 14px;
+  line-height: 1;
+}
+.wx-delete-button-icon::before {
+  content: "\e872"; /* Material Symbols : delete (corbeille) */
+}
