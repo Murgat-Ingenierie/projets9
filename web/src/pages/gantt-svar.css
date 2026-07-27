@@ -1,17 +1,46 @@
 /* Correctifs locaux du thème SVAR (C9 Phase 2b). Cf. mémoire svar-dnd-headless-limite.
  *
  * SVAR ne fournit PAS sa police d'icônes « wxi » dans ces versions du paquet et la
- * CSP bloque cdn.svar.dev : les <i class="wxi-…"> sont donc vides (aucun glyphe).
+ * CSP bloque cdn.svar.dev : tous les <i class="wxi-…"> sont donc VIDES (chevrons de
+ * dépliage, « + », corbeille/× de suppression de lien, crayon…). On les restaure en
+ * mappant chaque icône SVAR vers Material Symbols, déjà chargée par l'app (Google
+ * Fonts, autorisée par la CSP via fonts.gstatic.com) — aucune dépendance externe.
  *
- * Conséquence FONCTIONNELLE sur la suppression d'un lien : l'icône corbeille vide a
- * une hauteur nulle. Or SVAR ne déclenche exec("delete-link") QUE si la cible du clic
- * porte la classe .wx-delete-button-icon. Icône de hauteur 0 → le clic tombe sur le
- * bouton (.wx-delete-button) et non sur l'icône → « rien ne se passe ».
- *
- * On rend l'icône pleine (donc cliquable quelle que soit sa hauteur de glyphe) et on
- * restaure un glyphe via Material Symbols, déjà chargée par l'app et servie en propre
- * (même origine → compatible CSP, pas de dépendance externe). Le correctif du clic ne
- * dépend PAS du glyphe : même sans police d'icône, le bouton redevient fonctionnel. */
+ * On cible les glyphes par CODE POINT (et non par ligature) : une ligature dans
+ * `content` de ::before ne se déclenche pas de façon fiable (rendue en texte), alors
+ * qu'un code point rend directement le glyphe. Codes = Material Symbols Outlined. */
+
+.wxi-menu-down,
+.wxi-menu-up,
+.wxi-menu-left,
+.wxi-menu-right,
+.wxi-angle-down,
+.wxi-plus,
+.wxi-close,
+.wxi-edit,
+.wxi-delete {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wxi-menu-down::before { content: "\e5c5"; } /* arrow_drop_down — ligne dépliée */
+.wxi-menu-up::before { content: "\e5c7"; } /* arrow_drop_up */
+.wxi-menu-right::before { content: "\e5df"; } /* arrow_right — ligne repliée */
+.wxi-menu-left::before { content: "\e5de"; } /* arrow_left */
+.wxi-angle-down::before { content: "\e5cf"; } /* expand_more */
+.wxi-plus::before { content: "\e145"; } /* add */
+.wxi-close::before { content: "\e5cd"; } /* close */
+.wxi-edit::before { content: "\e3c9"; } /* edit */
+.wxi-delete::before { content: "\e872"; } /* delete */
+
+/* Suppression d'un lien : SVAR y met un <i class="wxi-close wx-delete-button-icon">.
+ * Icône vide = hauteur 0 → le clic tombe sur le bouton et non sur l'icône, seule
+ * cible que SVAR écoute pour exec("delete-link") → « rien ne se passe ». On rend
+ * l'icône PLEINE (donc cliquable) et on affiche une corbeille explicite. Cette règle
+ * ::before vient APRÈS .wxi-close (même spécificité) → gagne sur ce bouton précis. */
 .wx-delete-button-icon {
   width: 100%;
   height: 100%;
@@ -20,8 +49,5 @@
   justify-content: center;
   font-family: "Material Symbols Outlined";
   font-size: 14px;
-  line-height: 1;
 }
-.wx-delete-button-icon::before {
-  content: "\e872"; /* Material Symbols : delete (corbeille) */
-}
+.wx-delete-button-icon::before { content: "\e872"; } /* delete (corbeille) */
