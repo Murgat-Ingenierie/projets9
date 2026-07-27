@@ -108,3 +108,81 @@
 .wx-today-col {
   background: rgba(255, 152, 0, 0.14);
 }
+
+/* Toggle « Grouper par epic » (même gabarit que le bouton aujourd'hui). */
+.svar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  padding: 5px 12px;
+  font: inherit;
+  color: #374151;
+  cursor: pointer;
+}
+.svar-toggle:hover {
+  background: #f3f4f6;
+}
+.svar-toggle.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.svar-toggle .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Filtre par équipe : libellé + chips-pilules. */
+.svar-teams {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+.svar-teams-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #5f6368;
+  font-size: 0.9em;
+}
+.svar-teams-label .material-symbols-outlined {
+  font-size: 18px;
+}
+.svar-chip {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fafafa;
+  padding: 3px 12px;
+  font: inherit;
+  color: #5f6368;
+  cursor: pointer;
+}
+.svar-chip:hover {
+  background: #f3f4f6;
+}
+.svar-chip.active {
+  background: #1976d2;
+  border-color: #1976d2;
+  color: #fff;
+}
+.svar-chip-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 3px 6px;
+  font: inherit;
+  color: #5f6368;
+  cursor: pointer;
+}
+.svar-chip-reset:hover {
+  color: #374151;
+}
+.svar-chip-reset .material-symbols-outlined {
+  font-size: 16px;
+}

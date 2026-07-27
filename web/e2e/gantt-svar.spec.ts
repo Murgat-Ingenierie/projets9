@@ -92,4 +92,50 @@ test.describe("Planning SVAR — parité 2b", () => {
     await jour.click();
     await expect(page.locator(".wx-today-col").first()).toBeVisible();
   });
+
+  test("filtre équipe : scope + union multi-équipes + réinitialisation", async ({ page }) => {
+    await gotoSvar(page);
+    const eqA = page.getByRole("button", { name: "Equipe A", exact: true });
+    const eqB = page.getByRole("button", { name: "Equipe B", exact: true });
+    await expect(page.getByText("Capteurs O2").first()).toBeVisible();
+    await expect(page.getByText("Regulation flux").first()).toBeVisible();
+
+    // Equipe A → seule la tâche 11 (projet « Capteurs O2 ») : « Regulation flux » masqué.
+    await eqA.click();
+    await expect(eqA).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText("Capteurs O2").first()).toBeVisible();
+    await expect(page.getByText("Regulation flux")).toHaveCount(0);
+
+    // + Equipe B (tâche 13, projet 2) → UNION : « Regulation flux » réapparaît.
+    await eqB.click();
+    await expect(page.getByText("Regulation flux").first()).toBeVisible();
+    await expect(page.getByText("Capteurs O2").first()).toBeVisible();
+
+    // Décocher A → « Capteurs O2 » masqué, « Regulation flux » reste (scope B).
+    await eqA.click();
+    await expect(eqA).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByText("Capteurs O2")).toHaveCount(0);
+    await expect(page.getByText("Regulation flux").first()).toBeVisible();
+
+    // Réinitialiser → tout revient.
+    await page.getByRole("button", { name: /Réinitialiser/ }).click();
+    await expect(page.getByText("Capteurs O2").first()).toBeVisible();
+    await expect(page.getByText("Regulation flux").first()).toBeVisible();
+  });
+
+  test("group-by-epic : le toggle masque puis rétablit les lignes d'epic", async ({ page }) => {
+    await gotoSvar(page);
+    const toggle = page.getByRole("button", { name: /Grouper par epic/ });
+    await expect(toggle).toHaveAttribute("aria-pressed", "true"); // groupé par défaut
+    await expect(page.getByText("Optimisation bassins").first()).toBeVisible();
+
+    await toggle.click(); // dégrouper
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByText("Optimisation bassins")).toHaveCount(0); // plus de ligne epic
+    await expect(page.getByText("Capteurs O2").first()).toBeVisible(); // projets à la racine
+
+    await toggle.click(); // re-grouper
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText("Optimisation bassins").first()).toBeVisible(); // ligne epic rétablie
+  });
 });

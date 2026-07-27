@@ -14,6 +14,7 @@ import { buildSvarLinks, svarLinkToDependency } from "../planning/buildSvarLinks
 import { parseSvarId } from "../planning/svarAdapter";
 import { isoDate, toDate, daysBetweenIso, fmtDate } from "../planning/dates";
 import { planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
+import { deriveTeamFilter } from "../planning/teamFilter";
 import {
   tasks as tasksApi,
   projects as projectsApi,
@@ -110,10 +111,20 @@ function selectedTaskIds(api: IApi): number[] {
 export default function GanttSvarPage() {
   const [err, setErr] = useState<unknown>(null);
   const [zoom, setZoom] = useState<ZoomLevel>("day");
+  // Défaut GROUPÉ (l'ancien Gantt est à plat) : conserve la hiérarchie native SVAR
+  // déjà validée ; le toggle « Grouper par epic » aplatit (reparente à la racine).
+  const [groupByEpic, setGroupByEpic] = useState(true);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
   const apiRef = useRef<IApi | null>(null);
-  const { epics, projects, tasks, dependencies, milestones } = usePlanningData({
+  const { epics, projects, tasks, dependencies, milestones, equipes, allocations } = usePlanningData({
     onError: setErr,
   });
+
+  // Filtre équipe : tâches/projets en scope (null = pas de filtre). Pur, testé.
+  const { taskIds: teamFilterTaskIds, projectIds: teamFilterProjectIds } = useMemo(
+    () => deriveTeamFilter({ allocations, tasks, selectedTeamIds }),
+    [allocations, tasks, selectedTeamIds],
+  );
 
   // Colonne « aujourd'hui » surlignée (parité todayColor de l'ancien Gantt).
   const todayIso = useMemo(() => isoDate(startOfToday()), []);
@@ -128,6 +139,11 @@ export default function GanttSvarPage() {
     return m;
   }, [tasks]);
 
+  // ⚠️ Réactivité : changer teamFilter*/groupByEpic reconstruit `tasks` → SVAR relit
+  // toute la prop (replie les projets dépliés ; un drag non rechargé revient à
+  // l'ancienne date, la donnée restant correcte en base). À traiter dans l'incrément
+  // « réactivité SVAR » : état déplié côté React + reload après mutation + cascade sur
+  // données complètes (cf. mémoire svar-reactivite-store-vs-react).
   const svarTasks = useMemo(
     () =>
       buildSvarTasks({
@@ -135,10 +151,11 @@ export default function GanttSvarPage() {
         projects,
         tasksByProject,
         milestones,
-        teamFilterProjectIds: null,
-        teamFilterTaskIds: null,
+        teamFilterProjectIds,
+        teamFilterTaskIds,
+        groupByEpic,
       }),
-    [epics, projects, tasksByProject, milestones],
+    [epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds, groupByEpic],
   );
   const svarLinks = useMemo(() => buildSvarLinks(dependencies), [dependencies]);
 
@@ -334,6 +351,18 @@ export default function GanttSvarPage() {
         </div>
         <button
           type="button"
+          className={`svar-toggle${groupByEpic ? " active" : ""}`}
+          aria-pressed={groupByEpic}
+          onClick={() => setGroupByEpic((v) => !v)}
+          title="Afficher une ligne d'en-tête par epic"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">
+            {groupByEpic ? "folder_open" : "folder"}
+          </span>
+          Grouper par epic
+        </button>
+        <button
+          type="button"
           className="svar-today"
           onClick={() => apiRef.current?.exec("scroll-chart", { date: startOfToday() })}
           title="Recentrer sur aujourd'hui"
@@ -342,6 +371,47 @@ export default function GanttSvarPage() {
           Aujourd'hui : {fmtDate(new Date())}
         </button>
       </div>
+      {equipes.length > 0 && (
+        <div className="svar-teams">
+          <span className="svar-teams-label">
+            <span className="material-symbols-outlined" aria-hidden="true">groups</span>
+            Filtrer par équipe :
+          </span>
+          {equipes.map((eq) => {
+            const active = selectedTeamIds.has(eq.id);
+            return (
+              <button
+                key={eq.id}
+                type="button"
+                className={`svar-chip${active ? " active" : ""}`}
+                aria-pressed={active}
+                title={`${eq.nom} · ${eq.temps_dispo_hebdo} h/sem`}
+                onClick={() =>
+                  setSelectedTeamIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(eq.id)) next.delete(eq.id);
+                    else next.add(eq.id);
+                    return next;
+                  })
+                }
+              >
+                {eq.nom}
+              </button>
+            );
+          })}
+          {selectedTeamIds.size > 0 && (
+            <button
+              type="button"
+              className="svar-chip-reset"
+              title="Vider le filtre équipe"
+              onClick={() => setSelectedTeamIds(new Set())}
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">close</span>
+              Réinitialiser
+            </button>
+          )}
+        </div>
+      )}
       <ErrorBanner error={err} />
       <div style={{ height: "78vh", border: "1px solid #e5e7eb" }}>
         <Willow>

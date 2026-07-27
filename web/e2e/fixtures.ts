@@ -47,9 +47,12 @@ export const DEPENDENCIES: Dependency[] = [
 
 export const EQUIPES: Equipe[] = [
   { id: 1, nom: "Equipe A", temps_dispo_hebdo: 35, created_at: "", updated_at: "" },
+  { id: 2, nom: "Equipe B", temps_dispo_hebdo: 35, created_at: "", updated_at: "" },
 ];
 
-// La tâche 11 (projet 1) est allouée à Equipe A → permet de tester le filtre.
+// Tâche 11 (projet 1) → Equipe A ; tâche 13 (projet 2) → Equipe B. Permet de tester
+// le filtre équipe et sa sémantique d'UNION (A ∪ B révèle les deux projets).
 export const TACHE_EQUIPE: TacheEquipe[] = [
   { id: 1, tache_id: 11, equipe_id: 1, heures_allouees: 10 },
+  { id: 2, tache_id: 13, equipe_id: 2, heures_allouees: 8 },
 ];
