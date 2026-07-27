@@ -13,7 +13,7 @@ import { buildSvarTasks } from "../planning/buildSvarTasks";
 import { buildSvarLinks, svarLinkToDependency } from "../planning/buildSvarLinks";
 import { parseSvarId } from "../planning/svarAdapter";
 import { isoDate, toDate, daysBetweenIso, fmtDate } from "../planning/dates";
-import { planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
+import { planBlockShift, planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
 import { deriveTeamFilter } from "../planning/teamFilter";
 import { useUndo } from "../planning/useUndo";
 import {
@@ -150,9 +150,11 @@ export default function GanttSvarPage() {
   // graphe COMPLET (toutes les tâches + dépendances), pas le store filtré → parité.
   const tasksRef = useRef(tasks);
   const depsRef = useRef(dependencies);
+  const projectsRef = useRef(projects);
   useEffect(() => {
     tasksRef.current = tasks;
     depsRef.current = dependencies;
+    projectsRef.current = projects;
   });
 
   // Pile d'annulation (Ctrl+Z) : chaque mutation empile son inverse (persisté). Le
@@ -237,8 +239,11 @@ export default function GanttSvarPage() {
     });
 
     api.intercept("update-task", (ev) => {
-      // Ne capturer l'origine que pour un vrai geste utilisateur (pas nos ré-émissions).
-      if (ev.eventSource === "rollback" || ev.eventSource === "cascade") return true;
+      // Ne capturer l'origine que pour un vrai geste utilisateur (pas nos ré-émissions,
+      // ni les ré-émissions INTERNES de SVAR : `eventSource:"update-task"` = déplacement
+      // des enfants d'un summary glissé (moveSummaryKids) et recalcul des dates de summary
+      // parent (resetSummaryDates) — cf. gantt-store. On laisse SVAR agir (return true).
+      if (ev.eventSource === "rollback" || ev.eventSource === "cascade" || ev.eventSource === "update-task") return true;
       if (!originalRef.current.has(ev.id)) {
         const t = api.getTask(ev.id);
         if (t?.start && t?.end) originalRef.current.set(ev.id, { start: t.start, end: t.end });
@@ -285,9 +290,12 @@ export default function GanttSvarPage() {
     };
 
     // Au commit du drag (inProgress=false) : persister ; sur refus API, rollback.
-    // eventSource "cascade" = nos décalages (cascade/groupe) ré-émis → ne pas re-traiter.
+    // On ignore nos propres ré-émissions ("cascade"/"rollback") ET celles de SVAR
+    // ("update-task" : enfants d'un summary glissé + recalcul du summary parent) :
+    // sinon chaque descendant déclencherait un traitement → un undo distinct (bug des
+    // 15 undos au drag d'un projet). Le geste racine (summary) est géré en UN bloc.
     api.on("update-task", async (ev) => {
-      if (ev.eventSource === "rollback" || ev.eventSource === "cascade" || ev.inProgress) return;
+      if (ev.eventSource === "rollback" || ev.eventSource === "cascade" || ev.eventSource === "update-task" || ev.inProgress) return;
       const orig = originalRef.current.get(ev.id);
       originalRef.current.delete(ev.id);
       const parsed = parseSvarId(String(ev.id));
@@ -335,19 +343,48 @@ export default function GanttSvarPage() {
         return;
       }
 
-      // Projet / jalon : persistance simple (pas de cascade).
+      // Projet / epic (summary) : SVAR a déjà déplacé tout le sous-arbre (dates dérivées
+      // des enfants). On persiste le BLOC entier — le(s) projet(s) + toutes leurs tâches,
+      // masquées comprises — décalé du même delta, et on empile UN SEUL undo (parité :
+      // le bloc suit ; pas de cascade FS externe pour un déplacement de bloc).
+      if (parsed.kind === "proj" || parsed.kind === "epic") {
+        if (!orig) return;
+        const deltaDays = daysBetweenIso(isoDate(orig.start), date_debut);
+        if (deltaDays === 0) return;
+        const { projects: projShifts, tasks: taskShifts } = planBlockShift({
+          kind: parsed.kind,
+          ref: parsed.ref,
+          deltaDays,
+          projects: projectsRef.current,
+          tasks: tasksRef.current,
+        });
+        const label =
+          parsed.kind === "proj"
+            ? `Déplacement projet${taskShifts.length ? ` + ${taskShifts.length} tâche${taskShifts.length > 1 ? "s" : ""}` : ""}`
+            : `Déplacement epic (${projShifts.length} projet${projShifts.length > 1 ? "s" : ""})`;
+        try {
+          await Promise.all([
+            ...projShifts.map((s) => projectsApi.update(s.id, s.after)),
+            ...taskShifts.map((s) => tasksApi.update(s.id, s.after)),
+          ]);
+          pushUndo(label, () =>
+            Promise.all([
+              ...projShifts.map((s) => projectsApi.update(s.id, s.before)),
+              ...taskShifts.map((s) => tasksApi.update(s.id, s.before)),
+            ]).then(() => {}),
+          );
+        } catch (e) {
+          setErr(e);
+        }
+        reload();
+        return;
+      }
+
+      // Jalon : persistance simple (pas de cascade). Rollback visuel si l'API refuse.
       const ref = Number(parsed.ref);
       try {
-        if (parsed.kind === "proj") {
-          await projectsApi.update(ref, { date_debut, date_fin });
-          if (orig)
-            pushUndo("Déplacement projet", () =>
-              projectsApi.update(ref, { date_debut: isoDate(orig.start), date_fin: isoDate(orig.end) }).then(() => {}),
-            );
-        } else if (parsed.kind === "ms") {
-          await milestonesApi.update(ref, { date: date_debut });
-          if (orig) pushUndo("Déplacement jalon", () => milestonesApi.update(ref, { date: isoDate(orig.start) }).then(() => {}));
-        } else return; // epic (summary) : pas de persistance
+        await milestonesApi.update(ref, { date: date_debut });
+        if (orig) pushUndo("Déplacement jalon", () => milestonesApi.update(ref, { date: isoDate(orig.start) }).then(() => {}));
         reload();
       } catch (e) {
         setErr(e);

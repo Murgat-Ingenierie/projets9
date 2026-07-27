@@ -12,9 +12,11 @@ import { mockApi, type ApiCall } from "./mockApi";
 //
 // Restent vérifiés en aperçu live (DnD `mousedown` natif, non pilotable de façon
 // stable en headless — géométrie dépendante de la date/largeur des barres) : le
-// DÉPLACEMENT d'une barre (incr. 2) et la SUPPRESSION d'un lien (sélection de la
-// ligne puis bouton corbeille). La logique reste couverte en unitaire
-// (buildSvarLinks/svarLinkToDependency/parseSvarId, src/planning/*.test.ts).
+// DÉPLACEMENT d'une barre (incr. 2), le DÉPLACEMENT d'un PROJET (summary → décalage
+// en bloc du projet + ses tâches, UN seul undo, cf. planBlockShift) et la SUPPRESSION
+// d'un lien (sélection de la ligne puis bouton corbeille). La logique reste couverte
+// en unitaire (buildSvarLinks/svarLinkToDependency/parseSvarId/planBlockShift,
+// src/planning/*.test.ts).
 
 async function gotoSvar(page: Page): Promise<ApiCall[]> {
   // Date figée dans la fenêtre des fixtures (tâches jul.–sep. 2026) + fenêtre large :
