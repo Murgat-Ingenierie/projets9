@@ -5,14 +5,20 @@
 // undo, panneau : incréments suivants.
 import { useMemo, useRef, useState } from "react";
 import { Gantt, Willow } from "@svar-ui/react-gantt";
-import type { IApi, TID } from "@svar-ui/react-gantt";
+import type { IApi, TID, ILink } from "@svar-ui/react-gantt";
 import "@svar-ui/react-gantt/all.css";
+import "./gantt-svar.css"; // correctifs thème (icône corbeille cliquable — cf. fichier)
 import { usePlanningData } from "../planning/usePlanningData";
 import { buildSvarTasks } from "../planning/buildSvarTasks";
-import { buildSvarLinks } from "../planning/buildSvarLinks";
+import { buildSvarLinks, svarLinkToDependency } from "../planning/buildSvarLinks";
 import { parseSvarId } from "../planning/svarAdapter";
 import { isoDate } from "../planning/dates";
-import { tasks as tasksApi, projects as projectsApi, milestones as milestonesApi } from "../api/endpoints";
+import {
+  tasks as tasksApi,
+  projects as projectsApi,
+  milestones as milestonesApi,
+  dependencies as depsApi,
+} from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 import type { Task } from "../types";
 
@@ -52,6 +58,8 @@ export default function GanttSvarPage() {
 
   // Rollback (SPEC §4) : dates d'origine capturées AVANT l'application du drag.
   const originalRef = useRef<Map<TID, { start: Date; end: Date }>>(new Map());
+  // Lien capturé AVANT suppression, pour pouvoir le rétablir si l'API refuse.
+  const deletedLinkRef = useRef<Map<TID, Pick<ILink, "source" | "target" | "type">>>(new Map());
 
   const onInit = (api: IApi) => {
     api.intercept("update-task", (ev) => {
@@ -88,6 +96,59 @@ export default function GanttSvarPage() {
             skipUndo: true,
             eventSource: "rollback",
           });
+        }
+      }
+    });
+
+    // — Liens (dépendances) —
+    // Avant suppression : mémoriser le lien pour pouvoir le rétablir (rollback).
+    api.intercept("delete-link", (ev) => {
+      const link = api.getState().links.byId(ev.id);
+      if (link) {
+        deletedLinkRef.current.set(ev.id, { source: link.source, target: link.target, type: link.type });
+      }
+      return true;
+    });
+
+    // Dessin d'un lien : créer la dépendance. Au succès, réaffecter l'id temporaire
+    // à l'id réel (pour une suppression ultérieure). Au refus — ou si le lien n'est
+    // pas représentable (extrémité non-tâche, type SF) — retirer le lien.
+    api.on("add-link", async (ev) => {
+      if (ev.eventSource === "rollback") return; // notre propre rétablissement
+      const id = ev.id;
+      if (id == null) return;
+      const draft = svarLinkToDependency(ev.link);
+      if (!draft) {
+        api.exec("delete-link", { id });
+        setErr(new Error("Lien non pris en charge : une dépendance relie deux tâches (FS, SS ou FF)."));
+        return;
+      }
+      setErr(null);
+      try {
+        const created = await depsApi.create(draft);
+        if (created?.id != null) {
+          api.exec("update-link", { id, link: { id: created.id } });
+        }
+      } catch (e) {
+        setErr(e);
+        api.exec("delete-link", { id }); // rollback : retirer le lien non persisté
+      }
+    });
+
+    // Suppression d'un lien : ne persister que les liens réels (id numérique) ; un id
+    // temporaire = lien jamais enregistré (création annulée/refusée). Rollback en
+    // rétablissant le lien capturé si l'API refuse.
+    api.on("delete-link", async (ev) => {
+      const captured = deletedLinkRef.current.get(ev.id);
+      deletedLinkRef.current.delete(ev.id);
+      if (typeof ev.id !== "number") return; // lien non persisté : rien à faire
+      setErr(null);
+      try {
+        await depsApi.remove(ev.id);
+      } catch (e) {
+        setErr(e);
+        if (captured) {
+          api.exec("add-link", { link: { id: ev.id, ...captured }, eventSource: "rollback" });
         }
       }
     });
