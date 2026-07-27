@@ -131,4 +131,16 @@ describe("buildSvarTasks", () => {
     expect(ids).toContain("task:11");
     expect(ids).not.toContain("task:12");
   });
+
+  it("openState surcharge l'état déplié par défaut (epic ouvert, projet replié)", () => {
+    const out = buildSvarTasks(base({
+      epics: [epic("O50", "A")],
+      projects: [proj(1, "O50", "P")],
+      tasksByProject: new Map([[1, [task(11, 1, "T")]]]),
+      openState: new Map([["epic:O50", false], ["proj:1", true]]),
+    }));
+    const m = byId(out);
+    expect(m.get("epic:O50")).toMatchObject({ open: false }); // surcharge du défaut (true)
+    expect(m.get("proj:1")).toMatchObject({ open: true }); // surcharge du défaut (false)
+  });
 });

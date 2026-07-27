@@ -3,7 +3,7 @@
 // mappings purs buildSvarTasks/buildSvarLinks. Incrément 1 : rendu lecture seule
 // (hiérarchie + jalons + dépendances). Drag/persist, contrôles, décorations,
 // undo, panneau : incréments suivants.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Gantt, Willow } from "@svar-ui/react-gantt";
 import type { IApi, TID, ILink } from "@svar-ui/react-gantt";
 import "@svar-ui/react-gantt/all.css";
@@ -22,7 +22,7 @@ import {
   dependencies as depsApi,
 } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
-import type { Task } from "../types";
+import type { Dependency, Task } from "../types";
 
 type Scale = { unit: "year" | "month" | "week" | "day"; step: number; format: (d: Date) => string };
 type ZoomLevel = "day" | "week" | "month";
@@ -65,37 +65,21 @@ function startOfToday(): Date {
   return d;
 }
 
-// Graphe FS et dates courantes lus depuis le STORE SVAR (source de vérité après des
-// drags successifs — l'état React de usePlanningData n'est pas rechargé côté SVAR).
-function fsEdgesFromStore(api: IApi): FsEdge[] {
+// Graphe FS et dates depuis l'état React COMPLET (usePlanningData), PAS le store SVAR
+// qui peut être filtré par équipe : la cascade doit propager même vers des tâches
+// masquées (parité ancien Gantt). L'état React est frais (reload après chaque mutation).
+function fsEdgesFromDeps(deps: Dependency[]): FsEdge[] {
   const edges: FsEdge[] = [];
-  api.getState().links.forEach((l) => {
-    if (l.type !== "e2s") return; // FS seulement (cf. buildSvarLinks)
-    const s = parseSvarId(String(l.source));
-    const t = parseSvarId(String(l.target));
-    if (s?.kind === "task" && t?.kind === "task") {
-      edges.push({ amontId: Number(s.ref), avalId: Number(t.ref) });
-    }
-  });
+  for (const d of deps) {
+    if (d.type === "FS") edges.push({ amontId: d.tache_amont_id, avalId: d.tache_aval_id });
+  }
   return edges;
 }
 
-function taskDatesForIds(api: IApi, ids: Iterable<number>): Map<number, TaskDates> {
+function taskDatesFromTasks(tasks: Task[]): Map<number, TaskDates> {
   const m = new Map<number, TaskDates>();
-  for (const id of ids) {
-    const st = api.getTask(`task:${id}`);
-    if (st?.start && st?.end) m.set(id, { date_debut: isoDate(st.start), date_fin: isoDate(st.end) });
-  }
+  for (const t of tasks) m.set(t.id, { date_debut: t.date_debut, date_fin: t.date_fin });
   return m;
-}
-
-function taskDatesFromStore(api: IApi, edges: FsEdge[]): Map<number, TaskDates> {
-  const ids = new Set<number>();
-  for (const e of edges) {
-    ids.add(e.amontId);
-    ids.add(e.avalId);
-  }
-  return taskDatesForIds(api, ids);
 }
 
 // Ids des tâches actuellement sélectionnées (multi-sélection SVAR : Ctrl/⌘+clic).
@@ -116,8 +100,20 @@ export default function GanttSvarPage() {
   const [groupByEpic, setGroupByEpic] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
   const apiRef = useRef<IApi | null>(null);
-  const { epics, projects, tasks, dependencies, milestones, equipes, allocations } = usePlanningData({
+  // État déplié (id de ligne → ouvert), suivi HORS React (ref) : survit aux
+  // reconstructions de l'arbre (filtre/groupe) sans re-render à chaque expand/repli.
+  const openStateRef = useRef<Map<string, boolean>>(new Map());
+  const { epics, projects, tasks, dependencies, milestones, equipes, allocations, reload } = usePlanningData({
     onError: setErr,
+  });
+
+  // Données React fraîches pour les handlers (closure onInit) : la cascade lit le
+  // graphe COMPLET (toutes les tâches + dépendances), pas le store filtré → parité.
+  const tasksRef = useRef(tasks);
+  const depsRef = useRef(dependencies);
+  useEffect(() => {
+    tasksRef.current = tasks;
+    depsRef.current = dependencies;
   });
 
   // Filtre équipe : tâches/projets en scope (null = pas de filtre). Pur, testé.
@@ -139,11 +135,10 @@ export default function GanttSvarPage() {
     return m;
   }, [tasks]);
 
-  // ⚠️ Réactivité : changer teamFilter*/groupByEpic reconstruit `tasks` → SVAR relit
-  // toute la prop (replie les projets dépliés ; un drag non rechargé revient à
-  // l'ancienne date, la donnée restant correcte en base). À traiter dans l'incrément
-  // « réactivité SVAR » : état déplié côté React + reload après mutation + cascade sur
-  // données complètes (cf. mémoire svar-reactivite-store-vs-react).
+  // Réactivité : SVAR relit toute la prop `tasks` à chaque changement de référence.
+  // On préserve l'état déplié via openStateRef, et reload() après chaque mutation
+  // garde l'état React frais → un changement de filtre/groupe reconstruit l'arbre
+  // depuis les dates PERSISTÉES (pas de retour à l'ancienne date).
   const svarTasks = useMemo(
     () =>
       buildSvarTasks({
@@ -154,10 +149,31 @@ export default function GanttSvarPage() {
         teamFilterProjectIds,
         teamFilterTaskIds,
         groupByEpic,
+        // Lu au recalcul du memo (dep filtre/groupe/données) ; SVAR a déjà appliqué
+        // l'expand impérativement entre-temps, donc une valeur « périmée » est sans effet.
+        // eslint-disable-next-line react-hooks/refs
+        openState: openStateRef.current,
       }),
     [epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds, groupByEpic],
   );
-  const svarLinks = useMemo(() => buildSvarLinks(dependencies), [dependencies]);
+
+  // Liens filtrés au périmètre équipe : on ne garde que les dépendances dont les DEUX
+  // extrémités sont visibles (évite les liens pendants et une cascade vers des tâches
+  // hors scope — l'édition sous filtre ne propage pas au-delà du périmètre).
+  const svarLinks = useMemo(() => {
+    const all = buildSvarLinks(dependencies);
+    if (!teamFilterTaskIds) return all;
+    return all.filter((l) => {
+      const s = parseSvarId(String(l.source));
+      const t = parseSvarId(String(l.target));
+      return (
+        s?.kind === "task" &&
+        t?.kind === "task" &&
+        teamFilterTaskIds.has(Number(s.ref)) &&
+        teamFilterTaskIds.has(Number(t.ref))
+      );
+    });
+  }, [dependencies, teamFilterTaskIds]);
 
   // Rollback (SPEC §4) : dates d'origine capturées AVANT l'application du drag.
   const originalRef = useRef<Map<TID, { start: Date; end: Date }>>(new Map());
@@ -166,6 +182,13 @@ export default function GanttSvarPage() {
 
   const onInit = (api: IApi) => {
     apiRef.current = api;
+
+    // Mémoriser l'état déplié à chaque expand/repli (ref, pas de re-render) : préservé
+    // lors des reconstructions de l'arbre (cf. openStateRef passé à buildSvarTasks).
+    api.on("open-task", (ev) => {
+      openStateRef.current.set(String(ev.id), Boolean(ev.mode));
+    });
+
     api.intercept("update-task", (ev) => {
       // Ne capturer l'origine que pour un vrai geste utilisateur (pas nos ré-émissions).
       if (ev.eventSource === "rollback" || ev.eventSource === "cascade") return true;
@@ -176,27 +199,24 @@ export default function GanttSvarPage() {
       return true;
     });
 
-    // Applique une liste de décalages (cascade OU groupe) : visuel immédiat (exec
-    // eventSource "cascade" pour ne pas re-déclencher le handler), puis persistance
-    // groupée ; rollback visuel de la tâche déplacée ET des décalées si l'API refuse.
+    // Applique une liste de décalages (cascade OU groupe) : visuel immédiat pour les
+    // tâches VISIBLES (les masquées sont persistées sans exec puis rapatriées par
+    // reload), puis persistance groupée et reload() — qui RÉCONCILIE succès ET échec
+    // depuis la vérité serveur (comme l'ancien Gantt ; pas de rollback manuel).
     const applyShiftsAndPersist = async (
       movedId: number,
       moved: { date_debut: string; date_fin: string },
       shifts: { id: number; date_debut: string; date_fin: string }[],
-      orig: { start: Date; end: Date } | undefined,
-      movedTid: TID,
     ) => {
-      const applied: { id: number; start: Date; end: Date }[] = [];
       for (const s of shifts) {
-        const st = api.getTask(`task:${s.id}`);
-        if (!st?.start || !st?.end) continue;
-        applied.push({ id: s.id, start: st.start, end: st.end });
-        api.exec("update-task", {
-          id: `task:${s.id}`,
-          task: { start: toDate(s.date_debut), end: toDate(s.date_fin) },
-          skipUndo: true,
-          eventSource: "cascade",
-        });
+        if (api.getTask(`task:${s.id}`)) {
+          api.exec("update-task", {
+            id: `task:${s.id}`,
+            task: { start: toDate(s.date_debut), end: toDate(s.date_fin) },
+            skipUndo: true,
+            eventSource: "cascade",
+          });
+        }
       }
       try {
         await Promise.all([
@@ -205,13 +225,8 @@ export default function GanttSvarPage() {
         ]);
       } catch (e) {
         setErr(e);
-        if (orig) {
-          api.exec("update-task", { id: movedTid, task: { start: orig.start, end: orig.end }, skipUndo: true, eventSource: "rollback" });
-        }
-        for (const a of applied) {
-          api.exec("update-task", { id: `task:${a.id}`, task: { start: a.start, end: a.end }, skipUndo: true, eventSource: "rollback" });
-        }
       }
+      reload();
     };
 
     // Au commit du drag (inProgress=false) : persister ; sur refus API, rollback.
@@ -240,23 +255,23 @@ export default function GanttSvarPage() {
             movedId,
             deltaDays,
             selectedIds: selected,
-            taskDates: taskDatesForIds(api, selected),
+            taskDates: taskDatesFromTasks(tasksRef.current),
           });
-          await applyShiftsAndPersist(movedId, moved, shifts, orig, ev.id);
+          await applyShiftsAndPersist(movedId, moved, shifts);
           return;
         }
 
-        // Cascade FS : delta de la FIN propagé aux tâches postérieures.
+        // Cascade FS sur le graphe COMPLET (dépendances + toutes les tâches, état React
+        // frais) : propage même vers un successeur masqué par le filtre équipe.
         const deltaDays = orig && t.end ? daysBetweenIso(isoDate(orig.end), date_fin) : 0;
-        const edges = fsEdgesFromStore(api);
         const shifts = planCascadeShifts({
           movedId,
           oldStartIso: orig ? isoDate(orig.start) : date_debut,
           deltaDays,
-          edges,
-          taskDates: taskDatesFromStore(api, edges),
+          edges: fsEdgesFromDeps(depsRef.current),
+          taskDates: taskDatesFromTasks(tasksRef.current),
         });
-        await applyShiftsAndPersist(movedId, moved, shifts, orig, ev.id);
+        await applyShiftsAndPersist(movedId, moved, shifts);
         return;
       }
 
@@ -265,6 +280,7 @@ export default function GanttSvarPage() {
         if (parsed.kind === "proj") await projectsApi.update(Number(parsed.ref), { date_debut, date_fin });
         else if (parsed.kind === "ms") await milestonesApi.update(Number(parsed.ref), { date: date_debut });
         else return; // epic (summary) : pas de persistance
+        reload();
       } catch (e) {
         setErr(e);
         if (orig) {
@@ -307,6 +323,7 @@ export default function GanttSvarPage() {
         if (created?.id != null) {
           api.exec("update-link", { id, link: { id: created.id } });
         }
+        reload();
       } catch (e) {
         setErr(e);
         api.exec("delete-link", { id }); // rollback : retirer le lien non persisté
@@ -323,6 +340,7 @@ export default function GanttSvarPage() {
       setErr(null);
       try {
         await depsApi.remove(ev.id);
+        reload();
       } catch (e) {
         setErr(e);
         if (captured) {

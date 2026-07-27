@@ -18,10 +18,13 @@ export interface BuildSvarTasksInput {
   /** true (défaut) = lignes d'en-tête epic (projets sous l'epic) ; false = projets
    *  à plat au niveau racine (pas de ligne epic), triés par nom d'epic puis id. */
   groupByEpic?: boolean;
+  /** État déplié par id de ligne ("epic:<tri>", "proj:<id>") ; surcharge le défaut
+   *  (epic ouvert, projet replié) pour survivre aux reconstructions de l'arbre. */
+  openState?: Map<string, boolean>;
 }
 
 export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
-  const { epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds, groupByEpic = true } = input;
+  const { epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds, groupByEpic = true, openState } = input;
   const out: ITask[] = [];
   const epicByTri = new Map(epics.map((e) => [e.trigramme, e]));
 
@@ -51,7 +54,12 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
 
     // Ligne d'en-tête epic seulement en mode groupé ; sinon projets à la racine.
     if (groupByEpic) {
-      out.push({ id: `epic:${tri}`, text: epic?.nom ?? tri, type: "summary", open: true });
+      out.push({
+        id: `epic:${tri}`,
+        text: epic?.nom ?? tri,
+        type: "summary",
+        open: openState?.get(`epic:${tri}`) ?? true,
+      });
     }
 
     for (const p of epicProjects) {
@@ -67,7 +75,7 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
         parent: groupByEpic ? `epic:${tri}` : undefined,
         start: toDate(p.date_debut),
         end: toDate(p.date_fin),
-        open: false, // projets repliés par défaut (parité avec l'actuel)
+        open: openState?.get(`proj:${p.id}`) ?? false, // repliés par défaut
       });
       for (const t of pTasks) {
         out.push({
