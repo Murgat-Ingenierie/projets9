@@ -39,10 +39,13 @@ const ZOOMS: Record<ZoomLevel, { label: string; cellWidth: number; scales: Scale
     cellWidth: 36,
     scales: [MONTH_TOP, { unit: "day", step: 1, format: (d) => String(d.getDate()) }],
   },
+  // Colonnes hebdomadaires via un pas de 7 JOURS (unité mini = jour) : les cellules
+  // de mois gardent une largeur exacte (proportionnelle aux jours), au lieu d'être
+  // arrondies au nombre entier de semaines — ce qui décalait l'entête des mois.
   week: {
     label: "Semaine",
-    cellWidth: 52,
-    scales: [MONTH_TOP, { unit: "week", step: 1, format: (d) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) }],
+    cellWidth: 8,
+    scales: [MONTH_TOP, { unit: "day", step: 7, format: (d) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) }],
   },
   month: {
     label: "Mois",
