@@ -12,9 +12,11 @@ import { mockApi, type ApiCall } from "./mockApi";
 //
 // Restent vérifiés en aperçu live (DnD `mousedown` natif, non pilotable de façon
 // stable en headless — géométrie dépendante de la date/largeur des barres) : le
-// DÉPLACEMENT d'une barre (incr. 2) et la SUPPRESSION d'un lien (sélection de la
-// ligne puis bouton corbeille). La logique reste couverte en unitaire
-// (buildSvarLinks/svarLinkToDependency/parseSvarId, src/planning/*.test.ts).
+// DÉPLACEMENT d'une barre (incr. 2), le DÉPLACEMENT d'un PROJET (summary → décalage
+// en bloc du projet + ses tâches, UN seul undo, cf. planBlockShift) et la SUPPRESSION
+// d'un lien (sélection de la ligne puis bouton corbeille). La logique reste couverte
+// en unitaire (buildSvarLinks/svarLinkToDependency/parseSvarId/planBlockShift,
+// src/planning/*.test.ts).
 
 async function gotoSvar(page: Page): Promise<ApiCall[]> {
   // Date figée dans la fenêtre des fixtures (tâches jul.–sep. 2026) + fenêtre large :
@@ -151,5 +153,28 @@ test.describe("Planning SVAR — parité 2b", () => {
     // Un filtre équipe qui garde le projet visible ne le replie pas non plus.
     await page.getByRole("button", { name: "Equipe A", exact: true }).click();
     await expect(page.getByText("Choix capteurs").first()).toBeVisible();
+  });
+
+  test("undo : annuler une création de lien (bouton + DELETE)", async ({ page }) => {
+    const calls = await gotoSvar(page);
+    await expandRow(page, "Capteurs O2");
+    await expandRow(page, "Regulation flux");
+    await expect(page.getByText("Etude debit").first()).toBeVisible();
+
+    const undoBtn = page.getByRole("button", { name: /Annuler/ });
+    await expect(undoBtn).toBeDisabled(); // rien à annuler au départ
+
+    // Créer un lien (2 clics) → empile une action d'annulation.
+    await clickHandle(page, "12", "left");
+    await clickHandle(page, "13", "left");
+    await expect.poll(() => postDep(calls), { timeout: 5000 }).toBeTruthy();
+    await expect(undoBtn).toBeEnabled();
+
+    // Annuler → DELETE de la dépendance créée (id 999 échoé par le mock).
+    await undoBtn.click();
+    await expect
+      .poll(() => calls.find((c) => c.method === "DELETE" && c.path.includes("/api/dependencies/999")), { timeout: 5000 })
+      .toBeTruthy();
+    await expect(undoBtn).toBeDisabled();
   });
 });
