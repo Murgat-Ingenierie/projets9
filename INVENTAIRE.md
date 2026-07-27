@@ -23,6 +23,28 @@
 > depuis : **une affirmation de ce document doit être vérifiable par une commande**, et les
 > commandes en question sont citées.
 
+> **⚠️ MàJ 2026-07-27 — deux mouvements majeurs que ce document ignorait.**
+>
+> Ce document s'était arrêté au **2026-07-23**. Entre-temps **deux chantiers lourds** ont été livrés
+> et fusionnés dans `main` ; une session qui lisait la version précédente sous-estimait le projet
+> de deux chantiers. Les sections concernées (§1, §2, §4, §6, §7, §8, §9) sont mises à jour.
+>
+> **1. L'authentification a été entièrement débrayée** (PR #36, 2026-07-24) — crochet **assumé et
+> temporaire, en vue d'une intégration Keycloak**. Le front n'a plus ni page de login ni guard de
+> route ; côté API, `AUTH_DISABLED` court-circuite `get_current_user`/`require_admin`.
+> ⚠️ **`.env.example` livre `AUTH_DISABLED=true`** : l'app expédiée tourne donc **sans
+> authentification**, et **Keycloak n'est à ce jour que des commentaires** (aucun conteneur, aucune
+> implémentation). Voir §4 et le risque **R14**.
+>
+> **2. Le chantier C9 (refacto du Gantt) a produit un nouveau moteur Gantt, sur SVAR** — Phase 1
+> (extraction de la logique pure sous Vitest, `web/src/planning/*`) puis **Phase 2b : une
+> réimplémentation complète sur `@svar-ui/react-gantt`**, livrée en 10 incréments (PR #41 → #50).
+> ⚠️ **La bascule n'a PAS eu lieu** : il y a **deux Gantt vivants**. L'ancien
+> `web/src/pages/GanttPage.tsx` (`gantt-task-react`) sert toujours la route **`/`** et la nav ; le
+> nouveau `web/src/pages/GanttSvarPage.tsx` n'est accessible qu'en **aperçu sur `/planning-svar`**,
+> hors menu. **Les risques R5/R9/R10 s'appliquent donc toujours à ce que voit l'utilisateur.**
+> Voir §9, chantier **C9**.
+
 ---
 
 ## 1. Démarrage — état vérifié
@@ -34,7 +56,7 @@ La procédure du `README.md` (`cp .env.example .env` → `docker compose up --bu
 |---|---|---|
 | `db` | ✅ healthy | Postgres 16, 8 migrations appliquées jusqu'à `0008` |
 | `api` | ✅ up | migrations + seed + uvicorn OK |
-| `web` | ✅ up | login → Gantt rendu |
+| `web` | ✅ up | Gantt rendu directement *(plus de login depuis #36 — voir §4)* |
 | `proxy` | ✅ up | `:8080` |
 | `backup` | ✅ up | dump vérifié (3.7 Ko gz, 11 tables) |
 
@@ -87,12 +109,13 @@ refusent toujours (INV-1, INV-4, INV-7, INV-8, INV-14, INV-15), ceux retirés ac
 
 ## 2. Périmètre fonctionnel — SPEC §4 vs réel
 
-**8 des 11 écrans spécifiés sont livrés, 1 partiel, 2 absents — et 2 écrans non spécifiés existent.**
+**6 des 11 écrans spécifiés sont livrés, 2 partiels, 3 absents — et 2 écrans non spécifiés existent.**
+*(MàJ 2026-07-27 : le Login, auparavant livré, a été **retiré** en #36 — d'où 6 livrés au lieu de 7 et 3 absents au lieu de 2.)*
 
 | # | Écran (SPEC §4) | État | Détail |
 |---|---|---|---|
-| 1 | Login | ✅ | `/login` |
-| 2 | Vue Gantt | ✅ **au-delà de la spec** | zoom Jour/Semaine/Mois, filtres **par équipe**, groupe par epic, undo, drag/resize, multi-sélection + décalage groupé, cascade FS, création/suppression de dépendance au drag, curseur « aujourd'hui » |
+| 1 | Login | ❌ **retiré (#36, 2026-07-24)** | la page et la route `/login` n'existent plus ; aucun guard. Interim avant Keycloak — voir §4 et **R14** |
+| 2 | Vue Gantt | ✅ **au-delà de la spec** | zoom Jour/Semaine/Mois, filtres **par équipe**, groupe par epic, undo, drag/resize, multi-sélection + décalage groupé, cascade FS, création/suppression de dépendance au drag, curseur « aujourd'hui ». ⚠️ **Deux implémentations coexistent** : l'ancienne (`gantt-task-react`) sur `/`, la nouvelle (SVAR) en aperçu sur `/planning-svar` — voir C9 |
 | 3 | CRUD Epics | ✅ | table triable + édition inline |
 | 4 | CRUD Projets | ✅ | ⚠️ seule liste **sans** édition inline |
 | 5 | CRUD Tâches | ✅ | |
@@ -158,6 +181,14 @@ Le proxy passe `/api/` **sans réécriture** — cohérent par construction.
 | Ouvert | Admin uniquement | Authentifié (tout membre) |
 |---|---|---|
 | `POST /api/auth/login`, `GET /api/health` | `POST`/`PUT`/`DELETE /api/users/{id}` (3) | **les 37 autres** |
+
+> ⚠️ **Ce tableau décrit le comportement `AUTH_DISABLED=false` — qui n'est PAS celui de l'app expédiée.**
+> Depuis #36 (2026-07-24), quand `AUTH_DISABLED=true` (valeur livrée par `.env.example`) :
+> `get_current_user` renvoie **le premier admin actif sans regarder le token**, et `require_admin`
+> laisse tout passer (`api/app/auth/deps.py`). **Toutes les colonnes ci-dessus s'effondrent en une
+> seule : tout est ouvert, en admin.** Le chemin JWT existe toujours et reste utilisé si
+> `AUTH_DISABLED=false`. Côté front, plus de login ni de guard, et `client.ts` **ne redirige plus
+> sur 401** — l'erreur remonte comme les autres. Voir **R14**.
 
 ### Constats
 
@@ -307,7 +338,25 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 > en refusant les emails cassés (vérifié : `@…local` → 201, `pas-un-email` → 422). `email-validator`,
 > devenu inutile, est retiré des dépendances. L'`xfail` est devenu un test de régression vert.
 
-### Écarts README ↔ CI réelle
+### La CI aujourd'hui (MàJ 2026-07-27) — 6 jobs, tous bloquants
+
+> Le reste de cette section §6 raconte l'**état d'origine** et sa correction (valeur historique).
+> Voici, pour référence rapide, ce que `.github/workflows/ci.yml` exécute **aujourd'hui**, sur
+> `pull_request` + `workflow_dispatch` :
+>
+> | Job | Contenu |
+> |---|---|
+> | `api` | Ruff + **Postgres 16** (`alembic upgrade head` + `alembic check`) + pytest — sur **Python 3.14**, la version expédiée |
+> | `web` | `npm ci` → `lint` (ESLint 10) → `test` (Vitest) → `build` (Vite 8 / TS 6) |
+> | **`e2e`** | **Playwright chromium** (`npm run test:e2e`) — API mockée côté navigateur, aucun backend requis |
+> | `docker` | build des 3 images (`needs: [api, web]`) |
+> | `sast` | **Semgrep** `--error`, 8 rulesets |
+> | `dast` | **ZAP Baseline** contre la stack complète |
+>
+> Tests front : **12 fichiers** `web/src/planning/*.test.ts` couvrant **les deux** moteurs Gantt,
+> plus `web/e2e/{gantt,gantt-svar}.spec.ts`.
+
+### Écarts README ↔ CI réelle *(constat d'origine, corrigé depuis)*
 
 | Annoncé | Réel |
 |---|---|
@@ -362,7 +411,7 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 | **Refresh token** | §6 | non implémenté |
 | ~~**Rôles**~~ | ~~admin / membre distincts~~ | **Pas un écart — erreur de la v1 de ce document.** La SPEC §6 dit littéralement « `membre` (CRUD métier sans gestion users) » : un membre a bien tout le CRUD métier. Le code est **conforme**. Voir R4. |
 | **CI** | ruff + **black**, **eslint** + tsc, pytest, docker | ni black, ni eslint |
-| **Lib Gantt** | `gantt-task-react` « à confirmer » | confirmé, `^0.3.9` |
+| **Lib Gantt** | `gantt-task-react` « à confirmer » | confirmé, `^0.3.9` — **plus une seconde lib depuis C9 Phase 2b : `@svar-ui/react-gantt` `^2.7.1`** (les deux sont installées, cf. C9) |
 | **SS / FF** | types de dépendance légitimes | **jamais dessinés** sur le Gantt (`continue` si `!== "FS"`) — créables mais invisibles |
 | **INV-9** | « supprimé, hachure rouge côté UI » | hachure ✅ présente ; fonction morte laissée dans `checks.py` |
 
@@ -376,15 +425,17 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 | ~~R2~~ | ~~**Dérive modèles ↔ migrations**~~ | ✅ **résolu (C5, 2026-07-22)** | Modèle aligné : `index=True` déclaré sur les colonnes de `milestone_project` (les index de `0008`), et migration `0009` qui normalise l'unicité `users.email` en un seul index unique (retrait de la contrainte + index non-unique redondants de `0001`). `alembic check` : *No new upgrade operations detected*, y compris sur base vierge. **Verrouillé en CI** par C12 (le check tourne à chaque PR). |
 | ~~R3~~ | ~~**1 invariant testé sur 20**~~ | ✅ **résolu (C3)** | Les 25 invariants actifs sont couverts : **191 tests, 0 xfail**, sur 3 couches (unitaire, API, Hypothesis), plus un garde-fou de couverture. Suite éprouvée par mutation : 8/8. |
 | R4 | **RBAC : tout membre peut tout détruire** | 🟡 | 3 endpoints gardés par `require_admin` sur 40. **Conforme à la SPEC §6** (« membre : CRUD métier sans gestion users ») — la v1 de ce document le présentait à tort comme un écart. Reste une question de **conception**, pas de conformité : est-il voulu qu'un membre puisse supprimer un epic entier ? Y toucher serait un changement de besoin, à trancher dans la SPEC avant d'être codé. Seul écart réel : `GET /api/users` n'est pas gaté admin. |
-| R5 | **Gantt couplé au DOM de la lib** | 🟠 | mapping **par index DOM** entre `svg g[tabindex]` et le tableau de tâches (poignées, décorations, flèches). Un changement d'ordre de rendu de `gantt-task-react` → **suppression de la mauvaise dépendance**, en silence. Sélecteurs internes (`g[class~="arrow"]`), détection d'« aujourd'hui » en cherchant la chaîne `"255, 152, 0"` dans un `fill`. 3 `setInterval` permanents (250/300/500 ms). |
+| R5 | **Gantt couplé au DOM de la lib** | 🟠 | mapping **par index DOM** entre `svg g[tabindex]` et le tableau de tâches (poignées, décorations, flèches). Un changement d'ordre de rendu de `gantt-task-react` → **suppression de la mauvaise dépendance**, en silence. Sélecteurs internes (`g[class~="arrow"]`), détection d'« aujourd'hui » en cherchant la chaîne `"255, 152, 0"` dans un `fill`. 3 `setInterval` permanents (250/300/500 ms). ⚠️ **Toujours actif** : le remplaçant SVAR (sans aucun de ces défauts) existe mais n'est qu'en aperçu sur `/planning-svar` — **`/` sert encore l'ancien moteur**. Ce risque ne tombera qu'à la bascule (C9). |
 | ~~R6~~ | ~~**Backup tolère la corruption**~~ | ✅ **résolu (C6, 2026-07-22)** | `set -o pipefail` (busybox ash le supporte) + écriture dans un `.part` renommé seulement en cas de succès + `gzip -t` : plus de `.sql.gz` tronqué compté comme réussi. Rétention par âge **avec plancher `BACKUP_MIN_COPIES`** (défaut 7) : une longue panne ne peut plus vider le dossier. Testé en isolation (5/5) et cycle backup→restore vérifié contre la stack. **Reste hors périmètre** : aucune copie hors-volume (choix d'infra — S3/NAS — à la charge du déploiement). |
 | R7 | **Pas de lockfile npm** | 🟠 | builds non reproductibles |
 | ~~R8~~ | ~~**Jalons orphelins**~~ | ✅ **résolu (2026-07-22)** | La suppression d'un projet/epic qui orphelinerait un jalon est refusée (409 INV-6, `milestone_guard`). Vérifié end-to-end (4/4) et par test (projet & epic, + cas permis). |
-| R9 | **`GanttPage.tsx` = 2332 lignes** | 🟡 | **plus gros que tout le backend Python (2306 l.)**, 34 % du front. Composant monolithique, 8 refs miroir d'état pour contourner les effets à deps vides. |
-| R10 | **Aucun refetch ciblé** | 🟡 | chaque mutation du Gantt relance **7 requêtes** ; pas de cache, pas d'optimistic update |
+| R9 | **`GanttPage.tsx` = 2104 lignes** | 🟡 | (2332 l. à l'origine, dégraissé par les extractions de C9 Phase 1 vers `web/src/planning/*`). Reste un composant monolithique avec ses refs miroir d'état. ⚠️ **Toujours actif** (il sert `/`). Le remplaçant SVAR fait **571 l.** — le gain est acquis mais pas encore livré à l'utilisateur : il tombe à la bascule (C9). |
+| R10 | **Aucun refetch ciblé** | 🟡 | chaque mutation du Gantt relance **7 requêtes** ; pas de cache, pas d'optimistic update. Vaut pour les **deux** moteurs (`usePlanningData.reload()`) — et c'est la cause du **flicker** observé après un drag sur SVAR (le visuel natif est correct, le refetch repasse derrière et reconstruit l'arbre). Correctif identifié, non appliqué. |
 | ~~R11~~ | ~~`docs/RESTORE.md` : `psql -U postgres`~~ | ✅ **résolu (C6)** | Runbook réécrit et cohérent (tout via le conteneur `backup`, qui a `psql` + le volume + les variables `PG*`). Vérifié : le cycle documenté restaure réellement (marqueur post-backup disparu, données revenues). |
 | R12 | `scripts/` non lintés, deps non déclarées | 🟡 | `requests`, `openpyxl`, `playwright` absents de `pyproject.toml` ; port par défaut `8088` ≠ `8080` réel |
 | R13 | Code mort | 🟡 | ~~INV-9/INV-13 (§5)~~ ✅ purgés en étape 0, ~~`Boolean` (epic)~~ ✅ retiré par `ruff --fix` — restent : `_slug()` (seed), `nav`/`navState` (GanttPage), `equipes.get` |
+| **R14** | **L'app expédiée tourne sans authentification** | 🔴 | Depuis #36 (2026-07-24) : plus de login ni de guard côté front, et `AUTH_DISABLED` court-circuite `get_current_user`/`require_admin` côté API (tout appelant est traité en **premier admin actif**). Le défaut du code est `false`, **mais `.env.example` livre `AUTH_DISABLED=true`** — donc un déploiement suivant le README expose **les 42 endpoints en écriture, sans identification**. **Décision délibérée et temporaire** (interim avant Keycloak), pas un bug : le risque est le **temps d'exposition**, d'autant que **Keycloak n'est encore que des commentaires** (`.env.example`, `docker-compose.yml`, `auth.tsx`, `client.ts` — aucun conteneur ni code). Corollaire : R4 (RBAC) est sans objet tant que R14 dure. **À refermer avant toute mise en ligne.** |
+| **R15** | **Deux moteurs Gantt en parallèle** | 🟡 | `gantt-task-react` (ancien, route `/`) **et** `@svar-ui/react-gantt` (nouveau, `/planning-svar`) sont tous deux installés et maintenus : double surface de dépendances, double jeu de tests (`web/src/planning/*` couvre les deux), et toute évolution fonctionnelle risque d'être à faire **deux fois**. État transitoire assumé de C9 — se résout par la bascule, qui permettra de supprimer l'ancien moteur et sa lib. Bloque aussi React 19 (peer `react ^18` de `gantt-task-react`, cf. `dependabot.yml`). |
 
 ### Faux positif écarté
 
@@ -447,6 +498,65 @@ JSON
 | **C6** | ✅ **Fait (2026-07-22).** `pipefail` + `.part` atomique + `gzip -t` (fin des dumps tronqués) ; rétention à plancher `BACKUP_MIN_COPIES` (fin du vidage possible) ; `RESTORE.md` réécrit et corrigé. Testé : logique 5/5 en isolation, backup réel intègre (11 tables), cycle backup→restore validé contre la stack (R6, R11). | Un backup non vérifié n'est pas un backup | S |
 | **C7** | Durcir le RBAC (R4) | Écart à la SPEC §6 | M |
 | **C8** | Écrans manquants : CRUD Mesures + courbe, Paramètres/Backup | SPEC §4 incomplet | M |
-| **C9** | Dégraisser `GanttPage.tsx` / réduire le couplage DOM (R5, R9). **Prérequis posé (2026-07-22)** : harness de tests front (Vitest + testing-library + jsdom) + 21 tests initiaux (`client.ts`, `labels.ts`, `ErrorBanner`), branchés en CI. Reste à caractériser le Gantt avant de le refactorer. | Zone la plus fragile et la plus active du dépôt | L |
+| **C9** | 🟡 **Très avancé (2026-07-24 → 27) — il ne reste que la bascule.** Détail complet en **§C9** ci-dessous. Phase 1 ✅ (logique pure extraite sous Vitest dans `web/src/planning/*`) ; Phase 2b ✅ (**réimplémentation entière sur SVAR**, PR #41→#50, en parité fonctionnelle validée en aperçu live). **Reste** : (a) le **flicker** post-mutation (diagnostiqué, non corrigé), (b) **la bascule `/planning-svar` → `/`** puis suppression de l'ancien moteur + `gantt-task-react`. Tant que (b) n'est pas fait, **R5/R9/R10/R15 restent actifs** et le gain n'est pas livré. | Zone la plus fragile et la plus active du dépôt | L |
 | **C16** | ✅ **Fait (2026-07-23) — Dependabot.** Mises à jour hebdomadaires avec **cooldown 7 jours** (n'adopte une release qu'après 7 j — protection supply-chain, et exigée par la règle SAST `dependabot-missing-cooldown`). 4 écosystèmes (pip, npm, github-actions — garde les SHA épinglés à jour —, docker). Minor/patch groupés, majeures individuelles. **TypeScript 7 refusé d'office** (pas supporté par typescript-eslint). Passe le gate SAST (0 finding). | Boucler l'automatisation des dépendances (supply-chain) | S |
 | **C15** | ✅ **Fait (2026-07-23) — durcissement CI/tests.** 3 volets, tous bloquants : ✅ tests front (Vitest) ; ✅ **SAST Semgrep** (`--error`, 8 rulesets) ; ✅ **DAST ZAP Baseline** (bloquant sur tout WARN). SAST : CORS wildcard corrigé, API + (rappel) actions épinglées, backup non-root traité en C15/SAST, 2 baselines `nosemgrep`. DAST : 5 en-têtes de sécurité ajoutés au proxy (X-Frame-Options, X-Content-Type-Options, `server_tokens off`, Permissions-Policy, **CSP stricte** `script-src 'self'`) ; Swagger préservé via une CSP assouplie **par-location** (`/api/docs`,`/redoc`) ; app vérifiée fonctionnelle sous CSP (login, Gantt, fonts, 0 violation) ; 5 alertes bas-risque/informationnelles ignorées avec justification (`.zap/rules.tsv`). | Élever le filet avant le gros refacto C9 | M |
+
+### C9 — état détaillé du chantier Gantt (MàJ 2026-07-27)
+
+> **Où on en est en une phrase** : le nouveau Gantt existe, il est en parité fonctionnelle et sous
+> tests — mais **l'utilisateur voit toujours l'ancien**, parce que la bascule n'a pas été faite.
+
+**Phase 1 — extraire la logique pure sous tests ✅** (PR #35, #37, #38, #39)
+
+Toute la logique non-DOM a été sortie du monolithe vers `web/src/planning/`, chaque module avec son
+test Vitest : `dates.ts`, `dependencies.ts` (maps + cascade FS), `useUndo.ts` (pile d'annulation),
+`usePlanningData.ts` (le chargement 7-requêtes), `buildGanttTasks.ts`, `ganttStyles.ts`.
+Effet mesurable : `GanttPage.tsx` passe de **2332 à 2104 lignes**, et la logique métier devient
+testable sans navigateur.
+
+**Phase 2b — réimplémentation sur SVAR ✅** (PR #41 → #50, `@svar-ui/react-gantt` `^2.7.1`)
+
+`web/src/pages/GanttSvarPage.tsx` — **571 lignes contre 2104**, sans manipulation impérative du DOM
+de la lib, sans `setInterval`, sans mapping par index. Livré en 10 incréments, **chacun validé en
+aperçu live** (Docker `:8080`) avant merge :
+
+| Incrément | PR |
+|---|---|
+| Fondation du planning SVAR | #41 |
+| Drag → persist → rollback | #42 |
+| Liens (dépendances) create/delete → persist → rollback | #43 |
+| Restauration des icônes (mapping → Material Symbols) | #44 |
+| Cascade FS + décalage de groupe au drag | #45 |
+| Zoom Jour/Semaine/Mois + curseur « aujourd'hui » | #46 |
+| Filtre équipe + group-by-epic | #47 |
+| Réactivité (état déplié, reload post-mutation, cascade pleine parité) | #48 |
+| Décorations des barres (couleur epic, archivées, sélection) | #49 |
+| Annulation (Ctrl+Z) des mutations | #50 |
+
+Tests : `web/src/planning/{buildSvarTasks,buildSvarLinks,svarAdapter,cascadeShifts,teamFilter}.test.ts`
++ un e2e Playwright `web/e2e/gantt-svar.spec.ts`, et un job CI **`e2e`** dédié.
+
+**Ce qui reste — dans cet ordre**
+
+1. **Le flicker post-mutation.** Après un drag, `usePlanningData.reload()` refetch les 7 collections
+   et reconstruit tout l'arbre SVAR, alors que le déplacement natif de SVAR était déjà correct à
+   l'écran. **Diagnostiqué, pas corrigé** (c'est R10 appliqué à SVAR).
+2. **La bascule `/planning-svar` → `/`.** C'est la vraie fin du chantier : router le nouveau moteur
+   sur `/`, le remettre dans la nav, **puis supprimer** `GanttPage.tsx`, ses modules propres et la
+   dépendance `gantt-task-react`. C'est ce qui fait tomber **R5, R9, R10, R15** — et qui débloque
+   au passage **React 19** (aujourd'hui refusé par le peer `react ^18` de l'ancienne lib).
+
+**Pièges déjà payés sur SVAR — à ne pas re-découvrir**
+
+- **Dessiner un lien = DEUX CLICS**, pas un drag (clic sur la poignée source, puis sur la cible ; le
+  type se déduit des côtés : droite→gauche = FS). Ce geste **est** pilotable en headless → couvert
+  par l'e2e.
+- **Déplacer/redimensionner une barre et supprimer un lien** reposent sur le DnD `mousedown` natif :
+  **non pilotables de façon stable en headless** → à valider en **aperçu live**, pas en e2e.
+- **Aucune police d'icônes n'est livrée par le paquet SVAR** (et la CSP bloque son CDN) : tous les
+  `<i class="wxi-…">` seraient vides. Corrigé en #44 par un mapping vers **Material Symbols** (déjà
+  chargée, même origine, compatible CSP). Symptôme trompeur : une icône de hauteur 0 n'est pas une
+  cible de clic — « rien ne se passe » n'était pas un bug de handler.
+- **Le store SVAR indexe par ids sans préfixe** (`task:11`, `proj:1`…) ; le `data-id=":task:11"` du
+  DOM est cosmétique.
