@@ -116,7 +116,10 @@ export default function GanttSvarPage() {
   const [groupByEpic, setGroupByEpic] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
   const apiRef = useRef<IApi | null>(null);
-  const { epics, projects, tasks, dependencies, milestones, equipes, allocations } = usePlanningData({
+  // État déplié (id de ligne → ouvert), suivi HORS React (ref) : survit aux
+  // reconstructions de l'arbre (filtre/groupe) sans re-render à chaque expand/repli.
+  const openStateRef = useRef<Map<string, boolean>>(new Map());
+  const { epics, projects, tasks, dependencies, milestones, equipes, allocations, reload } = usePlanningData({
     onError: setErr,
   });
 
@@ -139,11 +142,10 @@ export default function GanttSvarPage() {
     return m;
   }, [tasks]);
 
-  // ⚠️ Réactivité : changer teamFilter*/groupByEpic reconstruit `tasks` → SVAR relit
-  // toute la prop (replie les projets dépliés ; un drag non rechargé revient à
-  // l'ancienne date, la donnée restant correcte en base). À traiter dans l'incrément
-  // « réactivité SVAR » : état déplié côté React + reload après mutation + cascade sur
-  // données complètes (cf. mémoire svar-reactivite-store-vs-react).
+  // Réactivité : SVAR relit toute la prop `tasks` à chaque changement de référence.
+  // On préserve l'état déplié via openStateRef, et reload() après chaque mutation
+  // garde l'état React frais → un changement de filtre/groupe reconstruit l'arbre
+  // depuis les dates PERSISTÉES (pas de retour à l'ancienne date).
   const svarTasks = useMemo(
     () =>
       buildSvarTasks({
@@ -154,10 +156,31 @@ export default function GanttSvarPage() {
         teamFilterProjectIds,
         teamFilterTaskIds,
         groupByEpic,
+        // Lu au recalcul du memo (dep filtre/groupe/données) ; SVAR a déjà appliqué
+        // l'expand impérativement entre-temps, donc une valeur « périmée » est sans effet.
+        // eslint-disable-next-line react-hooks/refs
+        openState: openStateRef.current,
       }),
     [epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds, groupByEpic],
   );
-  const svarLinks = useMemo(() => buildSvarLinks(dependencies), [dependencies]);
+
+  // Liens filtrés au périmètre équipe : on ne garde que les dépendances dont les DEUX
+  // extrémités sont visibles (évite les liens pendants et une cascade vers des tâches
+  // hors scope — l'édition sous filtre ne propage pas au-delà du périmètre).
+  const svarLinks = useMemo(() => {
+    const all = buildSvarLinks(dependencies);
+    if (!teamFilterTaskIds) return all;
+    return all.filter((l) => {
+      const s = parseSvarId(String(l.source));
+      const t = parseSvarId(String(l.target));
+      return (
+        s?.kind === "task" &&
+        t?.kind === "task" &&
+        teamFilterTaskIds.has(Number(s.ref)) &&
+        teamFilterTaskIds.has(Number(t.ref))
+      );
+    });
+  }, [dependencies, teamFilterTaskIds]);
 
   // Rollback (SPEC §4) : dates d'origine capturées AVANT l'application du drag.
   const originalRef = useRef<Map<TID, { start: Date; end: Date }>>(new Map());
@@ -166,6 +189,13 @@ export default function GanttSvarPage() {
 
   const onInit = (api: IApi) => {
     apiRef.current = api;
+
+    // Mémoriser l'état déplié à chaque expand/repli (ref, pas de re-render) : préservé
+    // lors des reconstructions de l'arbre (cf. openStateRef passé à buildSvarTasks).
+    api.on("open-task", (ev) => {
+      openStateRef.current.set(String(ev.id), Boolean(ev.mode));
+    });
+
     api.intercept("update-task", (ev) => {
       // Ne capturer l'origine que pour un vrai geste utilisateur (pas nos ré-émissions).
       if (ev.eventSource === "rollback" || ev.eventSource === "cascade") return true;
@@ -203,6 +233,7 @@ export default function GanttSvarPage() {
           tasksApi.update(movedId, moved),
           ...shifts.map((s) => tasksApi.update(s.id, { date_debut: s.date_debut, date_fin: s.date_fin })),
         ]);
+        reload(); // état React frais → un filtre/groupe ultérieur repart des dates persistées
       } catch (e) {
         setErr(e);
         if (orig) {
@@ -265,6 +296,7 @@ export default function GanttSvarPage() {
         if (parsed.kind === "proj") await projectsApi.update(Number(parsed.ref), { date_debut, date_fin });
         else if (parsed.kind === "ms") await milestonesApi.update(Number(parsed.ref), { date: date_debut });
         else return; // epic (summary) : pas de persistance
+        reload();
       } catch (e) {
         setErr(e);
         if (orig) {
@@ -307,6 +339,7 @@ export default function GanttSvarPage() {
         if (created?.id != null) {
           api.exec("update-link", { id, link: { id: created.id } });
         }
+        reload();
       } catch (e) {
         setErr(e);
         api.exec("delete-link", { id }); // rollback : retirer le lien non persisté
@@ -323,6 +356,7 @@ export default function GanttSvarPage() {
       setErr(null);
       try {
         await depsApi.remove(ev.id);
+        reload();
       } catch (e) {
         setErr(e);
         if (captured) {

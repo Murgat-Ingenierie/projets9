@@ -138,4 +138,18 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByText("Optimisation bassins")).toHaveCount(0);
   });
+
+  test("l'état déplié d'un projet survit à un toggle groupe/filtre (réactivité)", async ({ page }) => {
+    await gotoSvar(page);
+    await expandRow(page, "Capteurs O2");
+    await expect(page.getByText("Choix capteurs").first()).toBeVisible();
+
+    // Basculer le groupe reconstruit l'arbre mais NE doit PAS replier le projet.
+    await page.getByRole("button", { name: /Grouper par epic/ }).click();
+    await expect(page.getByText("Choix capteurs").first()).toBeVisible();
+
+    // Un filtre équipe qui garde le projet visible ne le replie pas non plus.
+    await page.getByRole("button", { name: "Equipe A", exact: true }).click();
+    await expect(page.getByText("Choix capteurs").first()).toBeVisible();
+  });
 });
