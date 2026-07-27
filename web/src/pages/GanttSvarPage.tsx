@@ -111,9 +111,9 @@ function selectedTaskIds(api: IApi): number[] {
 export default function GanttSvarPage() {
   const [err, setErr] = useState<unknown>(null);
   const [zoom, setZoom] = useState<ZoomLevel>("day");
-  // Défaut GROUPÉ (l'ancien Gantt est à plat) : conserve la hiérarchie native SVAR
-  // déjà validée ; le toggle « Grouper par epic » aplatit (reparente à la racine).
-  const [groupByEpic, setGroupByEpic] = useState(true);
+  // Défaut À PLAT (parité avec l'ancien Gantt) : projets au niveau racine ; le toggle
+  // « Grouper par epic » ajoute les lignes d'en-tête epic (reparente sous l'epic).
+  const [groupByEpic, setGroupByEpic] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
   const apiRef = useRef<IApi | null>(null);
   const { epics, projects, tasks, dependencies, milestones, equipes, allocations } = usePlanningData({

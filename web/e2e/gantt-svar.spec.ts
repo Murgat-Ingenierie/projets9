@@ -45,12 +45,12 @@ const postDep = (calls: ApiCall[]) =>
   calls.find((c) => c.method === "POST" && c.path.endsWith("/api/dependencies"));
 
 test.describe("Planning SVAR — parité 2b", () => {
-  test("rend la hiérarchie : epic, projets, jalon", async ({ page }) => {
+  test("rend les projets et jalons (à plat par défaut)", async ({ page }) => {
     await gotoSvar(page);
-    await expect(page.getByText("Optimisation bassins").first()).toBeVisible();
     await expect(page.getByText("Capteurs O2").first()).toBeVisible();
     await expect(page.getByText("Regulation flux").first()).toBeVisible();
     await expect(page.getByText("Bassin pilote equipe").first()).toBeVisible();
+    await expect(page.getByText("Optimisation bassins")).toHaveCount(0); // pas de ligne epic par défaut
   });
 
   test("déplier un projet révèle ses tâches", async ({ page }) => {
@@ -123,19 +123,19 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expect(page.getByText("Regulation flux").first()).toBeVisible();
   });
 
-  test("group-by-epic : le toggle masque puis rétablit les lignes d'epic", async ({ page }) => {
+  test("group-by-epic : le toggle ajoute puis retire les lignes d'epic", async ({ page }) => {
     await gotoSvar(page);
     const toggle = page.getByRole("button", { name: /Grouper par epic/ });
-    await expect(toggle).toHaveAttribute("aria-pressed", "true"); // groupé par défaut
-    await expect(page.getByText("Optimisation bassins").first()).toBeVisible();
+    await expect(toggle).toHaveAttribute("aria-pressed", "false"); // à plat par défaut
+    await expect(page.getByText("Optimisation bassins")).toHaveCount(0); // pas de ligne epic
+    await expect(page.getByText("Capteurs O2").first()).toBeVisible();
+
+    await toggle.click(); // grouper
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText("Optimisation bassins").first()).toBeVisible(); // ligne epic ajoutée
 
     await toggle.click(); // dégrouper
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
-    await expect(page.getByText("Optimisation bassins")).toHaveCount(0); // plus de ligne epic
-    await expect(page.getByText("Capteurs O2").first()).toBeVisible(); // projets à la racine
-
-    await toggle.click(); // re-grouper
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByText("Optimisation bassins").first()).toBeVisible(); // ligne epic rétablie
+    await expect(page.getByText("Optimisation bassins")).toHaveCount(0);
   });
 });
