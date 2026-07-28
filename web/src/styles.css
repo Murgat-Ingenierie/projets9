@@ -887,3 +887,34 @@ dl.kv dd textarea {
   white-space: nowrap;
   max-width: 80px;
 }
+
+/* Courbe « Mesure dans le temps » (page Epic, SPEC §4 écran 8).
+   SVG maison — cf. components/measureChart.ts pour la géométrie. */
+.measure-chart {
+  display: block;
+  margin: 12px 0 20px;
+  max-width: 100%;
+  overflow: visible;
+}
+.measure-chart-grid {
+  stroke: #eceff1;
+  stroke-width: 1;
+}
+.measure-chart-axis {
+  stroke: #b0bec5;
+  stroke-width: 1;
+}
+.measure-chart-label {
+  fill: #78909c;
+  font-size: 11px;
+}
+.measure-chart-line {
+  fill: none;
+  stroke: #1976d2;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.measure-chart-dot {
+  fill: #1976d2;
+}

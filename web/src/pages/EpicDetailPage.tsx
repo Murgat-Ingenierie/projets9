@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { epics, measures, milestones, projects, users } from "../api/endpoints";
+import { MeasureChart } from "../components/MeasureChart";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { EpicEditor } from "../components/EpicEditor";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -47,6 +48,16 @@ export default function EpicDetailPage() {
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
   const [projectDraft, setProjectDraft] = useState<Partial<Project>>({});
 
+  // Mesures : édition inline (même motif que les projets) + création.
+  const [editingMeasureId, setEditingMeasureId] = useState<number | null>(null);
+  const [measureDraft, setMeasureDraft] = useState<Partial<Measure>>({});
+  const [creatingMeasure, setCreatingMeasure] = useState(false);
+
+  // INV-20 : toutes les mesures d'un epic partagent la MÊME unité. Dès qu'une
+  // mesure existe, l'unité est donc imposée (champ en lecture seule) — c'est la
+  // règle métier, pas une commodité d'UI ; l'API rejetterait une unité divergente.
+  const uniteEpic = mes.length > 0 ? mes[0].unite : null;
+
   const userNameById = useMemo(() => {
     const m = new Map<number, string>();
     allUsers.forEach((u) => m.set(u.id, u.nom));
@@ -89,6 +100,64 @@ export default function EpicDetailPage() {
   }
   function onEpicDeleted() {
     nav("/epics");
+  }
+
+  // --- Mesures (SPEC §4, écran 9 : CRUD depuis la page Epic) ---
+  function startCreateMeasure() {
+    setEditingMeasureId(null);
+    setCreatingMeasure(true);
+    setMeasureDraft({
+      date: new Date().toISOString().slice(0, 10),
+      valeur: undefined,
+      unite: uniteEpic ?? "",
+      commentaire: "",
+    });
+    setErr(null);
+  }
+  function startEditMeasure(m: Measure) {
+    setCreatingMeasure(false);
+    setEditingMeasureId(m.id);
+    setMeasureDraft({ ...m });
+    setErr(null);
+  }
+  function cancelEditMeasure() {
+    setEditingMeasureId(null);
+    setCreatingMeasure(false);
+    setMeasureDraft({});
+  }
+  async function saveMeasure() {
+    setErr(null);
+    try {
+      if (creatingMeasure) {
+        await measures.create({
+          epic_trigramme: trigramme,
+          date: measureDraft.date ?? "",
+          valeur: Number(measureDraft.valeur),
+          unite: (measureDraft.unite ?? "").trim(),
+          commentaire: measureDraft.commentaire || null,
+        });
+      } else if (editingMeasureId != null) {
+        await measures.update(editingMeasureId, {
+          date: measureDraft.date,
+          valeur: Number(measureDraft.valeur),
+          commentaire: measureDraft.commentaire || null,
+        });
+      }
+      cancelEditMeasure();
+      load();
+    } catch (e) {
+      setErr(e);
+    }
+  }
+  async function removeMeasure(id: number) {
+    if (!confirm("Supprimer cette mesure ?")) return;
+    try {
+      await measures.remove(id);
+      cancelEditMeasure();
+      load();
+    } catch (e) {
+      setErr(e);
+    }
   }
 
   // --- Edit Project (inline) ---
@@ -314,20 +383,110 @@ export default function EpicDetailPage() {
         </tbody>
       </table>
 
-      <h3 style={{ marginTop: 32 }}>Mesures ({mes.length})</h3>
+      <div className="page-header" style={{ marginTop: 32 }}>
+        <h3 style={{ margin: 0 }}>Mesures ({mes.length})</h3>
+        <button className="btn" onClick={startCreateMeasure} disabled={creatingMeasure}>
+          + Ajouter une mesure
+        </button>
+      </div>
+
+      {/* Courbe du critère de réussite dans le temps (SPEC §4, écran 8). */}
+      <MeasureChart measures={mes} unite={uniteEpic ?? undefined} />
+
       <table>
         <thead>
-          <tr><th>Date</th><th>Valeur</th><th>Unité</th><th>Commentaire</th></tr>
+          <tr>
+            <th>Date</th><th>Valeur</th><th>Unité</th><th>Commentaire</th><th></th>
+          </tr>
         </thead>
         <tbody>
-          {mes.map((m) => (
-            <tr key={m.id}>
-              <td>{fmtDate(m.date)}</td>
-              <td>{m.valeur}</td>
-              <td>{m.unite}</td>
-              <td>{m.commentaire}</td>
+          {creatingMeasure && (
+            <tr>
+              <td>
+                <input
+                  type="date"
+                  value={measureDraft.date ?? ""}
+                  onChange={(ev) => setMeasureDraft({ ...measureDraft, date: ev.target.value })}
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  step="any"
+                  value={measureDraft.valeur ?? ""}
+                  onChange={(ev) => setMeasureDraft({ ...measureDraft, valeur: Number(ev.target.value) })}
+                />
+              </td>
+              <td>
+                <input
+                  value={measureDraft.unite ?? ""}
+                  onChange={(ev) => setMeasureDraft({ ...measureDraft, unite: ev.target.value })}
+                  readOnly={uniteEpic !== null}
+                  title={
+                    uniteEpic !== null
+                      ? `INV-20 : toutes les mesures de cet epic sont en « ${uniteEpic} »`
+                      : "Unité de l'epic — commune à toutes ses mesures (INV-20)"
+                  }
+                  placeholder="ex. mg/L"
+                />
+              </td>
+              <td>
+                <input
+                  value={measureDraft.commentaire ?? ""}
+                  onChange={(ev) => setMeasureDraft({ ...measureDraft, commentaire: ev.target.value })}
+                />
+              </td>
+              <td className="row-actions">
+                <button className="btn" onClick={saveMeasure}>Enregistrer</button>
+                <button className="btn secondary" onClick={cancelEditMeasure}>Annuler</button>
+              </td>
             </tr>
-          ))}
+          )}
+          {mes.map((m) =>
+            editingMeasureId === m.id ? (
+              <tr key={m.id}>
+                <td>
+                  <input
+                    type="date"
+                    value={measureDraft.date ?? ""}
+                    onChange={(ev) => setMeasureDraft({ ...measureDraft, date: ev.target.value })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    step="any"
+                    value={measureDraft.valeur ?? ""}
+                    onChange={(ev) => setMeasureDraft({ ...measureDraft, valeur: Number(ev.target.value) })}
+                  />
+                </td>
+                {/* L'unité n'est pas modifiable ici : la changer pour UNE mesure
+                    violerait INV-20 (unité commune à l'epic). */}
+                <td title={`INV-20 : unité commune à l'epic (« ${m.unite} »)`}>{m.unite}</td>
+                <td>
+                  <input
+                    value={measureDraft.commentaire ?? ""}
+                    onChange={(ev) => setMeasureDraft({ ...measureDraft, commentaire: ev.target.value })}
+                  />
+                </td>
+                <td className="row-actions">
+                  <button className="btn" onClick={saveMeasure}>Enregistrer</button>
+                  <button className="btn secondary" onClick={cancelEditMeasure}>Annuler</button>
+                  <button className="btn danger" onClick={() => removeMeasure(m.id)}>Supprimer</button>
+                </td>
+              </tr>
+            ) : (
+              <tr key={m.id}>
+                <td>{fmtDate(m.date)}</td>
+                <td>{m.valeur}</td>
+                <td>{m.unite}</td>
+                <td>{m.commentaire}</td>
+                <td>
+                  <button className="btn secondary" onClick={() => startEditMeasure(m)}>Éditer</button>
+                </td>
+              </tr>
+            )
+          )}
         </tbody>
       </table>
     </>
