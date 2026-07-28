@@ -628,7 +628,7 @@ export default function GanttSvarPage() {
         </div>
       )}
       <ErrorBanner error={err} />
-      <div style={{ height: "78vh", border: "1px solid #e5e7eb" }}>
+      <div className="svar-planning">
         <Willow>
           <Gantt
             tasks={svarTasks}
