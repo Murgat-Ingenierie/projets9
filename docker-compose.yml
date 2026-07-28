@@ -52,6 +52,13 @@ services:
   web:
     build:
       context: ./web
+      # Vite inscrit ces valeurs dans le bundle AU BUILD (pas au démarrage) :
+      # changer la config OIDC impose donc de reconstruire l'image `web`.
+      # Vides = adossement inactif.
+      args:
+        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-}
+        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-}
+        VITE_OIDC_API_CLIENT_ID: ${VITE_OIDC_API_CLIENT_ID:-projets9-api}
     restart: unless-stopped
     depends_on:
       - api
