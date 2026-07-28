@@ -7,9 +7,14 @@ Epics opérationnels et stratégiques de la pisciculture.
 
 - **Phase 1 — Définition** : terminée. Voir [docs/SPEC.md](docs/SPEC.md) — révisée en **v0.2** le
   2026-07-17 pour être réconciliée avec le code livré (modèle, 25 invariants actifs, écrans, stack).
-- **Phase 2 — Tests auto basés sur les invariants** : **faite**. 191 tests, les 25
-  invariants actifs couverts sur trois couches. Voir ci-dessous.
+- **Phase 2 — Tests auto basés sur les invariants** : **faite**. 204 tests, les 25
+  invariants actifs couverts sur trois couches, la suite rejouée sur PostgreSQL. Voir ci-dessous.
 - **v0** : scaffolding complet (API + front + Docker Compose + CI).
+
+> ⚠️ **L'authentification est débrayée** (depuis le 2026-07-24) : plus de page de login ni de
+> guard côté front, et `.env.example` livre `AUTH_DISABLED=true`. C'est **délibéré et
+> temporaire** — la protection est reportée sur un VHost Apache devant l'application, en
+> attendant **Keycloak** (pas encore implémenté). Ne pas exposer l'application sans ce rempart.
 
 État de l'existant, dette et chantiers ouverts : [INVENTAIRE.md](INVENTAIRE.md).
 
@@ -33,7 +38,10 @@ L'API exécute automatiquement au démarrage :
 2. La *seed* (`python -m app.seed`) — crée l'admin initial et importe les
    epics depuis `Liste des projets en cours - Epic.csv` si la table est vide.
 
-Connexion initiale avec `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` de `.env`.
+Il n'y a **pas d'écran de connexion** : l'application s'ouvre directement sur le planning
+(cf. l'avertissement ci-dessus). Le compte admin créé par la seed
+(`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`) sert encore aux scripts et redeviendra le compte
+d'entrée quand l'authentification sera rebranchée.
 
 ### Jeu de démonstration
 
@@ -69,7 +77,8 @@ python scripts/import_data.py \
     --email "$SEED_ADMIN_EMAIL" --password "$SEED_ADMIN_PASSWORD"
 ```
 
-`data/*.xlsx` est gitignoré : le vrai classeur ne rentre pas dans le dépôt.
+Le dossier `data/` **entier** est gitignoré : ni le classeur réel, ni les fichiers dérivés
+(nettoyés, journaux d'import) ne rentrent dans le dépôt.
 L'import crée des utilisateurs, il faut donc un compte **admin** (`--email` /
 `--password`, ou `--token`, ou `AUTH_DISABLED=true` en dev).
 
@@ -82,16 +91,18 @@ L'import crée des utilisateurs, il faut donc un compte **admin** (`--email` /
 │   │   ├── models/         # Tables SQLAlchemy
 │   │   ├── schemas/        # Pydantic
 │   │   ├── routes/         # CRUD REST
-│   │   ├── auth/           # JWT + bcrypt
+│   │   ├── auth/           # JWT + bcrypt (débrayé, cf. avertissement)
 │   │   ├── invariants/     # Règles métier (INV-1 … INV-21)
 │   │   ├── seed.py         # Peuplement initial
 │   │   └── main.py
 │   ├── alembic/            # Migrations
 │   └── tests/
-├── web/                    # Frontend React + Vite + TypeScript
+├── web/                    # Frontend React 19 + Vite 8 + TypeScript 6
+│   ├── e2e/                # Playwright (planning)
 │   └── src/
 │       ├── api/            # Client HTTP
-│       ├── pages/          # Login, Gantt, CRUDs
+│       ├── pages/          # Planning (SVAR), CRUDs, Paramètres
+│       ├── planning/       # Logique pure du planning, sous tests
 │       └── types/
 ├── docker/
 │   ├── backup/             # pg_dump quotidien
@@ -110,10 +121,19 @@ L'import crée des utilisateurs, il faut donc un compte **admin** (`--email` /
 
 ## CI
 
-GitHub Actions s'exécute sur **toute pull request** et à la demande (`workflow_dispatch`) :
-- Lint Python (`ruff`) + tests `pytest`
-- Lint front (`eslint`) + build TypeScript
-- Build des trois images Docker
+GitHub Actions s'exécute sur **toute pull request** et à la demande (`workflow_dispatch`).
+**5 jobs, tous bloquants** :
+
+| Job | Contenu |
+|---|---|
+| `api` | `ruff` · migrations + `alembic check` sur Postgres · `pytest` **deux fois** : SQLite puis PostgreSQL |
+| `web` | `npm ci` → `lint` → `test` (Vitest) → `build` |
+| `e2e` | **Playwright** sur le planning (API mockée, aucun backend) |
+| `sast` | **Semgrep**, 8 rulesets — rouge au moindre finding |
+| `dast` | **ZAP Baseline** contre la stack complète, qu'il construit et démarre |
+
+Le job « Docker — build images » a été retiré : le DAST construit déjà les trois images, et les
+démarre. Les dépendances sont suivies par **Dependabot** (*cooldown* de 7 jours).
 
 Il n'y a **pas** de déclencheur sur `push` : tout ce qui entre dans `main` passe par une PR,
 donc a déjà été testé — le rejouer sur le commit de merge ferait doublon.
@@ -121,8 +141,10 @@ donc a déjà été testé — le rejouer sur le commit de merge ferait doublon.
 Sur une branche de travail sans PR, la CI ne tourne donc pas : ouvrir une PR (même en
 *draft*) suffit à obtenir le signal.
 
-> ⚠️ Ce choix suppose que `main` soit **protégée** (PR obligatoire + status checks en mode
-> *strict*). Tant que ce n'est pas en place, un push direct sur `main` ne déclenche plus rien.
+> Ce choix suppose que `main` soit **protégée** — c'est le cas depuis le 2026-07-28 : PR
+> obligatoire, status checks en mode *strict* (la branche doit être à jour, donc l'état testé
+> **est** l'état fusionné), force-push et suppression bloqués. À savoir : la protection de branche
+> n'existe pas sur un dépôt privé en plan *free* — la repasser en privé la ferait perdre.
 > Voir [INVENTAIRE.md](INVENTAIRE.md), chantier **C13**.
 
 ## Phase 2 — Tests auto basés sur les invariants
@@ -141,7 +163,10 @@ Chaque ID `INV-X` donne lieu à au moins un test. Les trois couches prévues son
 | [`tests/test_couverture_invariants.py`](api/tests/test_couverture_invariants.py) | Garde-fou : échoue si un `INV-X` est levé sans test qui le cite. Une règle que rien ne fait respecter finit par ne plus l'être. |
 
 ```bash
-cd api && pip install -e ".[dev]" && pytest -q     # 191 passed
+cd api && pip install -e ".[dev]" && pytest -q     # 203 passed, 1 skipped (SQLite)
+
+# La même suite sur PostgreSQL — c'est ce que fait la CI (C12b) :
+TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/gestion_test pytest -q  # 204 passed
 ```
 
 Les deux défauts qui étaient documentés en `xfail(strict=True)` — orphelinage d'un jalon et refus
@@ -149,6 +174,10 @@ du domaine `.local` à la création d'un compte — sont désormais **corrigés*
 devenus des tests de régression verts. C'est le mécanisme voulu : un `xfail(strict=True)` force à
 retirer le marqueur dès que le bug est réglé (sinon la suite échoue).
 
-Les tests d'intégration tournent sur SQLite en mémoire : ce qu'ils éprouvent, c'est l'application
-des invariants par les *routes*. Les contraintes en base ne sont donc pas couvertes — cf.
-[INVENTAIRE.md](INVENTAIRE.md), chantier C12.
+Les tests tournent sur **SQLite en mémoire par défaut** (rapide, aucun service à lancer) : ce
+qu'ils éprouvent avant tout, c'est l'application des invariants par les *routes*. Depuis C12b, la
+CI **rejoue la même suite sur PostgreSQL** (`TEST_DATABASE_URL`), ce qui couvre la dernière ligne
+de défense — les contraintes `CHECK` et surtout les **types ENUM natifs**, que SQLite ne sait pas
+fournir : il range un enum en TEXT et accepte n'importe quelle chaîne. D'où
+[`tests/test_contraintes_base.py`](api/tests/test_contraintes_base.py), qui contourne les routes
+pour écrire directement en base ; un de ses tests est ignoré hors PostgreSQL.

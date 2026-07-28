@@ -357,16 +357,16 @@ L'allocation d'heures par équipe se fait depuis l'écran d'édition d'une **Tâ
 
 | Couche | Choix |
 |---|---|
-| Backend API | Python 3.12 + FastAPI |
+| Backend API | Python 3.14 + FastAPI |
 | ORM | SQLAlchemy 2.x |
 | Migrations | Alembic |
-| Auth | JWT, bcrypt (passlib) |
+| Auth | JWT + bcrypt (appel direct — `passlib` retiré, non maintenu depuis 2020). ⚠️ Débrayée côté front, cf. §6 |
 | Base | PostgreSQL 16 |
-| Frontend | React + Vite + TypeScript |
-| Lib Gantt | `gantt-task-react` ^0.3.9 — **confirmé à la v0** |
+| Frontend | React 19 + Vite 8 + TypeScript 6 |
+| Lib Gantt | `@svar-ui/react-gantt` ^2.7 — **remplace `gantt-task-react`**, retiré à la bascule C9 (2026-07-28) |
 | Conteneurisation | Docker Compose |
 | CI | GitHub Actions |
-| Tests phase 2 | pytest + Hypothesis (invariants) + Playwright (e2e) |
+| Tests | pytest + Hypothesis (invariants ; suite rejouée sur **PostgreSQL** en CI) · Vitest (front) · Playwright (e2e) |
 
 ### Services Docker Compose
 
@@ -378,6 +378,17 @@ L'allocation d'heures par équipe se fait depuis l'écran d'édition d'une **Tâ
   volume séparé, rotation 30 jours.
 
 ## 6. Sécurité
+
+> ⚠️ **État réel depuis le 2026-07-24 (PR #36) — à lire avant le reste de cette section.**
+> L'authentification applicative est **débrayée**, délibérément et temporairement. Le front n'a
+> plus ni page de login ni guard de route ; `AUTH_DISABLED=true` est la valeur livrée par
+> `.env.example`, et l'API exécute alors chaque requête en tant que premier admin actif.
+> **La protection est reportée au périmètre** (VHost Apache devant l'application) en attendant
+> **Keycloak**, qui n'est à ce jour qu'une intention — aucun conteneur, aucun code.
+>
+> Conséquence directe : tant que cette bascule dure, **le RBAC décrit ci-dessous est sans objet**
+> (il n'y a pas d'identité par utilisateur), et la traçabilité `updated_by_id` n'identifie personne.
+> Ce qui suit décrit donc la cible, pas le comportement courant.
 
 - Authentification obligatoire sur tous les endpoints sauf `/login` — et `/api/health`,
   volontairement ouvert (sonde, ne divulgue rien).
@@ -406,8 +417,13 @@ lister n'est sans doute pas « gérer », mais l'intention n'est pas tranchée p
 
 Absent de la 0.1, présent dans le code et dans `.env.example`. Quand `AUTH_DISABLED=true`, l'API
 **ignore tout token** et exécute chaque requête en tant que premier admin actif — authentification
-et RBAC entièrement court-circuités. Prévu pour le pilotage par script (`scripts/import_data.py`
-en dépend). Ne doit **jamais** être activé en production ; vaut par défaut `false`.
+et RBAC entièrement court-circuités. Prévu à l'origine pour le pilotage par script (`scripts/import_data.py` en dépend).
+
+⚠️ **Révisé le 2026-07-28.** La valeur par défaut du *code* reste `false`, mais `.env.example`
+livre `AUTH_DISABLED=true` : une installation qui suit le README tourne donc **sans
+authentification applicative**. Ce n'est plus une simple bascule de développement, c'est le mode
+de fonctionnement courant assumé, la protection étant reportée sur le VHost Apache en attendant
+Keycloak. À refermer dès que Keycloak sera branché.
 
 ## 7. Persistance / Backup
 
@@ -434,16 +450,31 @@ jobs passent.
 | Prévu | Réel |
 |---|---|
 | `ruff` | ✅ vert |
-| format check `black` | ❌ `black` est déclaré en dev-dep et **jamais exécuté**. À trancher : `ruff format` fait double emploi et le remplacerait avantageusement. |
-| lint front `eslint` | ❌ le job s'appelle « Web — lint + build » mais **n'a pas d'étape lint**. `npm run lint` est de toute façon inexécutable : ESLint 9 est installé **sans fichier de configuration**. |
+| format check `black` | ❌ toujours déclaré en dev-dep et **jamais exécuté**. À trancher : `ruff format` fait double emploi et le remplacerait avantageusement. |
+| lint front `eslint` | ✅ **corrigé (C1)** : `eslint.config.js` (config plate) créé, étape `Lint` ajoutée au job. ESLint 10 aujourd'hui. |
 | type-check `tsc` | ✅ via `npm run build` (`tsc -b && vite build`). |
-| tests `pytest` | ✅ vert — mais 1 invariant couvert sur 20 (phase 2). |
-| build images Docker | ✅ les 3 images, depuis le 2026-07-17. |
-| « à chaque push » | ❌ **Révisé en 0.2** : il n'y a plus de déclencheur `push` du tout. Tout ce qui entre dans `main` passe par une PR, donc a déjà été testé ; le rejouer sur le commit de merge ferait doublon. Suppose que `main` soit protégée avec des status checks en mode *strict* — cf. `INVENTAIRE.md`, chantier C13. |
+| tests `pytest` | ✅ vert — les 25 invariants actifs sont couverts (C3), et la suite est **rejouée sur PostgreSQL** (C12b). |
+| build images Docker | ✅ mais **plus dans un job dédié** : le job « Docker — build images » a été retiré le 2026-07-28, son `docker build` des 3 images étant déjà fait — et démarré — par le `docker compose up --build` du job DAST. |
+| « à chaque push » | ❌ **Révisé en 0.2** : il n'y a plus de déclencheur `push` du tout. Tout ce qui entre dans `main` passe par une PR, donc a déjà été testé ; le rejouer sur le commit de merge ferait doublon. `main` est **protégée depuis le 2026-07-28** (PR obligatoire, status checks en mode *strict*, les 5 contextes) — cf. `INVENTAIRE.md`, chantier C13. |
 
 Ajouté en 2026-07-22 (C12), au vu de l'écart modèles↔migrations constaté : le job `api` a un service
 Postgres et une étape `alembic upgrade head` + `alembic check`, pour qu'une divergence entre les
 modèles et les migrations **casse le build** plutôt que d'être découverte au prochain `--autogenerate`.
+
+### État au 2026-07-28 — 5 jobs, tous bloquants
+
+Le périmètre a nettement dépassé les 4 points de la 0.1 : sécurité et bout-en-bout s'y sont ajoutés.
+
+| Job | Contenu |
+|---|---|
+| `api` | `ruff` · Postgres 16 (`alembic upgrade head` + `alembic check`) · `pytest` **deux fois** : SQLite puis **PostgreSQL** (C12b) · sur **Python 3.14**, la version expédiée |
+| `web` | `npm ci` → `lint` (ESLint 10) → `test` (Vitest) → `build` (`tsc -b && vite build`) |
+| `e2e` | **Playwright** (chromium) sur le planning — API mockée côté navigateur, aucun backend requis |
+| `sast` | **Semgrep** `--error`, 8 rulesets — **bloquant au moindre finding** |
+| `dast` | **ZAP Baseline** contre la stack complète (qu'il construit et démarre) — bloquant au moindre WARN ; exceptions justifiées dans `.zap/rules.tsv` |
+
+Ajoutés en C15 (SAST/DAST/tests front) et C12b (second passage PostgreSQL). Les dépendances sont
+suivies par **Dependabot** avec un *cooldown* de 7 jours (C16).
 
 ## 9. Hors périmètre v0
 
