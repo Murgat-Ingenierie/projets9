@@ -35,6 +35,12 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
       - ./Liste des projets en cours - Epic.csv:/seed/epics.csv:ro
+      # Historique des sauvegardes : LECTURE SEULE. L'API les liste, elle ne
+      # peut ni en écrire ni en supprimer (c'est le conteneur `backup` qui le
+      # fait). Cf. SPEC §4 écran 11.
+      - backups:/backups:ro
+      # Volume d'échange : l'API y dépose une sentinelle pour demander un dump.
+      - backup_trigger:/trigger
     depends_on:
       db:
         condition: service_healthy
@@ -61,8 +67,13 @@ services:
       PGDATABASE: ${POSTGRES_DB}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS}
       BACKUP_MIN_COPIES: ${BACKUP_MIN_COPIES:-7}
+      BACKUP_TRIGGER_DIR: /trigger
+      # uid de l'utilisateur applicatif de l'image API (non-root) : le volume
+      # d'échange lui est donné au démarrage, sinon il ne peut pas y écrire.
+      BACKUP_TRIGGER_UID: "10001"
     volumes:
       - backups:/backups
+      - backup_trigger:/trigger
     depends_on:
       db:
         condition: service_healthy
@@ -81,3 +92,4 @@ services:
 volumes:
   postgres_data:
   backups:
+  backup_trigger:

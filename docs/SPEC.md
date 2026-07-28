@@ -311,10 +311,10 @@ périmètre explicitement abandonné est au §9.
 | 5 | **Liste / CRUD Tâches**. | ✅ |
 | 6 | **Liste / CRUD Jalons**. | ✅ |
 | 7 | **Liste / CRUD Dépendances**. | 🟡 création et suppression seulement : une dépendance n'est pas modifiable (ni API, ni UI). Seul son `type` serait mutable ; l'usage est de supprimer puis recréer. |
-| 8 | **Page Epic** (détail) : infos + courbe de la `Mesure` dans le temps + liste des projets et jalons. | 🟡 infos, projets et jalons livrés. **La courbe des mesures n'existe pas.** |
-| 9 | **Liste / CRUD Mesures** (depuis la page Epic). | ❌ L'API est complète et le client HTTP expose `create`/`update`/`remove` — **aucun n'est appelé**. Les mesures sont en lecture seule dans l'UI. |
+| 8 | **Page Epic** (détail) : infos + courbe de la `Mesure` dans le temps + liste des projets et jalons. | ✅ livré (courbe SVG maison, sans librairie de graphes). |
+| 9 | **Liste / CRUD Mesures** (depuis la page Epic). | ✅ livré : création, édition inline, suppression. INV-20 porté par l'UI (unité verrouillée dès qu'une mesure existe). |
 | 10 | **Gestion utilisateurs** (admin uniquement) : créer / désactiver / changer rôle. | ✅ |
-| 11 | **Paramètres / Backup** : déclencher un dump, voir l'historique des backups. | ❌ Aucune page, aucune route, aucun endpoint. Le backup ne se pilote qu'en ligne de commande ([`RESTORE.md`](RESTORE.md)). |
+| 11 | **Paramètres / Backup** : déclencher un dump, voir l'historique des backups. | ✅ livré (`/parametres`, admin) — **sans téléchargement**, choix délibéré : servir un dump serait un chemin d'exfiltration complet de la base. Le restore reste en ligne de commande ([`RESTORE.md`](RESTORE.md)). |
 
 **Vue Gantt** (écran 2) — la 0.1 prévoyait :
 - Une ligne par Epic, repliable pour afficher Projets puis Tâches. ✅

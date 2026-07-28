@@ -19,6 +19,16 @@ class Settings(BaseSettings):
 
     auth_disabled: bool = False
 
+    # --- Sauvegardes (SPEC §4, écran 11) ---
+    # Volume des dumps, monté EN LECTURE SEULE côté API : l'application peut
+    # lister les sauvegardes et en demander une, jamais en supprimer ni en
+    # altérer une. C'est le conteneur `backup` qui les écrit.
+    backup_dir: str = "/backups"
+    # Petit volume d'échange : l'API y dépose un fichier sentinelle, le
+    # conteneur `backup` le voit, lance le dump et le retire. Évite d'installer
+    # un client Postgres dans l'image API et de dupliquer backup.sh.
+    backup_trigger_dir: str = "/trigger"
+
     # Origines CORS autorisées (liste séparée par des virgules). Vide par
     # défaut : front et API sont servis par le même proxy (même origine), donc
     # aucune requête cross-origin — pas besoin de CORS. À ne renseigner que si
