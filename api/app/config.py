@@ -19,6 +19,16 @@ class Settings(BaseSettings):
 
     auth_disabled: bool = False
 
+    # --- Keycloak (realm partagé avec les autres applications) ---
+    # Vides = adossement inactif : l'API reste sur le mode hérité (JWT maison) ou
+    # débrayé (AUTH_DISABLED). Renseigner les trois pour activer l'OIDC.
+    keycloak_base_url: str = ""
+    keycloak_realm: str = ""
+    # Audience attendue dans le jeton, et client qui porte les rôles applicatifs.
+    # Vérifiée à la validation : sans elle, un jeton émis pour une AUTRE
+    # application du même realm serait accepté ici.
+    keycloak_api_audience: str = "projets9-api"
+
     # --- Sauvegardes (SPEC §4, écran 11) ---
     # Volume des dumps, monté EN LECTURE SEULE côté API : l'application peut
     # lister les sauvegardes et en demander une, jamais en supprimer ni en
