@@ -17,7 +17,6 @@ import sys
 
 import requests
 
-
 # Palette Material 700 — 14 couleurs visuellement distinctes
 FALLBACK_PALETTE = [
     "#1976d2",  # blue

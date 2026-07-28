@@ -7,7 +7,7 @@ Usage:
 Le JS_EXPR doit retourner une valeur sérialisable JSON. Une IIFE est idiomatique :
 
   echo '(() => {
-    const bars = document.querySelectorAll("svg g[tabindex]");
+    const bars = document.querySelectorAll(".wx-bar");
     return bars.length;
   })()' | /tmp/pwvenv/bin/python scripts/inspect_gantt.py
 
@@ -16,6 +16,7 @@ Conçu pour itérer sur le rendu Gantt sans intervention navigateur manuelle.
 import argparse
 import json
 import sys
+
 from playwright.sync_api import sync_playwright
 
 
@@ -28,7 +29,7 @@ def main():
     ap.add_argument("--height", type=int, default=1000)
     ap.add_argument(
         "--wait-selector",
-        default="svg g[tabindex]",
+        default=".wx-bar",
         help="CSS selector to wait for before evaluating (use empty string to skip)",
     )
     args = ap.parse_args()
