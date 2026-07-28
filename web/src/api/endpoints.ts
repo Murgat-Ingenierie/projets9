@@ -1,4 +1,5 @@
 import type {
+  BackupFile,
   Dependency,
   Epic,
   Equipe,
@@ -142,4 +143,13 @@ export const tacheEquipe = {
     }),
   remove: (id: number) =>
     api<void>(`/api/tache-equipe/${id}`, { method: "DELETE" }),
+};
+
+// Sauvegardes (SPEC §4, écran 11). Volontairement SANS téléchargement : un
+// endpoint qui renverrait un dump serait un chemin d'exfiltration complet de la
+// base. Le restore reste en ligne de commande (docs/RESTORE.md).
+export const backups = {
+  list: () => api<BackupFile[]>("/api/backups"),
+  request: () =>
+    api<{ demande: boolean; detail: string }>("/api/backups", { method: "POST" }),
 };

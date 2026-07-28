@@ -109,3 +109,11 @@ export interface ApiError {
         message: string;
       };
 }
+
+/** Sauvegarde présente dans le volume de dumps (SPEC §4, écran 11). */
+export interface BackupFile {
+  nom: string;
+  taille_octets: number;
+  /** ISO-8601 UTC. */
+  date: string;
+}

@@ -236,3 +236,23 @@
   outline: 2px solid #1976d2;
   outline-offset: -1px;
 }
+
+/* — Chaîne de hauteurs : la barre de défilement rognait la dernière ligne. —
+ *
+ * <Willow> insère DEUX `.wx-theme` entre notre conteneur et `.wx-gantt`, en
+ * `display:block` sans hauteur. La chaîne `height:100%` est donc ROMPUE : SVAR
+ * ne peut pas hériter de la hauteur du conteneur et se dimensionne au CONTENU
+ * (mesuré : 1212 px de Gantt dans un conteneur de 562 px). Le conteneur déborde,
+ * et la barre de défilement horizontale de SVAR — posée en bas de son contenu —
+ * vient recouvrir la dernière ligne.
+ *
+ * En rétablissant la chaîne, SVAR remplit exactement le conteneur et gère son
+ * propre défilement, barre comprise. Vérifié : scrollHeight == clientHeight.
+ * Verrouillé par l'e2e « le planning ne déborde pas de son conteneur ». */
+.svar-planning {
+  height: 78vh;
+  border: 1px solid #e5e7eb;
+}
+.svar-planning .wx-theme {
+  height: 100%;
+}

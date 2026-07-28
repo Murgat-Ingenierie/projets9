@@ -36,13 +36,12 @@
 > authentification**, et **Keycloak n'est à ce jour que des commentaires** (aucun conteneur, aucune
 > implémentation). Voir §4 et le risque **R14**.
 >
-> **2. Le chantier C9 (refacto du Gantt) a produit un nouveau moteur Gantt, sur SVAR** — Phase 1
-> (extraction de la logique pure sous Vitest, `web/src/planning/*`) puis **Phase 2b : une
-> réimplémentation complète sur `@svar-ui/react-gantt`**, livrée en 10 incréments (PR #41 → #50).
-> ⚠️ **La bascule n'a PAS eu lieu** : il y a **deux Gantt vivants**. L'ancien
-> `web/src/pages/GanttPage.tsx` (`gantt-task-react`) sert toujours la route **`/`** et la nav ; le
-> nouveau `web/src/pages/GanttSvarPage.tsx` n'est accessible qu'en **aperçu sur `/planning-svar`**,
-> hors menu. **Les risques R5/R9/R10 s'appliquent donc toujours à ce que voit l'utilisateur.**
+> **2. Le chantier C9 (refacto du Gantt) est TERMINÉ.** Phase 1 (extraction de la logique pure sous
+> Vitest, `web/src/planning/*`), puis Phase 2b : réimplémentation complète sur
+> `@svar-ui/react-gantt` en 10 incréments (PR #41 → #50), correction du clignotement (#52), et
+> **bascule le 2026-07-28 (#54)** — `GanttSvarPage.tsx` sert désormais `/`, l'ancien
+> `GanttPage.tsx` (2104 l.) et la dépendance `gantt-task-react` ont été **supprimés**.
+> **R5, R9 et R15 sont tombés**, et **React 19** a pu être adopté dans la foulée (#55).
 > Voir §9, chantier **C9**.
 
 ---
@@ -109,22 +108,23 @@ refusent toujours (INV-1, INV-4, INV-7, INV-8, INV-14, INV-15), ceux retirés ac
 
 ## 2. Périmètre fonctionnel — SPEC §4 vs réel
 
-**6 des 11 écrans spécifiés sont livrés, 2 partiels, 3 absents — et 2 écrans non spécifiés existent.**
-*(MàJ 2026-07-27 : le Login, auparavant livré, a été **retiré** en #36 — d'où 6 livrés au lieu de 7 et 3 absents au lieu de 2.)*
+**9 des 11 écrans spécifiés sont livrés, 1 partiel, 1 absent — et 2 écrans non spécifiés existent.**
+*(MàJ 2026-07-28 : les écrans 8, 9 et 11 sont livrés (C8). Le seul « absent » est le **Login**, retiré
+délibérément en #36 en attendant Keycloak — l'authentification est désormais périmétrique.)*
 
 | # | Écran (SPEC §4) | État | Détail |
 |---|---|---|---|
 | 1 | Login | ❌ **retiré (#36, 2026-07-24)** | la page et la route `/login` n'existent plus ; aucun guard. Interim avant Keycloak — voir §4 et **R14** |
-| 2 | Vue Gantt | ✅ **au-delà de la spec** | zoom Jour/Semaine/Mois, filtres **par équipe**, groupe par epic, undo, drag/resize, multi-sélection + décalage groupé, cascade FS, création/suppression de dépendance au drag, curseur « aujourd'hui ». ⚠️ **Deux implémentations coexistent** : l'ancienne (`gantt-task-react`) sur `/`, la nouvelle (SVAR) en aperçu sur `/planning-svar` — voir C9 |
+| 2 | Vue Gantt | ✅ **au-delà de la spec** | zoom Jour/Semaine/Mois, filtres **par équipe**, groupe par epic, undo, drag/resize, multi-sélection + décalage groupé, cascade FS, création/suppression de dépendance au drag, curseur « aujourd'hui », édition/création via EditPanel. Moteur **SVAR** sur `/` depuis la bascule C9 (#54) — moteur unique |
 | 3 | CRUD Epics | ✅ | table triable + édition inline |
 | 4 | CRUD Projets | ✅ | ⚠️ seule liste **sans** édition inline |
 | 5 | CRUD Tâches | ✅ | |
 | 6 | CRUD Jalons | ✅ | ⚠️ l'édition inline **perd les `project_ids`** |
 | 7 | CRUD Dépendances | 🟡 | create/delete seulement — **pas d'update** (ni API, ni UI) |
-| 8 | Page Epic (détail) | 🟡 | infos + projets + jalons OK — **la courbe de la Mesure dans le temps n'existe pas** |
-| 9 | CRUD Mesures | ❌ | `measures.create/update/remove` **définis dans `endpoints.ts` mais jamais appelés**. Table lecture seule, pas de route, pas d'entrée de nav. |
+| 8 | Page Epic (détail) | ✅ | infos + projets + jalons + **courbe de la Mesure dans le temps** (SVG maison, géométrie pure testée — aucune librairie de graphes) |
+| 9 | CRUD Mesures | ✅ | création, édition inline, suppression depuis la page Epic. INV-20 porté par l'UI : l'unité est verrouillée dès qu'une mesure existe. (L'API et le client HTTP existaient déjà — c'était du code mort, cf. R13.) |
 | 10 | Gestion utilisateurs (admin) | ✅ | `/users`, nav gatée sur `role === "admin"` |
-| 11 | Paramètres / Backup | ❌ | **totalement absent** — ni page, ni route, ni endpoint. Le backup ne se pilote qu'en ligne de commande (`docs/RESTORE.md`). |
+| 11 | Paramètres / Backup | ✅ | `/parametres` (admin) : déclencher un dump + historique (nom, date, taille). **Sans téléchargement**, délibérément — servir un dump serait un chemin d'exfiltration complet de la base. Le restore reste en CLI (`docs/RESTORE.md`). |
 
 ### Écrans livrés mais **hors SPEC**
 
@@ -425,17 +425,17 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 | ~~R2~~ | ~~**Dérive modèles ↔ migrations**~~ | ✅ **résolu (C5, 2026-07-22)** | Modèle aligné : `index=True` déclaré sur les colonnes de `milestone_project` (les index de `0008`), et migration `0009` qui normalise l'unicité `users.email` en un seul index unique (retrait de la contrainte + index non-unique redondants de `0001`). `alembic check` : *No new upgrade operations detected*, y compris sur base vierge. **Verrouillé en CI** par C12 (le check tourne à chaque PR). |
 | ~~R3~~ | ~~**1 invariant testé sur 20**~~ | ✅ **résolu (C3)** | Les 25 invariants actifs sont couverts : **191 tests, 0 xfail**, sur 3 couches (unitaire, API, Hypothesis), plus un garde-fou de couverture. Suite éprouvée par mutation : 8/8. |
 | R4 | **RBAC : tout membre peut tout détruire** | 🟡 | 3 endpoints gardés par `require_admin` sur 40. **Conforme à la SPEC §6** (« membre : CRUD métier sans gestion users ») — la v1 de ce document le présentait à tort comme un écart. Reste une question de **conception**, pas de conformité : est-il voulu qu'un membre puisse supprimer un epic entier ? Y toucher serait un changement de besoin, à trancher dans la SPEC avant d'être codé. Seul écart réel : `GET /api/users` n'est pas gaté admin. |
-| R5 | **Gantt couplé au DOM de la lib** | 🟠 | mapping **par index DOM** entre `svg g[tabindex]` et le tableau de tâches (poignées, décorations, flèches). Un changement d'ordre de rendu de `gantt-task-react` → **suppression de la mauvaise dépendance**, en silence. Sélecteurs internes (`g[class~="arrow"]`), détection d'« aujourd'hui » en cherchant la chaîne `"255, 152, 0"` dans un `fill`. 3 `setInterval` permanents (250/300/500 ms). ⚠️ **Toujours actif** : le remplaçant SVAR (sans aucun de ces défauts) existe mais n'est qu'en aperçu sur `/planning-svar` — **`/` sert encore l'ancien moteur**. Ce risque ne tombera qu'à la bascule (C9). |
+| ~~R5~~ | ~~**Gantt couplé au DOM de la lib**~~ | ✅ **résolu (bascule SVAR, #54, 2026-07-28)** | `gantt-task-react` et son mapping par index DOM ont été **supprimés** avec `GanttPage.tsx`. Le moteur SVAR ne manipule pas le DOM de la lib et n'a aucun `setInterval`. |
 | ~~R6~~ | ~~**Backup tolère la corruption**~~ | ✅ **résolu (C6, 2026-07-22)** | `set -o pipefail` (busybox ash le supporte) + écriture dans un `.part` renommé seulement en cas de succès + `gzip -t` : plus de `.sql.gz` tronqué compté comme réussi. Rétention par âge **avec plancher `BACKUP_MIN_COPIES`** (défaut 7) : une longue panne ne peut plus vider le dossier. Testé en isolation (5/5) et cycle backup→restore vérifié contre la stack. **Reste hors périmètre** : aucune copie hors-volume (choix d'infra — S3/NAS — à la charge du déploiement). |
-| R7 | **Pas de lockfile npm** | 🟠 | builds non reproductibles |
+| ~~R7~~ | ~~**Pas de lockfile npm**~~ | ✅ **résolu (C1)** | `web/package-lock.json` est versionné et la CI fait `npm ci` sans repli. Cette ligne décrivait l'état d'avant C1. |
 | ~~R8~~ | ~~**Jalons orphelins**~~ | ✅ **résolu (2026-07-22)** | La suppression d'un projet/epic qui orphelinerait un jalon est refusée (409 INV-6, `milestone_guard`). Vérifié end-to-end (4/4) et par test (projet & epic, + cas permis). |
-| R9 | **`GanttPage.tsx` = 2104 lignes** | 🟡 | (2332 l. à l'origine, dégraissé par les extractions de C9 Phase 1 vers `web/src/planning/*`). Reste un composant monolithique avec ses refs miroir d'état. ⚠️ **Toujours actif** (il sert `/`). Le remplaçant SVAR fait **571 l.** — le gain est acquis mais pas encore livré à l'utilisateur : il tombe à la bascule (C9). |
-| R10 | **Aucun refetch ciblé** | 🟡 | chaque mutation du Gantt relance **7 requêtes** ; pas de cache, pas d'optimistic update. Vaut pour les **deux** moteurs (`usePlanningData.reload()`). Reste un coût réseau, mais **ce n'est plus un défaut visible** : le clignotement qu'on lui imputait avait une autre cause, corrigée en #52 (voir §C9). |
+| ~~R9~~ | ~~**`GanttPage.tsx` = 2104 lignes**~~ | ✅ **résolu (bascule SVAR, #54)** | Le fichier n'existe plus. Le planning tient en **571 lignes** (`GanttSvarPage.tsx`), logique métier extraite et testée dans `web/src/planning/*`. |
+| R10 | **Aucun refetch ciblé** | 🟡 | chaque mutation du planning relance **7 requêtes** ; pas de cache, pas d'optimistic update. Coût réseau réel, mais **plus de défaut visible** : le clignotement qu'on lui imputait avait une autre cause, corrigée en #52. |
 | ~~R11~~ | ~~`docs/RESTORE.md` : `psql -U postgres`~~ | ✅ **résolu (C6)** | Runbook réécrit et cohérent (tout via le conteneur `backup`, qui a `psql` + le volume + les variables `PG*`). Vérifié : le cycle documenté restaure réellement (marqueur post-backup disparu, données revenues). |
 | R12 | `scripts/` non lintés, deps non déclarées | 🟡 | `requests`, `openpyxl`, `playwright` absents de `pyproject.toml` ; port par défaut `8088` ≠ `8080` réel |
 | R13 | Code mort | 🟡 | ~~INV-9/INV-13 (§5)~~ ✅ purgés en étape 0, ~~`Boolean` (epic)~~ ✅ retiré par `ruff --fix` — restent : `_slug()` (seed), `nav`/`navState` (GanttPage), `equipes.get` |
 | **R14** | **L'app expédiée tourne sans authentification** | 🔴 | Depuis #36 (2026-07-24) : plus de login ni de guard côté front, et `AUTH_DISABLED` court-circuite `get_current_user`/`require_admin` côté API (tout appelant est traité en **premier admin actif**). Le défaut du code est `false`, **mais `.env.example` livre `AUTH_DISABLED=true`** — donc un déploiement suivant le README expose **les 42 endpoints en écriture, sans identification**. **Décision délibérée et temporaire** (interim avant Keycloak), pas un bug : le risque est le **temps d'exposition**, d'autant que **Keycloak n'est encore que des commentaires** (`.env.example`, `docker-compose.yml`, `auth.tsx`, `client.ts` — aucun conteneur ni code). Corollaire : R4 (RBAC) est sans objet tant que R14 dure. **À refermer avant toute mise en ligne.** |
-| **R15** | **Deux moteurs Gantt en parallèle** | 🟡 | `gantt-task-react` (ancien, route `/`) **et** `@svar-ui/react-gantt` (nouveau, `/planning-svar`) sont tous deux installés et maintenus : double surface de dépendances, double jeu de tests (`web/src/planning/*` couvre les deux), et toute évolution fonctionnelle risque d'être à faire **deux fois**. État transitoire assumé de C9 — se résout par la bascule, qui permettra de supprimer l'ancien moteur et sa lib. Bloque aussi React 19 (peer `react ^18` de `gantt-task-react`, cf. `dependabot.yml`). |
+| ~~R15~~ | ~~**Deux moteurs Gantt en parallèle**~~ | ✅ **résolu (#54)** | L'ancien moteur et sa lib ont été retirés. Effet de bord acquis : **React 19** n'est plus bloqué (#55). |
 
 ### Faux positif écarté
 
@@ -497,7 +497,7 @@ JSON
 | **C5** | ✅ **Fait (2026-07-22).** `index=True` sur les colonnes de `milestone_project` + migration `0009` normalisant l'unicité `users.email`. `alembic check` vert (base existante ET vierge). Verrouillé en CI par C12. | `autogenerate` produisait du churn d'index | S |
 | **C6** | ✅ **Fait (2026-07-22).** `pipefail` + `.part` atomique + `gzip -t` (fin des dumps tronqués) ; rétention à plancher `BACKUP_MIN_COPIES` (fin du vidage possible) ; `RESTORE.md` réécrit et corrigé. Testé : logique 5/5 en isolation, backup réel intègre (11 tables), cycle backup→restore validé contre la stack (R6, R11). | Un backup non vérifié n'est pas un backup | S |
 | **C7** | Durcir le RBAC (R4) | Écart à la SPEC §6 | M |
-| **C8** | Écrans manquants : CRUD Mesures + courbe, Paramètres/Backup | SPEC §4 incomplet | M |
+| **C8** | ✅ **Fait (2026-07-28).** Les 3 écrans manquants de la SPEC §4 sont livrés. **Écrans 8 et 9** (#59) : courbe de la mesure dans le temps (SVG maison, géométrie pure sous 10 tests — aucune librairie de graphes ajoutée) + CRUD des mesures depuis la page Epic, avec INV-20 porté par l'UI (unité verrouillée dès qu'une mesure existe). L'API était déjà complète : `create`/`update`/`remove` existaient **sans être appelés** (code mort R13). **Écran 11** : page `/parametres` (admin) — déclencher un dump + historique, **sans téléchargement** (servir un dump serait un chemin d'exfiltration complet ; le restore reste en CLI). L'API ne fabrique pas les dumps : elle dépose une sentinelle que le conteneur `backup` scrute, et le volume des sauvegardes lui est monté **en lecture seule** — vérifié : `Read-only file system`. | SPEC §4 incomplet | M |
 | **C9** | 🟡 **Très avancé (2026-07-24 → 27) — il ne reste que la bascule.** Détail complet en **§C9** ci-dessous. Phase 1 ✅ (logique pure extraite sous Vitest dans `web/src/planning/*`) ; Phase 2b ✅ (**réimplémentation entière sur SVAR**, PR #41→#50, en parité fonctionnelle validée en aperçu live). Clignotement post-mutation ✅ **corrigé (#52, 2026-07-28)**, vérifié en live. **Reste la bascule `/planning-svar` → `/`** puis la suppression de l'ancien moteur + `gantt-task-react`. Tant qu'elle n'est pas faite, **R5/R9/R15 restent actifs** et le gain n'est pas livré à l'utilisateur. | Zone la plus fragile et la plus active du dépôt | L |
 | **C16** | ✅ **Fait (2026-07-23) — Dependabot.** Mises à jour hebdomadaires avec **cooldown 7 jours** (n'adopte une release qu'après 7 j — protection supply-chain, et exigée par la règle SAST `dependabot-missing-cooldown`). 4 écosystèmes (pip, npm, github-actions — garde les SHA épinglés à jour —, docker). Minor/patch groupés, majeures individuelles. **TypeScript 7 refusé d'office** (pas supporté par typescript-eslint). Passe le gate SAST (0 finding). | Boucler l'automatisation des dépendances (supply-chain) | S |
 | **C15** | ✅ **Fait (2026-07-23) — durcissement CI/tests.** 3 volets, tous bloquants : ✅ tests front (Vitest) ; ✅ **SAST Semgrep** (`--error`, 8 rulesets) ; ✅ **DAST ZAP Baseline** (bloquant sur tout WARN). SAST : CORS wildcard corrigé, API + (rappel) actions épinglées, backup non-root traité en C15/SAST, 2 baselines `nosemgrep`. DAST : 5 en-têtes de sécurité ajoutés au proxy (X-Frame-Options, X-Content-Type-Options, `server_tokens off`, Permissions-Policy, **CSP stricte** `script-src 'self'`) ; Swagger préservé via une CSP assouplie **par-location** (`/api/docs`,`/redoc`) ; app vérifiée fonctionnelle sous CSP (login, Gantt, fonts, 0 violation) ; 5 alertes bas-risque/informationnelles ignorées avec justification (`.zap/rules.tsv`). | Élever le filet avant le gros refacto C9 | M |

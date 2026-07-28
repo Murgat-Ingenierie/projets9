@@ -173,6 +173,29 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expect(page.locator("aside.panel")).toBeVisible();
   });
 
+  // Régression : <Willow> insère deux `.wx-theme` sans hauteur entre le conteneur
+  // et le Gantt. Sans `height:100%`, la chaîne casse, SVAR se dimensionne au
+  // CONTENU et déborde — sa barre de défilement horizontale recouvre alors la
+  // dernière ligne. On vérifie la propriété structurelle : le conteneur ne déborde pas.
+  test("le planning ne déborde pas de son conteneur (barre de défilement)", async ({ page }) => {
+    await gotoSvar(page);
+    const m = await page.evaluate(() => {
+      const c = document.querySelector(".svar-planning") as HTMLElement | null;
+      const g = document.querySelector('[class*="wx-gantt"]') as HTMLElement | null;
+      if (!c || !g) return null;
+      return { clientH: c.clientHeight, scrollH: c.scrollHeight, ganttH: g.offsetHeight };
+    });
+    expect(m).not.toBeNull();
+    // Le Gantt REMPLIT son conteneur — c'est ce qui lui rend la main sur son
+    // propre défilement. Sans le correctif il se dimensionne au contenu : plus
+    // petit que le conteneur quand il y a peu de lignes (ce que voit ce test),
+    // plus GRAND dès qu'il y en a beaucoup — et sa barre horizontale recouvre
+    // alors la dernière ligne. Les deux bornes verrouillent l'égalité.
+    expect(m!.ganttH).toBeGreaterThanOrEqual(m!.clientH - 2);
+    expect(m!.ganttH).toBeLessThanOrEqual(m!.clientH + 2);
+    expect(m!.scrollH).toBeLessThanOrEqual(m!.clientH + 2);
+  });
+
   test("undo : annuler une création de lien (bouton + DELETE)", async ({ page }) => {
     const calls = await gotoSvar(page);
     await expandRow(page, "Capteurs O2");

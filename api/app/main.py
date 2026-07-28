@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routes import (
     auth,
+    backups,
     dependencies,
     epics,
     equipes,
@@ -42,6 +43,7 @@ if _cors_origins:
     )
 
 app.include_router(auth.router)
+app.include_router(backups.router)
 app.include_router(users.router)
 app.include_router(epics.router)
 app.include_router(projects.router)
