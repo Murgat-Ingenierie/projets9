@@ -918,3 +918,23 @@ dl.kv dd textarea {
 .measure-chart-dot {
   fill: #1976d2;
 }
+
+/* Déconnexion (barre latérale) : n'apparaît que si l'OIDC est actif. */
+.sidebar-logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: #5f6368;
+  cursor: pointer;
+}
+.sidebar-logout:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #202124;
+}
