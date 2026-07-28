@@ -1,15 +1,19 @@
 """Fixtures des tests d'intégration (phase 2).
 
-Base SQLite en mémoire, schéma monté par `Base.metadata.create_all` plutôt que
-par Alembic : les migrations sont écrites pour PostgreSQL (types ENUM natifs) et
-ne s'appliquent pas telles quelles.
+Schéma monté par `Base.metadata.create_all` — donc depuis les modèles — plutôt
+que par Alembic, pour rester indépendant du moteur. Les migrations sont éprouvées
+séparément (`alembic upgrade head` + `alembic check`, même job CI).
 
-**Portée assumée** : ce que ces tests éprouvent, c'est l'application des
-invariants par les *routes* — du Python, identique quel que soit le moteur. Les
-différences PostgreSQL/SQLite (contraintes `CHECK`, types ENUM) ne sont donc pas
-sur le chemin testé. En contrepartie, la dernière ligne de défense qu'est la
-contrainte en base n'est **pas** couverte ici : la faire tomber demanderait un
-service PostgreSQL en CI. C'est un arbitrage, pas un oubli.
+**Moteur** : SQLite en mémoire par défaut (rapide, aucun service à lancer pour
+travailler en local). Si `TEST_DATABASE_URL` est défini, la suite tourne sur ce
+moteur-là — c'est ainsi que la CI la rejoue sur **PostgreSQL** (chantier C12b),
+ce qui met enfin à l'épreuve la dernière ligne de défense : les contraintes
+`CHECK` et les types ENUM natifs, absents du chemin SQLite.
+
+Ce que ces tests éprouvent avant tout reste l'application des invariants par les
+*routes* — du Python, identique quel que soit le moteur. Le passage sur
+PostgreSQL ajoute la garantie que la base elle-même refuserait ce que les routes
+refusent déjà.
 
 L'authentification n'est pas court-circuitée : on crée un vrai admin et on passe
 par `POST /api/auth/login` pour obtenir un vrai JWT. Le chemin d'auth est ainsi
@@ -18,6 +22,7 @@ couvert par construction dans chaque test.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Generator
 from dataclasses import dataclass
 
@@ -37,8 +42,7 @@ ADMIN_EMAIL = "admin@test.local"
 ADMIN_PASSWORD = "motdepasse-admin"
 
 
-@pytest.fixture
-def engine() -> Generator[Engine, None, None]:
+def _moteur_sqlite() -> Engine:
     eng = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -53,6 +57,23 @@ def engine() -> Generator[Engine, None, None]:
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA foreign_keys=ON")
         cur.close()
+
+    return eng
+
+
+@pytest.fixture
+def engine() -> Generator[Engine, None, None]:
+    url = os.getenv("TEST_DATABASE_URL", "").strip()
+    # Schéma monté par `create_all` dans les deux cas — donc depuis les MODÈLES,
+    # y compris leurs `CheckConstraint`. (Les migrations, elles, sont éprouvées à
+    # part par `alembic upgrade head` + `alembic check` dans le même job CI.)
+    if url:
+        eng = create_engine(url, future=True)
+        # Une exécution précédente interrompue peut avoir laissé des tables :
+        # on repart d'un schéma propre plutôt que d'échouer sur un `create_all`.
+        Base.metadata.drop_all(eng)
+    else:
+        eng = _moteur_sqlite()
 
     Base.metadata.create_all(eng)
     try:
