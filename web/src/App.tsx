@@ -20,6 +20,7 @@ import EquipesPage from "./pages/EquipesPage";
 import EquipeNewPage from "./pages/EquipeNewPage";
 import ChargeEquipesPage from "./pages/ChargeEquipesPage";
 import GanttSvarPage from "./pages/GanttSvarPage";
+import ParametresPage from "./pages/ParametresPage";
 
 interface NavItem {
   to: string;
@@ -47,6 +48,7 @@ function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => vo
   ];
   if (user?.role === "admin") {
     items.push({ to: "/users", icon: "group", label: "Utilisateurs" });
+    items.push({ to: "/parametres", icon: "settings", label: "Paramètres" });
   }
 
   return (
@@ -99,6 +101,7 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/" element={<Layout><GanttSvarPage /></Layout>} />
+        <Route path="/parametres" element={<Layout><ParametresPage /></Layout>} />
 
         <Route path="/epics" element={<Layout><EpicsPage /></Layout>} />
         <Route path="/epics/new" element={<Layout><EpicNewPage /></Layout>} />
