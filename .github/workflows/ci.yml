@@ -138,19 +138,6 @@ jobs:
       - name: E2E
         run: npm run test:e2e
 
-  docker:
-    name: Docker — build images
-    runs-on: ubuntu-latest
-    needs: [api, web]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Build API
-        run: docker build -t gestion-projet-api:ci ./api
-      - name: Build Web
-        run: docker build -t gestion-projet-web:ci ./web
-      - name: Build Backup
-        run: docker build -t gestion-projet-backup:ci ./docker/backup
-
   sast:
     name: SAST — Semgrep
     runs-on: ubuntu-latest
@@ -177,6 +164,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # `--build` construit api, web ET backup — les trois seuls services ayant un
+      # `build:` (db et proxy tirent une image). Ce job REMPLACE donc l'ancien job
+      # « Docker — build images », qui refaisait exactement ces trois builds sans
+      # les démarrer : redondant, et facturé en double sur un plan free.
+      # Conséquence assumée : un build cassé se voit désormais ici, pas dans un job
+      # dédié — le message est moins direct, mais l'information est la même.
       - name: Démarrer la stack
         run: |
           cp .env.example .env

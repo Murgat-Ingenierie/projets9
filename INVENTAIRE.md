@@ -338,7 +338,7 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 > en refusant les emails cassés (vérifié : `@…local` → 201, `pas-un-email` → 422). `email-validator`,
 > devenu inutile, est retiré des dépendances. L'`xfail` est devenu un test de régression vert.
 
-### La CI aujourd'hui (MàJ 2026-07-27) — 6 jobs, tous bloquants
+### La CI aujourd'hui (MàJ 2026-07-28) — 5 jobs, tous bloquants
 
 > Le reste de cette section §6 raconte l'**état d'origine** et sa correction (valeur historique).
 > Voici, pour référence rapide, ce que `.github/workflows/ci.yml` exécute **aujourd'hui**, sur
@@ -346,12 +346,11 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 >
 > | Job | Contenu |
 > |---|---|
-> | `api` | Ruff + **Postgres 16** (`alembic upgrade head` + `alembic check`) + pytest — sur **Python 3.14**, la version expédiée |
+> | `api` | Ruff + **Postgres 16** (`alembic upgrade head` + `alembic check`) + pytest **deux fois** : SQLite puis **PostgreSQL** (C12b) — sur **Python 3.14**, la version expédiée |
 > | `web` | `npm ci` → `lint` (ESLint 10) → `test` (Vitest) → `build` (Vite 8 / TS 6) |
 > | **`e2e`** | **Playwright chromium** (`npm run test:e2e`) — API mockée côté navigateur, aucun backend requis |
-> | `docker` | build des 3 images (`needs: [api, web]`) |
 > | `sast` | **Semgrep** `--error`, 8 rulesets |
-> | `dast` | **ZAP Baseline** contre la stack complète |
+> | `dast` | **ZAP Baseline** contre la stack complète. Son `docker compose up --build` construit api/web/backup : il **remplace** l'ancien job `docker` (retiré le 2026-07-28), qui refaisait ces mêmes builds sans les démarrer — redondant et facturé en double sur un plan free. |
 >
 > Tests front : **12 fichiers** `web/src/planning/*.test.ts` couvrant **les deux** moteurs Gantt,
 > plus `web/e2e/{gantt,gantt-svar}.spec.ts`.
@@ -376,11 +375,10 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 > que la branche soit à jour avant merge, ce qui garantit que l'état testé par la PR **est** l'état
 > fusionné. Sans lui, la PR pourrait être verte sur une base périmée et casser `main` en fusionnant.
 >
-> ⚠️ **La protection n'est pas en place** : `main` n'a aujourd'hui **aucune** règle
-> (`GET /branches/main/protection` → 404), et le compte utilisé n'est pas administrateur du dépôt
-> (`permissions.admin: false`), donc ne peut pas la poser. **Il y a donc une fenêtre** où `main`
-> n'est ni protégée ni couverte par la CI en cas de push direct. Chantier **C13** ci-dessous : à
-> faire poser par un administrateur.
+> ✅ **La protection est en place depuis le 2026-07-28** (C13) : PR obligatoire, *strict*, les 5
+> checks requis, force-push et suppression bloqués. La fenêtre décrite ici — `main` ni protégée ni
+> couverte par la CI en cas de push direct — est donc refermée pour les non-admins. Elle reste
+> ouverte pour un admin (`enforce_admins: false`, issue de secours assumée).
 >
 > Ajoutés par ailleurs : `workflow_dispatch` (déclenchement manuel) et un groupe `concurrency`
 > (un nouveau push annule l'exécution précédente au lieu de faire la queue).
@@ -459,9 +457,9 @@ correct si `models/__init__.py` était un jour allégé), mais ce n'était **pas
 | **C10** | ✅ **Fait (2026-07-17).** 6 fonctions `check_*` ajoutées + câblées via `http_from_invariant` dans les 2 routers Équipe. Défaut `INV-EQ-1a` corrigé, `INV-EQ-5` aligné sur INV-4 (409+code). Exports d'`app.invariants` complétés (15→18+6). Vérifié 14/14. | Sans code stable, la règle « 1 test par `INV-X` » était inapplicable aux Équipes | S |
 | **C11** | ✅ **Fait (2026-07-22).** `EmailStr` remplacé par un validateur de format maison qui tolère les TLD internes (`.local`) sans tout accepter. Vérifié end-to-end (`@…local` → 201, email cassé → 422) et par test (l'ancien `xfail` est un test vert, + 4 cas de rejet). `email-validator` retiré des deps (devenu inutile). *Piste initialement notée `test_environment=True` : écartée — vérifié qu'email-validator refuse `.local` sous tous ses réglages.* | L'app ne savait pas créer un compte suivant sa propre convention | S |
 | **C12** | ✅ **Fait (2026-07-22).** Service `postgres` ajouté au job `api` ; étape « Migrations + contrôle de dérive » : `alembic upgrade head` (les migrations tiennent sur base vierge) + `alembic check` (verrouille C5 — toute dérive modèle/migration future casse la CI). **C12b ✅ fait (2026-07-28)** : la suite pytest est désormais **rejouée sur PostgreSQL** dans le même job (`TEST_DATABASE_URL`, base dédiée `gestion_test` pour ne pas piétiner le schéma d'alembic). SQLite reste le défaut en local (rapide, aucun service à lancer). Nouveau `tests/test_contraintes_base.py` : 4 tests qui **contournent les routes** et écrivent en base directement, pour éprouver la dernière ligne de défense — les 3 `CheckConstraint` (honorées par les deux moteurs) et le refus d'une valeur **hors type ENUM natif**, que SQLite ne peut pas fournir (test ignoré hors PostgreSQL, raison affichée). Vérifié : **204 tests** sur PostgreSQL, **203 + 1 ignoré** sur SQLite. | La dérive migrations n'était pas détectée en CI | M |
-| **C13** | 🔴 **Protéger `main` — à faire poser par un administrateur.** Le déclencheur `push` de la CI a été retiré ; ce choix ne tient que si `main` est protégée. Aujourd'hui elle ne l'est pas du tout, et le compte disponible n'est pas admin du dépôt. **Fenêtre ouverte** : un push direct sur `main` n'est ni bloqué, ni testé. Réglage exact ci-dessous. | Sans protection, retirer `push:` laisse `main` sans filet | XS *(mais bloqué)* |
+| **C13** | ✅ **Fait (2026-07-28).** `main` est protégée : PR obligatoire, **strict** (branche à jour ⇒ l'état testé EST l'état fusionné), les **5 checks** requis, force-push et suppression bloqués. Devenu possible parce que le dépôt est repassé **public** (la protection de branche n'existe pas sur dépôt privé en plan free) — donc **lié à ce choix** : repasser en privé la ferait perdre. `enforce_admins: false` volontairement : issue de secours, la barrière est ferme pour les non-admins et contournable pour un admin. | Sans protection, retirer `push:` laisse `main` sans filet | XS |
 
-### C13 — réglage à demander à l'administrateur
+### C13 — réglage appliqué (référence)
 
 Le dépôt est **public** et `main` n'a aucune règle. À poser dans
 *Settings → Branches → Add branch protection rule*, sur `main` :
@@ -470,7 +468,7 @@ Le dépôt est **public** et `main` n'a aucune règle. À poser dans
 |---|---|---|
 | Require a pull request before merging | ✅ | C'est **le** réglage qui bloque les push directs. |
 | Required approving reviews | **0** | ⚠️ Mettre 1 verrouillerait le dépôt : GitHub interdit d'approuver sa propre PR, et l'équipe tient sur une personne. |
-| Require status checks to pass | ✅ | Les 3 contextes, au caractère près (ils contiennent un tiret cadratin) : `API — lint + tests`, `Web — lint + build`, `Docker — build images` |
+| Require status checks to pass | ✅ | Les **5** contextes, au caractère près (ils contiennent un tiret cadratin) : `API — lint + tests`, `Web — lint + build`, `E2E — Playwright (planning)`, `SAST — Semgrep`, `DAST — ZAP Baseline`. *(`Docker — build images` en faisait partie jusqu'au 2026-07-28 ; le job a été retiré, cf. §6 — un contexte requis qui n'est plus produit bloquerait toutes les PR.)* |
 | **Require branches to be up to date** (*strict*) | ✅ | **Le réglage critique.** C'est lui qui rend le retrait du déclencheur `push` légitime : il garantit que l'état testé par la PR **est** l'état fusionné. |
 | Allow force pushes / deletions | ❌ | |
 | Include administrators | au choix | Le laisser décoché garde une issue de secours en cas d'urgence. |
@@ -482,7 +480,7 @@ gh api -X PUT repos/Murgat-Ingenierie/projets9/branches/main/protection --input 
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["API — lint + tests", "Web — lint + build", "Docker — build images"]
+    "contexts": ["API — lint + tests", "Web — lint + build", "E2E — Playwright (planning)", "SAST — Semgrep", "DAST — ZAP Baseline"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": {"required_approving_review_count": 0},
