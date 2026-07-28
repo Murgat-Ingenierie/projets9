@@ -1,6 +1,6 @@
 // Cascade FS : quand une tâche est déplacée, ses dépendantes POSTÉRIEURES sont
 // décalées du même delta, de proche en proche. Logique pure (ni DOM, ni API).
-// Extrait de GanttPage.tsx (C9, Phase 1).
+// Extrait de l'ancien GanttPage.tsx (C9, Phase 1 ; page retirée à la bascule SVAR).
 import { toDate } from "./dates";
 
 export interface CascadeInput {

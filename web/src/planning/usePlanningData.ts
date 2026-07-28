@@ -12,7 +12,7 @@ import type { Dependency, Epic, Equipe, Milestone, Project, TacheEquipe, Task } 
 
 // Charge les 7 collections du planning en une passe (Promise.all) au montage, et
 // expose `reload` — appelé après chaque mutation (pas de refetch ciblé, cf. R10).
-// Extrait de GanttPage.tsx (C9, Phase 1).
+// Extrait de l'ancien GanttPage.tsx (C9, Phase 1 ; page retirée à la bascule SVAR).
 
 export interface PlanningData {
   epics: Epic[];

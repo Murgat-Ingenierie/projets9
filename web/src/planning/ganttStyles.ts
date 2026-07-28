@@ -1,4 +1,4 @@
-// Couleurs et styles des barres du Gantt. Extrait de GanttPage.tsx (C9, Phase 1).
+// Couleurs et styles des barres du Gantt. Extrait de l'ancien GanttPage.tsx (C9, Phase 1 ; page retirée à la bascule SVAR).
 
 export const DEFAULT_EPIC_COLOR = "#3f51b5";
 

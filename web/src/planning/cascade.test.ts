@@ -1,16 +1,28 @@
 import { describe, it, expect } from "vitest";
 import { computeCascade } from "./cascade";
-import { buildDependencyMaps } from "./dependencies";
 import type { Dependency } from "../types";
+
+// Helper local : amont → [avals], FS uniquement. Reprend la sémantique de l'ex
+// `buildDependencyMaps` (module retiré à la bascule SVAR : il ne servait plus qu'à
+// l'ancien Gantt). En production, cette table est construite par `cascadeShifts`.
+function dependentsByAmontFrom(deps: Dependency[]): Map<number, number[]> {
+  const m = new Map<number, number[]>();
+  for (const d of deps) {
+    if (d.type !== "FS") continue;
+    if (!m.has(d.tache_amont_id)) m.set(d.tache_amont_id, []);
+    m.get(d.tache_amont_id)!.push(d.tache_aval_id);
+  }
+  return m;
+}
 
 const dep = (id: number, amont: number, aval: number): Dependency => ({
   id, tache_amont_id: amont, tache_aval_id: aval, type: "FS",
 });
 
 // Construit les entrées de computeCascade à partir d'une liste de deps et d'une
-// table id → date_debut, comme le fait GanttPage au moment du drag.
+// table id → date_debut, comme le faisait GanttPage au moment du drag.
 function cascade(deps: Dependency[], starts: Record<number, string>, movedId: number, oldStartIso: string) {
-  const { dependentsByAmont } = buildDependencyMaps(deps);
+  const dependentsByAmont = dependentsByAmontFrom(deps);
   const tasksById = new Map(
     Object.entries(starts).map(([id, date_debut]) => [Number(id), { date_debut }]),
   );

@@ -1,8 +1,14 @@
-// C9 Phase 2b — Nouveau planning bâti sur SVAR, construit EN PARALLÈLE de l'actuel
-// (route non listée /planning-svar). Réutilise usePlanningData (Phase 1) et les
-// mappings purs buildSvarTasks/buildSvarLinks. Incrément 1 : rendu lecture seule
-// (hiérarchie + jalons + dépendances). Drag/persist, contrôles, décorations,
-// undo, panneau : incréments suivants.
+// Planning principal (route `/`), bâti sur SVAR — chantier C9.
+//
+// Remplace l'ancien GanttPage.tsx (gantt-task-react, 2104 lignes), retiré à la
+// bascule : plus de manipulation impérative du DOM de la lib, plus de setInterval,
+// plus de mapping par index. Réutilise les modules purs de la Phase 1
+// (usePlanningData, useUndo, dates, cascade) et les mappings buildSvarTasks/
+// buildSvarLinks, tous sous tests unitaires.
+//
+// ⚠️ Les props `init`, `tasks` et `links` doivent rester STABLES en identité : SVAR
+// ré-initialise tout son store à chaque changement de référence (cf. useStableList
+// et le useCallback sur onInit — sinon clignotement à chaque rendu).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Gantt, Willow } from "@svar-ui/react-gantt";
 import type { IApi, TID, ILink, ITask } from "@svar-ui/react-gantt";
@@ -24,6 +30,7 @@ import {
   dependencies as depsApi,
 } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import type { Dependency, Task } from "../types";
 
 type Scale = { unit: "year" | "month" | "week" | "day"; step: number; format: (d: Date) => string };
@@ -139,6 +146,12 @@ export default function GanttSvarPage() {
   // « Grouper par epic » ajoute les lignes d'en-tête epic (reparente sous l'epic).
   const [groupByEpic, setGroupByEpic] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
+  // Panneau d'édition/création (parité ancien Gantt) : ouvert au double-clic sur une
+  // ligne (on intercepte l'éditeur natif de SVAR) et par les boutons « + » de la barre.
+  const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
+  // Projet actuellement sélectionné, s'il y en a UN seul : contexte de « + Tâche »
+  // (créer une tâche exige un projet parent).
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const apiRef = useRef<IApi | null>(null);
   // État déplié (id de ligne → ouvert), suivi HORS React (ref) : survit aux
   // reconstructions de l'arbre (filtre/groupe) sans re-render à chaque expand/repli.
@@ -250,6 +263,29 @@ export default function GanttSvarPage() {
     // lors des reconstructions de l'arbre (cf. openStateRef passé à buildSvarTasks).
     api.on("open-task", (ev) => {
       openStateRef.current.set(String(ev.id), Boolean(ev.mode));
+    });
+
+    // Édition : SVAR ouvre son propre éditeur au double-clic (`show-editor`). On le
+    // BLOQUE (return false) et on ouvre EditPanel à la place — c'est lui qui porte les
+    // règles métier (allocations, project_ids d'un jalon…), parité avec l'ancien Gantt.
+    api.intercept("show-editor", (ev) => {
+      const parsed = parseSvarId(String(ev.id));
+      if (!parsed) return false;
+      if (parsed.kind === "epic") setPanelTarget({ type: "epic", trigramme: parsed.ref });
+      else if (parsed.kind === "proj") setPanelTarget({ type: "project", id: Number(parsed.ref) });
+      else if (parsed.kind === "task") setPanelTarget({ type: "task", id: Number(parsed.ref) });
+      else setPanelTarget({ type: "milestone", id: Number(parsed.ref) });
+      return false;
+    });
+
+    // Contexte de création d'une tâche : le projet sélectionné, s'il est unique.
+    api.on("select-task", () => {
+      const projs: number[] = [];
+      for (const sid of api.getState().selected ?? []) {
+        const p = parseSvarId(String(sid));
+        if (p?.kind === "proj") projs.push(Number(p.ref));
+      }
+      setSelectedProjectId(projs.length === 1 ? projs[0] : null);
     });
 
     api.intercept("update-task", (ev) => {
@@ -474,7 +510,7 @@ export default function GanttSvarPage() {
 
   return (
     <>
-      <h2>Planning (SVAR) — aperçu Phase 2b</h2>
+      <h2>Planning</h2>
       <div className="svar-controls">
         <div className="svar-zoom" role="group" aria-label="Zoom">
           {ZOOM_ORDER.map((z) => (
@@ -509,6 +545,31 @@ export default function GanttSvarPage() {
         >
           <span className="material-symbols-outlined" aria-hidden="true">today</span>
           Aujourd'hui : {fmtDate(new Date())}
+        </button>
+        <button
+          type="button"
+          className="svar-toggle"
+          onClick={() => setPanelTarget({ type: "milestone-new" })}
+          title="Créer un jalon"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">add</span>
+          Jalon
+        </button>
+        <button
+          type="button"
+          className="svar-toggle"
+          disabled={selectedProjectId === null}
+          onClick={() =>
+            selectedProjectId !== null && setPanelTarget({ type: "task-new", projet_id: selectedProjectId })
+          }
+          title={
+            selectedProjectId === null
+              ? "Sélectionner d'abord un projet pour y ajouter une tâche"
+              : "Créer une tâche dans le projet sélectionné"
+          }
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">add_task</span>
+          Tâche
         </button>
         <button
           type="button"
@@ -580,6 +641,7 @@ export default function GanttSvarPage() {
           />
         </Willow>
       </div>
+      <EditPanel target={panelTarget} onClose={() => setPanelTarget(null)} onSaved={reload} />
     </>
   );
 }

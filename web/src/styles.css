@@ -818,59 +818,6 @@ dl.kv dd textarea {
   background: var(--md-primary-light);
 }
 
-/* =============================================================
-   Gantt : harmonisation (la lib gère son CSS, on retouche peu)
-   ============================================================= */
-
-._gantt-task-react,
-.gantt-task-react,
-.gantt-container {
-  font-family: "Roboto", sans-serif !important;
-}
-
-
-/* Flèches de dépendance : on les épaissit visuellement avec un halo
-   (stroke semi-transparent autour du fill plein). Le paint-order
-   place le stroke en-dessous du fill pour ne pas le décolorer. La
-   zone cliquable correspond à fill + stroke. */
-.gantt-container g[class~="arrow"] path {
-  stroke: rgba(25, 118, 210, 0.3);
-  stroke-width: 4;
-  paint-order: stroke fill;
-}
-
-/* En mode édition : les flèches deviennent rouges au survol pour
-   indiquer qu'elles sont cliquables (suppression). */
-.gantt-container.edit-mode g[class~="arrow"] {
-  cursor: pointer;
-}
-.gantt-container.edit-mode g[class~="arrow"] path {
-  pointer-events: all;
-}
-/* Au survol on ne touche PAS au fill : le <path> est en zigzag et avec Z,
-   un fill teinte toute la zone enclose (jusqu'à 1000+ px de surface) → un
-   énorme triangle rouge envahit le planning. On rougit uniquement le stroke
-   (épaissi) + un léger drop-shadow rouge pour signifier le hover. */
-.gantt-container.edit-mode g[class~="arrow"]:hover path {
-  stroke: #d32f2f !important;
-  stroke-width: 6 !important;
-  filter: drop-shadow(0 0 2px rgba(211, 47, 47, 0.6));
-}
-
-/* Masque les libellés affichés sur les barres : le nom est déjà dans le
-   panneau de gauche, l'afficher en plus sur la barre fait doublon.
-   La lib gantt-task-react utilise des classes CSS-modules hashées —
-   on cible large pour s'assurer de matcher peu importe le hash. */
-.gantt-container svg text[class*="barLabel"]:not([data-done-check]),
-.gantt-container svg text[class*="projectLabel"]:not([data-done-check]),
-.gantt-container svg text[class*="taskLabel"]:not([data-done-check]),
-.gantt-container svg g[class*="barWrapper"] > text:not([data-done-check]),
-.gantt-container svg g[class*="projectWrapper"] > text:not([data-done-check]),
-.gantt-container svg g[tabindex] > text:not([data-done-check]) {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
 
 /* Charge équipes : tableau semaines × équipes */
 .charge-table {

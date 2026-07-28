@@ -6,7 +6,7 @@ import { DEFAULT_EPIC_COLOR, adjustBrightness } from "./ganttStyles";
 // État du planning → arbre de tâches SVAR (ITask[]), via la hiérarchie NATIVE de
 // SVAR (`parent` + `type`) : epic (summary) → projet (summary) → tâche. Les jalons
 // sont des `milestone` au niveau racine (le rendu multi-projets est un point de
-// conception à traiter plus tard). C9 Phase 2b — pendant SVAR de buildGanttTasks.
+// conception à traiter plus tard). C9 Phase 2b — pendant SVAR de l'ex-buildGanttTasks.
 export interface BuildSvarTasksInput {
   epics: Epic[];
   projects: Project[];

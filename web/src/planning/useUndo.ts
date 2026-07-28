@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 // Pile d'annulation du planning : chaque mutation réversible empile son inverse ;
 // Ctrl/Cmd+Z ou le bouton dépile. Les effets de bord (rafraîchir, remonter/effacer
-// l'erreur) sont délégués via options. Extrait de GanttPage.tsx (C9, Phase 1).
+// l'erreur) sont délégués via options. Extrait de l'ancien GanttPage.tsx (C9, Phase 1 ; page retirée à la bascule SVAR).
 
 export interface UndoAction {
   label: string;

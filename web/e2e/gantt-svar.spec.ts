@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockApi, type ApiCall } from "./mockApi";
 
-// Parité SVAR (/planning-svar, C9 Phase 2b). Pilote le nouveau Gantt avec l'API
+// Parité SVAR — planning principal (route `/`) depuis la bascule C9. Pilote le Gantt avec l'API
 // mockée ; on assère sur du visible/comportement (portable entre implémentations),
 // pas sur le DOM interne de la lib.
 //
@@ -25,8 +25,8 @@ async function gotoSvar(page: Page): Promise<ApiCall[]> {
   await page.clock.setFixedTime(new Date("2026-07-20T08:00:00"));
   await page.setViewportSize({ width: 1600, height: 900 });
   const calls = await mockApi(page);
-  await page.goto("/planning-svar");
-  await expect(page.getByRole("heading", { name: /Planning \(SVAR\)/ })).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
   return calls;
 }
 
@@ -153,6 +153,24 @@ test.describe("Planning SVAR — parité 2b", () => {
     // Un filtre équipe qui garde le projet visible ne le replie pas non plus.
     await page.getByRole("button", { name: "Equipe A", exact: true }).click();
     await expect(page.getByText("Choix capteurs").first()).toBeVisible();
+  });
+
+  // Repris du contrat de parité de l'ancien Gantt (e2e/gantt.spec.ts, retiré à la
+  // bascule) : l'édition depuis le planning passe par EditPanel, pas par l'éditeur
+  // natif de SVAR (qui est intercepté).
+  test("double-cliquer une ligne ouvre EditPanel ; « Fermer » le referme", async ({ page }) => {
+    await gotoSvar(page);
+    await page.locator('[data-task-id=":proj:1"]').first().dblclick();
+    const panel = page.locator("aside.panel");
+    await expect(panel).toBeVisible();
+    await panel.getByTitle("Fermer").click();
+    await expect(panel).toHaveCount(0);
+  });
+
+  test("« + Jalon » ouvre le panneau de création", async ({ page }) => {
+    await gotoSvar(page);
+    await page.getByRole("button", { name: "Jalon", exact: true }).click();
+    await expect(page.locator("aside.panel")).toBeVisible();
   });
 
   test("undo : annuler une création de lien (bouton + DELETE)", async ({ page }) => {
