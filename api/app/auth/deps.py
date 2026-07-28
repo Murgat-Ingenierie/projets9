@@ -3,6 +3,8 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth.oidc import decoder_jeton_oidc, keycloak_configure
+from app.auth.provisioning import utilisateur_depuis_jeton
 from app.auth.security import decode_token
 from app.config import settings
 from app.database import get_db
@@ -35,6 +37,17 @@ def get_current_user(
         return _first_active_admin(db)
     if token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token manquant")
+
+    # Adossement Keycloak dès que le realm est renseigné. Le mode hérité (JWT
+    # maison, HS256) reste en place tant qu'il ne l'est pas : les deux chemins
+    # coexistent, ce qui permet de basculer sans fenêtre d'indisponibilité.
+    if keycloak_configure():
+        try:
+            payload = decoder_jeton_oidc(token)
+        except Exception:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Jeton invalide") from None
+        return utilisateur_depuis_jeton(payload, db)
+
     try:
         payload = decode_token(token)
         user_id = int(payload["sub"])
