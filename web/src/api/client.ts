@@ -1,3 +1,5 @@
+import { estActif, jetonAcces, seConnecter } from "../auth/oidc";
+
 const TOKEN_KEY = "gp.token";
 
 export function getToken(): string | null {
@@ -20,13 +22,23 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!headers.has("Content-Type") && init.body) {
     headers.set("Content-Type", "application/json");
   }
-  const token = getToken();
+  // Deux sources possibles, dans cet ordre : le jeton Keycloak quand l'OIDC est
+  // configuré, sinon le jeton hérité en localStorage. Les deux chemins coexistent
+  // le temps de la bascule (même principe que côté API).
+  const token = estActif() ? await jetonAcces() : getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(path, { ...init, headers });
 
-  // Auth débrayée (AUTH_DISABLED, Keycloak à venir) : plus de page /login, donc
-  // plus de redirection sur 401 — l'erreur remonte comme n'importe quelle autre.
+  // 401 avec OIDC actif : la session Keycloak a expiré (ou le renouvellement
+  // silencieux a échoué). On renvoie l'utilisateur s'authentifier plutôt que de
+  // lui afficher une erreur qu'il ne peut pas résoudre. Sans OIDC, l'erreur
+  // remonte comme n'importe quelle autre — il n'y a pas de page de login.
+  if (res.status === 401 && estActif()) {
+    await seConnecter();
+    // La redirection est en cours ; cette promesse ne se résoudra pas.
+    return new Promise<T>(() => {});
+  }
   if (res.status === 204) return undefined as T;
 
   const text = await res.text();

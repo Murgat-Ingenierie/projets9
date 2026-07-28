@@ -34,7 +34,7 @@ function Icon({ name }: { name: string }) {
 }
 
 function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
-  const { user } = useAuth();
+  const { user, deconnexion } = useAuth();
 
   const items: NavItem[] = [
     { to: "/", end: true, icon: "view_timeline", label: "Planning" },
@@ -75,15 +75,21 @@ function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => vo
       {user && (
         <div className="me">
           <div className="user-name">{user.nom}</div>
+          {deconnexion && (
+            <button type="button" className="sidebar-logout" onClick={deconnexion} title="Se déconnecter">
+              <Icon name="logout" />
+              <span className="label">Déconnexion</span>
+            </button>
+          )}
         </div>
       )}
     </aside>
   );
 }
 
-// Auth débrayée (AUTH_DISABLED côté API, Keycloak à venir) : plus de guard ni de
-// redirection login, juste la mise en page. On attend que users.me() résolve
-// (l'admin par défaut) pour éviter un flash de sidebar sans nom.
+// Le garde de route vit dans AuthProvider : quand l'OIDC est actif, il redirige
+// vers Keycloak avant même de rendre quoi que ce soit. Ici on attend seulement
+// que l'utilisateur soit résolu, pour éviter un flash de sidebar sans nom.
 function Layout({ children }: { children: ReactNode }) {
   const { loading } = useAuth();
   const [expanded, setExpanded] = useState(false);
@@ -102,6 +108,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout><GanttSvarPage /></Layout>} />
         <Route path="/parametres" element={<Layout><ParametresPage /></Layout>} />
+        {/* Retour de Keycloak : AuthProvider échange le code puis remet l'URL à
+            « / ». Cette route existe pour que le SPA ne rende pas un 404 le
+            temps de l'échange. */}
+        <Route path="/auth/callback" element={<Layout><p>Connexion…</p></Layout>} />
 
         <Route path="/epics" element={<Layout><EpicsPage /></Layout>} />
         <Route path="/epics/new" element={<Layout><EpicNewPage /></Layout>} />
