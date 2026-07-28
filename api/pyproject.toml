@@ -38,6 +38,12 @@ scripts = [
     "requests>=2.32",
     "openpyxl>=3.1",
 ]
+# `scripts/inspect_gantt.py` seulement : évalue du JS dans un Chromium headless
+# pour mettre au point le rendu du planning. Extra à part — playwright est lourd
+# et n'est utile qu'à ce script, inutile de l'imposer à tout `[scripts]`.
+inspect = [
+    "playwright>=1.47",
+]
 
 [tool.ruff]
 line-length = 100
