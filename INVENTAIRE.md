@@ -430,7 +430,7 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 | R7 | **Pas de lockfile npm** | 🟠 | builds non reproductibles |
 | ~~R8~~ | ~~**Jalons orphelins**~~ | ✅ **résolu (2026-07-22)** | La suppression d'un projet/epic qui orphelinerait un jalon est refusée (409 INV-6, `milestone_guard`). Vérifié end-to-end (4/4) et par test (projet & epic, + cas permis). |
 | R9 | **`GanttPage.tsx` = 2104 lignes** | 🟡 | (2332 l. à l'origine, dégraissé par les extractions de C9 Phase 1 vers `web/src/planning/*`). Reste un composant monolithique avec ses refs miroir d'état. ⚠️ **Toujours actif** (il sert `/`). Le remplaçant SVAR fait **571 l.** — le gain est acquis mais pas encore livré à l'utilisateur : il tombe à la bascule (C9). |
-| R10 | **Aucun refetch ciblé** | 🟡 | chaque mutation du Gantt relance **7 requêtes** ; pas de cache, pas d'optimistic update. Vaut pour les **deux** moteurs (`usePlanningData.reload()`) — et c'est la cause du **flicker** observé après un drag sur SVAR (le visuel natif est correct, le refetch repasse derrière et reconstruit l'arbre). Correctif identifié, non appliqué. |
+| R10 | **Aucun refetch ciblé** | 🟡 | chaque mutation du Gantt relance **7 requêtes** ; pas de cache, pas d'optimistic update. Vaut pour les **deux** moteurs (`usePlanningData.reload()`). Reste un coût réseau, mais **ce n'est plus un défaut visible** : le clignotement qu'on lui imputait avait une autre cause, corrigée en #52 (voir §C9). |
 | ~~R11~~ | ~~`docs/RESTORE.md` : `psql -U postgres`~~ | ✅ **résolu (C6)** | Runbook réécrit et cohérent (tout via le conteneur `backup`, qui a `psql` + le volume + les variables `PG*`). Vérifié : le cycle documenté restaure réellement (marqueur post-backup disparu, données revenues). |
 | R12 | `scripts/` non lintés, deps non déclarées | 🟡 | `requests`, `openpyxl`, `playwright` absents de `pyproject.toml` ; port par défaut `8088` ≠ `8080` réel |
 | R13 | Code mort | 🟡 | ~~INV-9/INV-13 (§5)~~ ✅ purgés en étape 0, ~~`Boolean` (epic)~~ ✅ retiré par `ruff --fix` — restent : `_slug()` (seed), `nav`/`navState` (GanttPage), `equipes.get` |
@@ -498,7 +498,7 @@ JSON
 | **C6** | ✅ **Fait (2026-07-22).** `pipefail` + `.part` atomique + `gzip -t` (fin des dumps tronqués) ; rétention à plancher `BACKUP_MIN_COPIES` (fin du vidage possible) ; `RESTORE.md` réécrit et corrigé. Testé : logique 5/5 en isolation, backup réel intègre (11 tables), cycle backup→restore validé contre la stack (R6, R11). | Un backup non vérifié n'est pas un backup | S |
 | **C7** | Durcir le RBAC (R4) | Écart à la SPEC §6 | M |
 | **C8** | Écrans manquants : CRUD Mesures + courbe, Paramètres/Backup | SPEC §4 incomplet | M |
-| **C9** | 🟡 **Très avancé (2026-07-24 → 27) — il ne reste que la bascule.** Détail complet en **§C9** ci-dessous. Phase 1 ✅ (logique pure extraite sous Vitest dans `web/src/planning/*`) ; Phase 2b ✅ (**réimplémentation entière sur SVAR**, PR #41→#50, en parité fonctionnelle validée en aperçu live). **Reste** : (a) le **flicker** post-mutation (diagnostiqué, non corrigé), (b) **la bascule `/planning-svar` → `/`** puis suppression de l'ancien moteur + `gantt-task-react`. Tant que (b) n'est pas fait, **R5/R9/R10/R15 restent actifs** et le gain n'est pas livré. | Zone la plus fragile et la plus active du dépôt | L |
+| **C9** | 🟡 **Très avancé (2026-07-24 → 27) — il ne reste que la bascule.** Détail complet en **§C9** ci-dessous. Phase 1 ✅ (logique pure extraite sous Vitest dans `web/src/planning/*`) ; Phase 2b ✅ (**réimplémentation entière sur SVAR**, PR #41→#50, en parité fonctionnelle validée en aperçu live). Clignotement post-mutation ✅ **corrigé (#52, 2026-07-28)**, vérifié en live. **Reste la bascule `/planning-svar` → `/`** puis la suppression de l'ancien moteur + `gantt-task-react`. Tant qu'elle n'est pas faite, **R5/R9/R15 restent actifs** et le gain n'est pas livré à l'utilisateur. | Zone la plus fragile et la plus active du dépôt | L |
 | **C16** | ✅ **Fait (2026-07-23) — Dependabot.** Mises à jour hebdomadaires avec **cooldown 7 jours** (n'adopte une release qu'après 7 j — protection supply-chain, et exigée par la règle SAST `dependabot-missing-cooldown`). 4 écosystèmes (pip, npm, github-actions — garde les SHA épinglés à jour —, docker). Minor/patch groupés, majeures individuelles. **TypeScript 7 refusé d'office** (pas supporté par typescript-eslint). Passe le gate SAST (0 finding). | Boucler l'automatisation des dépendances (supply-chain) | S |
 | **C15** | ✅ **Fait (2026-07-23) — durcissement CI/tests.** 3 volets, tous bloquants : ✅ tests front (Vitest) ; ✅ **SAST Semgrep** (`--error`, 8 rulesets) ; ✅ **DAST ZAP Baseline** (bloquant sur tout WARN). SAST : CORS wildcard corrigé, API + (rappel) actions épinglées, backup non-root traité en C15/SAST, 2 baselines `nosemgrep`. DAST : 5 en-têtes de sécurité ajoutés au proxy (X-Frame-Options, X-Content-Type-Options, `server_tokens off`, Permissions-Policy, **CSP stricte** `script-src 'self'`) ; Swagger préservé via une CSP assouplie **par-location** (`/api/docs`,`/redoc`) ; app vérifiée fonctionnelle sous CSP (login, Gantt, fonts, 0 violation) ; 5 alertes bas-risque/informationnelles ignorées avec justification (`.zap/rules.tsv`). | Élever le filet avant le gros refacto C9 | M |
 
@@ -537,17 +537,41 @@ aperçu live** (Docker `:8080`) avant merge :
 Tests : `web/src/planning/{buildSvarTasks,buildSvarLinks,svarAdapter,cascadeShifts,teamFilter}.test.ts`
 + un e2e Playwright `web/e2e/gantt-svar.spec.ts`, et un job CI **`e2e`** dédié.
 
-**Ce qui reste — dans cet ordre**
+**Clignotement post-mutation — ✅ corrigé (#52, 2026-07-28)**
 
-1. **Le flicker post-mutation.** Après un drag, `usePlanningData.reload()` refetch les 7 collections
-   et reconstruit tout l'arbre SVAR, alors que le déplacement natif de SVAR était déjà correct à
-   l'écran. **Diagnostiqué, pas corrigé** (c'est R10 appliqué à SVAR).
-2. **La bascule `/planning-svar` → `/`.** C'est la vraie fin du chantier : router le nouveau moteur
-   sur `/`, le remettre dans la nav, **puis supprimer** `GanttPage.tsx`, ses modules propres et la
-   dépendance `gantt-task-react`. C'est ce qui fait tomber **R5, R9, R10, R15** — et qui débloque
-   au passage **React 19** (aujourd'hui refusé par le peer `react ^18` de l'ancienne lib).
+Le diagnostic initial (« c'est `reload()` qui refait 7 requêtes ») était **faux**. La vraie cause était
+dans le wrapper React de SVAR, qui ré-initialise **tout son store** depuis un effet dont les
+dépendances contiennent la prop `init` :
+
+```js
+const c = V(0);
+ie(() => { c.current ? I.init(m) : B && B(b); c.current++; }, [b, B, m, I]);
+//                     ^^^^^^^^^ ré-init COMPLET        ^ B = la prop `init`
+```
+
+`onInit` étant défini en ligne dans le composant, il était recréé à **chaque rendu** → ré-init
+complet du Gantt à chaque rendu. Un simple drag re-rend 3 fois (`setErr`, `pushUndo`, puis les
+`setState` de `reload`) : 3 ré-inits en cascade. *(C'est aussi ce qui expliquait le contournement
+`openStateRef` : l'état déplié était perdu à chaque ré-init.)*
+
+Correctifs : `onInit` en `useCallback` (deps `[reload, pushUndo]`, toutes deux stables) + nouveau
+`useStableList` (`web/src/planning/useStableList.ts`) qui ne propage `tasks`/`links` que sur
+changement de **contenu** — car `reload()` reconstruit ces tableaux même quand rien n'a bougé.
+Verrouillé par `web/src/pages/GanttSvarPage.test.tsx` (stabilité d'identité des props reçues par
+`<Gantt>`), tests **vérifiés en échec** sur le code d'origine. Disparition confirmée en live.
+
+**Ce qui reste**
+
+**La bascule `/planning-svar` → `/`.** C'est la vraie fin du chantier : router le nouveau moteur
+sur `/`, le remettre dans la nav, **puis supprimer** `GanttPage.tsx`, ses modules propres et la
+dépendance `gantt-task-react`. C'est ce qui fait tomber **R5, R9, R15** — et qui débloque au
+passage **React 19** (aujourd'hui refusé par le peer `react ^18` de l'ancienne lib).
 
 **Pièges déjà payés sur SVAR — à ne pas re-découvrir**
+
+- **Les props `init`, `tasks` et `links` doivent être stables en IDENTITÉ** : tout changement de
+  référence ré-initialise l'intégralité du store (cf. ci-dessus). `init` → `useCallback` ;
+  `tasks`/`links` → `useStableList`. Ne jamais repasser à une fonction/tableau recréé au rendu.
 
 - **Dessiner un lien = DEUX CLICS**, pas un drag (clic sur la poignée source, puis sur la cible ; le
   type se déduit des côtés : droite→gauche = FS). Ce geste **est** pilotable en headless → couvert
