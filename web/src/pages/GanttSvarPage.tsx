@@ -3,7 +3,7 @@
 // mappings purs buildSvarTasks/buildSvarLinks. Incrément 1 : rendu lecture seule
 // (hiérarchie + jalons + dépendances). Drag/persist, contrôles, décorations,
 // undo, panneau : incréments suivants.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Gantt, Willow } from "@svar-ui/react-gantt";
 import type { IApi, TID, ILink, ITask } from "@svar-ui/react-gantt";
 import "@svar-ui/react-gantt/all.css";
@@ -16,6 +16,7 @@ import { isoDate, toDate, daysBetweenIso, fmtDate } from "../planning/dates";
 import { planBlockShift, planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
 import { deriveTeamFilter } from "../planning/teamFilter";
 import { useUndo } from "../planning/useUndo";
+import { useStableList } from "../planning/useStableList";
 import {
   tasks as tasksApi,
   projects as projectsApi,
@@ -188,7 +189,7 @@ export default function GanttSvarPage() {
   // On préserve l'état déplié via openStateRef, et reload() après chaque mutation
   // garde l'état React frais → un changement de filtre/groupe reconstruit l'arbre
   // depuis les dates PERSISTÉES (pas de retour à l'ancienne date).
-  const svarTasks = useMemo(
+  const svarTasksRaw = useMemo(
     () =>
       buildSvarTasks({
         epics,
@@ -209,7 +210,7 @@ export default function GanttSvarPage() {
   // Liens filtrés au périmètre équipe : on ne garde que les dépendances dont les DEUX
   // extrémités sont visibles (évite les liens pendants et une cascade vers des tâches
   // hors scope — l'édition sous filtre ne propage pas au-delà du périmètre).
-  const svarLinks = useMemo(() => {
+  const svarLinksRaw = useMemo(() => {
     const all = buildSvarLinks(dependencies);
     if (!teamFilterTaskIds) return all;
     return all.filter((l) => {
@@ -224,12 +225,25 @@ export default function GanttSvarPage() {
     });
   }, [dependencies, teamFilterTaskIds]);
 
+  // Anti-clignotement : SVAR ré-initialise TOUT son store dès que `tasks`/`links`
+  // change de RÉFÉRENCE. Or `reload()` tourne après chaque mutation et reconstruit
+  // ces tableaux même quand rien n'a bougé (créer/supprimer un lien ne touche aucune
+  // tâche). On ne propage donc que les changements de CONTENU réels.
+  const svarTasks = useStableList(svarTasksRaw);
+  const svarLinks = useStableList(svarLinksRaw);
+
   // Rollback (SPEC §4) : dates d'origine capturées AVANT l'application du drag.
   const originalRef = useRef<Map<TID, { start: Date; end: Date }>>(new Map());
   // Lien capturé AVANT suppression, pour pouvoir le rétablir si l'API refuse.
   const deletedLinkRef = useRef<Map<TID, Pick<ILink, "source" | "target" | "type">>>(new Map());
 
-  const onInit = (api: IApi) => {
+  // ⚠️ DOIT rester stable en identité. Le wrapper React de SVAR garde la prop `init`
+  // dans les dépendances de l'effet qui appelle `I.init(m)` : une nouvelle fonction à
+  // chaque rendu = **ré-initialisation complète du store à chaque rendu**. C'était la
+  // cause du clignotement — un simple drag re-rend 3 fois (setErr, pushUndo, puis les
+  // setState de reload), donc ré-initialisait le Gantt 3 fois de suite.
+  // `reload` et `pushUndo` sont eux-mêmes des useCallback([]) : les deps sont stables.
+  const onInit = useCallback((api: IApi) => {
     apiRef.current = api;
 
     // Mémoriser l'état déplié à chaque expand/repli (ref, pas de re-render) : préservé
@@ -456,7 +470,7 @@ export default function GanttSvarPage() {
         }
       }
     });
-  };
+  }, [reload, pushUndo]);
 
   return (
     <>
