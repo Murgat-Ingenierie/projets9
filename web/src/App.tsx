@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
-import GanttPage from "./pages/GanttPage";
 import EpicsPage from "./pages/EpicsPage";
 import EpicNewPage from "./pages/EpicNewPage";
 import EpicDetailPage from "./pages/EpicDetailPage";
@@ -20,7 +19,7 @@ import UserNewPage from "./pages/UserNewPage";
 import EquipesPage from "./pages/EquipesPage";
 import EquipeNewPage from "./pages/EquipeNewPage";
 import ChargeEquipesPage from "./pages/ChargeEquipesPage";
-import GanttSvarPage from "./pages/GanttSvarPage"; // C9 Phase 2b — aperçu, non listé
+import GanttSvarPage from "./pages/GanttSvarPage";
 
 interface NavItem {
   to: string;
@@ -99,8 +98,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/" element={<Layout><GanttPage /></Layout>} />
-        <Route path="/planning-svar" element={<Layout><GanttSvarPage /></Layout>} /> {/* Phase 2b — aperçu */}
+        <Route path="/" element={<Layout><GanttSvarPage /></Layout>} />
 
         <Route path="/epics" element={<Layout><EpicsPage /></Layout>} />
         <Route path="/epics/new" element={<Layout><EpicNewPage /></Layout>} />

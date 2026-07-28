@@ -1,6 +1,6 @@
 // Helpers de dates du planning — purs, sans dépendance à la lib Gantt.
 // Les dates métier sont des chaînes ISO "YYYY-MM-DD" ancrées à minuit LOCAL
-// (cohérent avec l'API et l'affichage). Extrait de GanttPage.tsx (C9, Phase 1).
+// (cohérent avec l'API et l'affichage). Extrait de l'ancien GanttPage.tsx (C9, Phase 1 ; page retirée à la bascule SVAR).
 
 export function toDate(iso: string): Date {
   return new Date(iso + "T00:00:00");
