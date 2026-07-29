@@ -23,6 +23,12 @@ services:
       SEED_CSV_PATH: /seed/epics.csv
       SEED_DEMO: ${SEED_DEMO:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Plafond de comptes actifs (INV-AUTH-2). `Settings` savait déjà le lire,
+      # mais ce bloc ne le transmettait pas : la valeur était donc figée à 10,
+      # quoi qu'on écrive dans `.env`. Le relever demandait d'éditer ce fichier —
+      # à faire le jour où quelqu'un est déjà bloqué au login, ce qui est le pire
+      # moment. Défaut inchangé : la SPEC §5 pose ≤ 10.
+      MAX_ACTIVE_USERS: ${MAX_ACTIVE_USERS:-10}
       # Adossement Keycloak — OBLIGATOIRE : c'est le seul moyen d'authentifier
       # depuis le retrait du login maison, et l'API refuse de démarrer sans.
       # Pas de valeur par défaut ici, volontairement : une valeur par défaut
