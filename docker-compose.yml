@@ -33,6 +33,12 @@ services:
       AUTH_DISABLED: ${AUTH_DISABLED:-true}
       SEED_DEMO: ${SEED_DEMO:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Adossement Keycloak. Vides = inactif : l'API reste sur le mode hérité ou
+      # débrayé. Ce service ne reçoit QUE les variables listées ici — les mettre
+      # dans `.env` ne suffit pas, il faut aussi les déclarer dans ce bloc.
+      KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:-}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-}
+      KEYCLOAK_API_AUDIENCE: ${KEYCLOAK_API_AUDIENCE:-projets9-api}
     volumes:
       - ./Liste des projets en cours - Epic.csv:/seed/epics.csv:ro
       # Historique des sauvegardes : LECTURE SEULE. L'API les liste, elle ne
