@@ -11,10 +11,14 @@ Epics opérationnels et stratégiques de la pisciculture.
   invariants actifs couverts sur trois couches, la suite rejouée sur PostgreSQL. Voir ci-dessous.
 - **v0** : scaffolding complet (API + front + Docker Compose + CI).
 
-> ⚠️ **L'authentification est débrayée** (depuis le 2026-07-24) : plus de page de login ni de
-> guard côté front, et `.env.example` livre `AUTH_DISABLED=true`. C'est **délibéré et
-> temporaire** — la protection est reportée sur un VHost Apache devant l'application, en
-> attendant **Keycloak** (pas encore implémenté). Ne pas exposer l'application sans ce rempart.
+> **Authentification : Keycloak (OIDC)** depuis le 2026-07-29. Le front redirige vers le realm
+> (*authorization code* + PKCE S256), l'API valide le jeton en RS256/JWKS. Keycloak fait autorité
+> sur l'identité et les rôles ; le rôle `app-projets9-access` conditionne l'accès à l'application.
+>
+> ⚠️ **L'adossement est inactif tant qu'il n'est pas configuré** : une installation neuve démarre
+> en mode débrayé (`AUTH_DISABLED=true`), donc **sans authentification**. C'est voulu — on peut
+> développer sans dépendre du realm — mais cela **doit être configuré avant toute mise en ligne**.
+> Voir « Authentification » ci-dessous.
 
 État de l'existant, dette et chantiers ouverts : [INVENTAIRE.md](INVENTAIRE.md).
 
@@ -42,6 +46,31 @@ Il n'y a **pas d'écran de connexion** : l'application s'ouvre directement sur l
 (cf. l'avertissement ci-dessus). Le compte admin créé par la seed
 (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`) sert encore aux scripts et redeviendra le compte
 d'entrée quand l'authentification sera rebranchée.
+
+### Authentification (Keycloak)
+
+Renseigner dans `.env` — **non versionné**, aucune de ces valeurs n'a sa place dans le dépôt :
+
+```bash
+KEYCLOAK_BASE_URL=https://<serveur-keycloak>   # API : validation des jetons
+KEYCLOAK_REALM=<realm>
+KEYCLOAK_ORIGIN=https://<serveur-keycloak>     # proxy : autorise l'origine dans la CSP
+VITE_OIDC_AUTHORITY=https://<serveur-keycloak>/realms/<realm>   # front
+VITE_OIDC_CLIENT_ID=projets9-front
+AUTH_DISABLED=false                            # à basculer EN MÊME TEMPS
+```
+
+Côté realm, deux clients : **`projets9-front`** (public, PKCE S256, URI de redirection
+`<origine>/auth/callback`) et **`projets9-api`** (audience, porteur des rôles). Trois rôles sur
+`projets9-api` : `app-projets9-access` (porte d'entrée — sans lui, accès refusé), `admin`,
+`membre`. Le client front a besoin d'un *audience mapper* vers `projets9-api`, sans quoi l'API
+rejette le jeton.
+
+⚠️ Deux pièges qui coûtent du temps :
+- les `VITE_OIDC_*` sont inscrites dans le bundle **au build** — les changer impose
+  `docker compose up -d --build web`, un redémarrage ne suffit pas ;
+- `KEYCLOAK_ORIGIN` est **indispensable** : sans elle, la CSP du proxy bloque le navigateur qui
+  tente de joindre Keycloak, avec pour seul symptôme un « Failed to fetch ».
 
 ### Jeu de démonstration
 
