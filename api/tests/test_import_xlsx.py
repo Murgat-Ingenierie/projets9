@@ -7,7 +7,7 @@ central, `test_une_ligne_invalide_est_refusee_et_rapportee` : une ligne qui viol
 un invariant doit être **refusée ET signalée**, jamais insérée en douce.
 
 Les classeurs sont fabriqués ici même, avec les onglets et indices de colonnes du
-format réel (cf. docstring de `scripts/import_data.py`).
+format réel (cf. docstring de `app/services/import_xlsx.py`).
 """
 
 from io import BytesIO

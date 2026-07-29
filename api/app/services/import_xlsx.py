@@ -1,18 +1,45 @@
 """Import du classeur source — logique métier, sans transport.
 
-Déplacée telle quelle depuis `scripts/import_data.py` : elle n'a jamais parlé
-qu'à une interface minuscule (`get`/`post`), ce qui la rend indifférente au
-canal. Deux implémentations la nourrissent aujourd'hui :
-
-- `ClientEnProcess` (app/services/import_client.py) — appels directs aux
-  fonctions de route, utilisé par l'endpoint d'import ;
-- l'ancien client HTTP du script, tant qu'il existe.
+Déplacée telle quelle depuis `scripts/import_data.py` (supprimé depuis) : elle
+n'a jamais parlé qu'à une interface minuscule (`get`/`post`), ce qui la rend
+indifférente au canal. `ClientEnProcess` (app/services/import_client.py) l'honore
+en appelant directement les fonctions de route.
 
 **Ce qui compte** : les écritures passent toujours par les routes, donc par les
 invariants. Une ligne invalide est refusée et rapportée, jamais insérée en
 douce — c'est ce qui a fait remonter les 9 refus INV-10 du premier import réel.
 
-Format attendu du classeur : voir la docstring de `scripts/import_data.py`.
+FORMAT ATTENDU DU CLASSEUR
+--------------------------
+Onglets et colonnes (indices 0-based). Cette description vivait dans la
+docstring du script ; elle est recopiée ici parce que c'est ce module qui lit
+désormais le fichier — une spec qui ne voisine pas le code qu'elle décrit se
+périme sans qu'on s'en aperçoive.
+
+    « Chargés de projets »         : [0] nom
+    « Projets »                    : [0] nom  [1] fin prévue  [2] jalon de fin max
+                                     [3] raison fin  [4] trigramme projet
+                                     [5] trigramme epic  [6] rappel  [7] terminé ?
+    « Projet non plannifiés »      : [0] nom            — onglet FACULTATIF
+    « Detail des tache de projet » : [0] trigramme projet  [2] nom
+                                     [3] date début  [4] date fin
+                                     [6] responsable  [9] terminé ?
+    « Jalons »                     : [0] nom  [1] date  — onglet FACULTATIF
+
+Les trois premiers onglets sont exigés ; leur absence donne un 400 qui nomme ce
+qui manque ET ce qui a été trouvé (cf. `routes/imports.py`).
+
+`scripts/make_sample_source.py` génère un classeur conforme : c'est la spec
+exécutable, et de quoi éprouver l'import sans données réelles.
+
+Correspondances des clés étrangères :
+- les projets de la source portent un trigramme (BDB, CIR…) qui n'est PAS stocké
+  en base ; on garde en mémoire `trigramme → project.id` pour rattacher les
+  tâches ;
+- les responsables de tâches sont rapprochés d'un compte par nom normalisé, et
+  les comptes manquants sont créés (d'où l'endpoint réservé aux admins).
+
+Idempotent : rejouable sans créer de doublons.
 """
 
 from __future__ import annotations

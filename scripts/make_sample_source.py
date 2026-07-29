@@ -1,4 +1,4 @@
-"""Génère un classeur d'exemple conforme au format attendu par import_data.py.
+"""Génère un classeur d'exemple conforme au format attendu par l'import.
 
 Sert deux buts :
   1. **Documentation exécutable** du format source (onglets + colonnes) — plus
@@ -6,9 +6,13 @@ Sert deux buts :
   2. **Vérification** de l'import de bout en bout sans avoir les données réelles
      (qui vivent dans un `data/source.xlsx` hors dépôt).
 
-    pip install -e "api/[scripts]"
+    pip install -e "api/[scripts]"          # openpyxl
     python scripts/make_sample_source.py --out data/source.xlsx
-    python scripts/import_data.py --xlsx data/source.xlsx --email … --password …
+
+Puis déposer le fichier dans **Paramètres → Import du classeur source**. L'import
+se fait depuis l'application depuis qu'il n'y a plus de login maison sur lequel
+un script pourrait s'authentifier ; le format, lui, n'a pas changé (spec :
+docstring de `api/app/services/import_xlsx.py`).
 
 Le jeu couvre volontairement : la création d'epics à la volée, des projets
 terminés et en cours, des tâches liées par trigramme, un responsable rapproché
