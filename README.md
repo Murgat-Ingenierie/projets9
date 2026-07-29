@@ -107,10 +107,17 @@ L'import écrit à travers les routes de l'API, donc à travers les invariants :
 incohérente est refusée et signalée, jamais enregistrée à moitié. Idempotent, rejouable
 sans doublons.
 
+**Le fichier n'a pas besoin d'atteindre le serveur** : c'est un téléversement depuis le
+navigateur, il suffit qu'il soit sur la machine d'où tu ouvres l'application. C'est ce qui
+change par rapport à l'ancien script, qui exigeait le fichier là où il s'exécutait.
+
+Format attendu (onglets et colonnes) : docstring de `api/app/services/import_xlsx.py`.
+`make_sample_source.py` en génère un exemple conforme — spec exécutable, et de quoi
+éprouver l'import sans données réelles :
+
 ```bash
-# Format attendu du classeur : voir la docstring de api/app/services/import_xlsx.py.
-# `make_sample_source.py` génère un exemple conforme (spec exécutable) :
-python scripts/make_sample_source.py --out data/source.xlsx
+pip install -e "api/[scripts]"
+python scripts/make_sample_source.py --out data/exemple.xlsx
 ```
 
 Le dossier `data/` **entier** est gitignoré : ni le classeur réel, ni les fichiers dérivés
@@ -129,7 +136,7 @@ Le dossier `data/` **entier** est gitignoré : ni le classeur réel, ni les fich
 │   │   ├── models/         # Tables SQLAlchemy
 │   │   ├── schemas/        # Pydantic
 │   │   ├── routes/         # CRUD REST
-│   │   ├── auth/           # JWT + bcrypt (débrayé, cf. avertissement)
+│   │   ├── auth/           # Validation des jetons Keycloak + provisioning
 │   │   ├── invariants/     # Règles métier (INV-1 … INV-21)
 │   │   ├── seed.py         # Peuplement initial
 │   │   └── main.py
