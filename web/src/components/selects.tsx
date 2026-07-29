@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
 import { epics as epicsApi, projects as projectsApi, users as usersApi } from "../api/endpoints";
-import type { Epic, Project, User } from "../types";
+import type { Epic, Project } from "../types";
 
 interface UserSelectProps {
   value: number | null;
   onChange: (id: number | null) => void;
   required?: boolean;
-  users?: User[]; // si déjà chargés à l'extérieur, on évite un fetch
+  /** Forme minimale : `id` + `nom` suffisent à peupler le sélecteur. Accepte
+   *  aussi bien un `User` complet que l'annuaire réduit (cf. C7). */
+  users?: { id: number; nom: string }[];
 }
 
 export function UserSelect({ value, onChange, required, users: provided }: UserSelectProps) {
-  const [users, setUsers] = useState<User[]>(provided ?? []);
+  const [users, setUsers] = useState<{ id: number; nom: string }[]>(provided ?? []);
   useEffect(() => {
     if (provided) {
       setUsers(provided);
       return;
     }
-    usersApi.list().then(setUsers).catch(() => {});
+    usersApi.annuaire().then(setUsers).catch(() => {});
   }, [provided]);
   return (
     <select

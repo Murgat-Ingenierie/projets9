@@ -50,6 +50,21 @@ class UserRead(TimestampedRead):
     actif: bool
 
 
+class UserAnnuaire(BaseModel):
+    """Vue minimale d'un utilisateur : de quoi remplir un sélecteur de responsable.
+
+    Volontairement réduite à l'identifiant et au nom. Affecter un responsable
+    n'exige pas de connaître les emails, les rôles ni les comptes désactivés —
+    c'est ce qui permet d'ouvrir cette liste à tout membre tout en réservant
+    l'annuaire complet (`GET /api/users`) aux administrateurs.
+    """
+
+    id: int
+    nom: str
+
+    model_config = {"from_attributes": True}
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str

@@ -8,7 +8,7 @@ import { UserSelect } from "../components/selects";
 import { Switch } from "../components/Switch";
 import { navState, useParentCrumbs } from "../hooks/useBreadcrumbState";
 import { fmtDate } from "../labels";
-import type { Project, Task, User } from "../types";
+import type { Project, Task } from "../types";
 
 const DEFAULT_PARENT: Crumb[] = [
   { label: "Planning", to: "/" },
@@ -22,7 +22,7 @@ export default function ProjectEditPage() {
   const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
   const [project, setProject] = useState<Project | null>(null);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: number; nom: string }[]>([]);
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
 
   // Mode édition global des tâches
@@ -40,7 +40,7 @@ export default function ProjectEditPage() {
       setErr(new Error("Identifiant projet invalide"));
       return;
     }
-    Promise.all([projects.list(), users.list(), tasks.list(projectId)])
+    Promise.all([projects.list(), users.annuaire(), tasks.list(projectId)])
       .then(([ps, us, ts]) => {
         const p = ps.find((x) => x.id === projectId);
         if (!p) throw new Error(`Projet ${projectId} introuvable`);

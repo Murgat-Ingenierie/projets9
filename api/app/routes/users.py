@@ -12,7 +12,7 @@ from app.invariants import (
 )
 from app.models.user import User
 from app.routes.errors import http_from_invariant
-from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.schemas.user import UserAnnuaire, UserCreate, UserRead, UserUpdate
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -42,10 +42,27 @@ def _all_users_view(db: Session, override: User, removed: bool = False) -> list[
 
 
 @router.get("", response_model=list[UserRead])
-def list_users(
-    db: Session = Depends(get_db), _=Depends(get_current_user)
-) -> list[User]:
+def list_users(db: Session = Depends(get_db), _=Depends(require_admin)) -> list[User]:
+    """Annuaire COMPLET (email, rôle, statut) — réservé aux administrateurs.
+
+    C'était le seul écart réel à la SPEC §6 : tout membre pouvait énumérer les
+    comptes. Les écrans qui ont seulement besoin de proposer un responsable
+    utilisent `/annuaire`, qui n'expose que l'identifiant et le nom.
+    """
     return list(db.execute(select(User).order_by(User.id)).scalars().all())
+
+
+@router.get("/annuaire", response_model=list[UserAnnuaire])
+def annuaire(db: Session = Depends(get_db), _=Depends(get_current_user)) -> list[User]:
+    """Liste réduite (id + nom) des comptes ACTIFS, ouverte à tout membre.
+
+    Nécessaire pour affecter un responsable à un projet ou une tâche sans être
+    administrateur. Les comptes désactivés en sont exclus : on ne doit pas
+    pouvoir affecter du travail à quelqu'un qui n'a plus accès.
+    """
+    return list(
+        db.execute(select(User).where(User.actif).order_by(User.nom)).scalars().all()
+    )
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)

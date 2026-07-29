@@ -23,6 +23,10 @@ export const auth = {
 
 export const users = {
   list: () => api<User[]>("/api/users"),
+  /** Liste réduite (id + nom) des comptes actifs, ouverte à tout membre.
+   *  `list()` est réservée aux admins depuis C7 : les écrans qui ne font que
+   *  proposer un responsable doivent utiliser celle-ci. */
+  annuaire: () => api<{ id: number; nom: string }[]>("/api/users/annuaire"),
   me: () => api<User>("/api/users/me"),
   create: (data: Partial<User> & { password: string }) =>
     api<User>("/api/users", { method: "POST", body: JSON.stringify(data) }),

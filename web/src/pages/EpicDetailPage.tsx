@@ -20,7 +20,6 @@ import type {
   Milestone,
   Project,
   ProjectStatus,
-  User,
 } from "../types";
 
 const DEFAULT_PARENT: Crumb[] = [
@@ -39,7 +38,7 @@ export default function EpicDetailPage() {
   const [projs, setProjs] = useState<Project[]>([]);
   const [jalons, setJalons] = useState<Milestone[]>([]);
   const [mes, setMes] = useState<Measure[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: number; nom: string }[]>([]);
   const [allEpics, setAllEpics] = useState<Epic[]>([]);
   const [err, setErr] = useState<unknown>(null);
 
@@ -70,7 +69,7 @@ export default function EpicDetailPage() {
       projects.list(trigramme),
       milestones.list({ epic: trigramme }),
       measures.list(trigramme),
-      users.list(),
+      users.annuaire(),
       epics.list(),
     ])
       .then(([e, p, j, m, u, allE]) => {
