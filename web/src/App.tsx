@@ -76,7 +76,7 @@ function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => vo
         <div className="me">
           <div className="user-name">{user.nom}</div>
           {deconnexion && (
-            <button type="button" className="sidebar-logout" onClick={deconnexion} title="Se déconnecter">
+            <button type="button" className="logout" onClick={deconnexion} title="Se déconnecter">
               <Icon name="logout" />
               <span className="label">Déconnexion</span>
             </button>
