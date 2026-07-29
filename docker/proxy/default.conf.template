@@ -11,8 +11,21 @@ upstream web_upstream {
 # et exécutent un script d'init inline. On passe par une variable (map) pour
 # n'avoir qu'UN SEUL jeu d'add_header au niveau serveur — pas de redéfinition
 # par location (nginx remplace au lieu de fusionner, un vrai footgun).
+#
+# ${KEYCLOAK_ORIGIN} est substitué AU DÉMARRAGE du conteneur (templates nginx +
+# envsubst), pas écrit ici : l'URL du serveur d'authentification n'a rien à faire
+# dans un dépôt. Vide = aucune origine externe autorisée, la CSP reste stricte.
+#
+# Deux directives sont nécessaires, et pour deux raisons distinctes :
+#   - connect-src : oidc-client-ts lit le document de découverte et échange le
+#     code contre un jeton, en fetch() ;
+#   - frame-src   : le renouvellement silencieux passe par une iframe cachée
+#     pointant sur Keycloak. Sans elle, la session expire au bout d'une heure
+#     et l'utilisateur est renvoyé sur l'écran de connexion.
+# `default-src 'self'` ne les couvre PAS pour une origine externe — d'où leur
+# déclaration explicite.
 map $uri $csp_policy {
-    default            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    default            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ${KEYCLOAK_ORIGIN}; frame-src ${KEYCLOAK_ORIGIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self' ${KEYCLOAK_ORIGIN}";
     "~^/api/(docs|redoc)$" "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'";
 }
 
