@@ -96,8 +96,18 @@ services:
     restart: unless-stopped
     ports:
       - "${PROXY_PORT}:80"
+    environment:
+      # Origine du serveur d'authentification, injectée dans la CSP au démarrage.
+      # Vide = aucune origine externe autorisée (CSP stricte inchangée).
+      KEYCLOAK_ORIGIN: ${KEYCLOAK_ORIGIN:-}
+      # ⚠️ Restreint la substitution à CETTE variable. Sans ce filtre, envsubst
+      # remplacerait aussi les variables de nginx lui-même ($host, $uri,
+      # $remote_addr…) par du vide — et la configuration deviendrait absurde.
+      NGINX_ENVSUBST_FILTER: "KEYCLOAK_ORIGIN"
     volumes:
-      - ./docker/proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Template : l'entrypoint nginx substitue les variables puis écrit le
+      # résultat dans /etc/nginx/conf.d/default.conf.
+      - ./docker/proxy/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     depends_on:
       - api
       - web
