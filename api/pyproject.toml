@@ -24,6 +24,9 @@ dependencies = [
     # premier jeton — et seulement à l'exécution, jamais à l'import.
     "pyjwt[crypto]>=2.10",
     "python-multipart>=0.0.12",
+    # L'import du classeur vit désormais DANS l'API (écran Paramètres), plus
+    # seulement dans scripts/ : openpyxl remonte donc en dépendance principale.
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]

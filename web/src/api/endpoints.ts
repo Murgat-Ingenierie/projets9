@@ -157,3 +157,30 @@ export const backups = {
   request: () =>
     api<{ demande: boolean; detail: string }>("/api/backups", { method: "POST" }),
 };
+
+// Import du classeur source (SPEC §4, écran Paramètres). Remplace le script CLI :
+// celui-ci s'authentifiait sur le login maison, retiré avec Keycloak. On envoie
+// le fichier depuis une page déjà authentifiée.
+export interface RapportImport {
+  utilisateurs_crees: number;
+  projets_crees: number;
+  projets_deja_presents: number;
+  projets_non_planifies: number;
+  taches_creees: number;
+  taches_deja_presentes: number;
+  taches_sans_projet: number;
+  jalons: string;
+  /** Lignes refusées par un invariant, avec leur motif. Le coeur du rapport. */
+  refus: string[];
+  totaux: Record<string, number>;
+}
+
+export const imports = {
+  xlsx: (fichier: File) => {
+    const corps = new FormData();
+    corps.append("fichier", fichier);
+    // Pas de Content-Type explicite : le navigateur doit poser lui-même la
+    // frontière multipart. La fixer à la main casse l'envoi.
+    return api<RapportImport>("/api/import/xlsx", { method: "POST", body: corps });
+  },
+};

@@ -10,6 +10,7 @@ from app.routes import (
     dependencies,
     epics,
     equipes,
+    imports,
     measures,
     milestones,
     projects,
@@ -44,6 +45,7 @@ if _cors_origins:
 
 app.include_router(auth.router)
 app.include_router(backups.router)
+app.include_router(imports.router)
 app.include_router(users.router)
 app.include_router(epics.router)
 app.include_router(projects.router)
