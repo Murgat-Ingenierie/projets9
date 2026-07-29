@@ -29,12 +29,12 @@
 > et fusionnés dans `main` ; une session qui lisait la version précédente sous-estimait le projet
 > de deux chantiers. Les sections concernées (§1, §2, §4, §6, §7, §8, §9) sont mises à jour.
 >
-> **1. L'authentification a été entièrement débrayée** (PR #36, 2026-07-24) — crochet **assumé et
-> temporaire, en vue d'une intégration Keycloak**. Le front n'a plus ni page de login ni guard de
-> route ; côté API, `AUTH_DISABLED` court-circuite `get_current_user`/`require_admin`.
-> ⚠️ **`.env.example` livre `AUTH_DISABLED=true`** : l'app expédiée tourne donc **sans
-> authentification**, et **Keycloak n'est à ce jour que des commentaires** (aucun conteneur, aucune
-> implémentation). Voir §4 et le risque **R14**.
+> **1. L'authentification est passée par un interlude sans auth, puis à Keycloak.** Le login
+> maison a été retiré le 2026-07-24 (#36), la protection reportée au périmètre. **Depuis le
+> 2026-07-29 (#66 → #69), Keycloak (OIDC) est branché** : code + PKCE S256 côté front, validation
+> RS256/JWKS côté API avec contrôle de l'émetteur et de l'audience. Keycloak fait autorité sur
+> l'identité et les rôles ; `users.keycloak_sub` fait le pont vers le compte local, que les FK
+> `responsable_id` obligent à conserver. **R14 est résolu.** Voir §4.
 >
 > **2. Le chantier C9 (refacto du Gantt) est TERMINÉ.** Phase 1 (extraction de la logique pure sous
 > Vitest, `web/src/planning/*`), puis Phase 2b : réimplémentation complète sur
@@ -109,12 +109,13 @@ refusent toujours (INV-1, INV-4, INV-7, INV-8, INV-14, INV-15), ceux retirés ac
 ## 2. Périmètre fonctionnel — SPEC §4 vs réel
 
 **9 des 11 écrans spécifiés sont livrés, 1 partiel, 1 absent — et 2 écrans non spécifiés existent.**
-*(MàJ 2026-07-28 : les écrans 8, 9 et 11 sont livrés (C8). Le seul « absent » est le **Login**, retiré
-délibérément en #36 en attendant Keycloak — l'authentification est désormais périmétrique.)*
+*(MàJ 2026-07-29 : les écrans 8, 9 et 11 sont livrés (C8). Le « Login » maison n'existe plus, mais
+il n'est plus manquant pour autant — il est **remplacé par Keycloak**, qui porte l'écran de
+connexion hors de l'application.)*
 
 | # | Écran (SPEC §4) | État | Détail |
 |---|---|---|---|
-| 1 | Login | ❌ **retiré (#36, 2026-07-24)** | la page et la route `/login` n'existent plus ; aucun guard. Interim avant Keycloak — voir §4 et **R14** |
+| 1 | Login | ✅ **délégué à Keycloak (#66→#69, 2026-07-29)** | plus d'écran maison : le front redirige vers le realm (code + PKCE S256), l'API valide en RS256/JWKS. Le garde de route est rétabli, et la déconnexion est dans la barre latérale. Inactif tant que la configuration OIDC est vide. |
 | 2 | Vue Gantt | ✅ **au-delà de la spec** | zoom Jour/Semaine/Mois, filtres **par équipe**, groupe par epic, undo, drag/resize, multi-sélection + décalage groupé, cascade FS, création/suppression de dépendance au drag, curseur « aujourd'hui », édition/création via EditPanel. Moteur **SVAR** sur `/` depuis la bascule C9 (#54) — moteur unique |
 | 3 | CRUD Epics | ✅ | table triable + édition inline |
 | 4 | CRUD Projets | ✅ | ⚠️ seule liste **sans** édition inline |
@@ -182,8 +183,12 @@ Le proxy passe `/api/` **sans réécriture** — cohérent par construction.
 |---|---|---|
 | `POST /api/auth/login`, `GET /api/health` | `POST`/`PUT`/`DELETE /api/users/{id}` (3) | **les 37 autres** |
 
-> ⚠️ **Ce tableau décrit le comportement `AUTH_DISABLED=false` — qui n'est PAS celui de l'app expédiée.**
-> Depuis #36 (2026-07-24), quand `AUTH_DISABLED=true` (valeur livrée par `.env.example`) :
+> **MàJ 2026-07-29 — ce tableau redevient exact** dès que Keycloak est configuré : l'API valide un
+> jeton du realm et applique le rôle qu'il porte. La colonne « Authentifié » signifie désormais
+> « porteur d'un jeton valide **et** du rôle `app-projets9-access` ».
+>
+> ⚠️ Le mode débrayé subsiste comme confort de développement. Quand `AUTH_DISABLED=true` (encore la
+> valeur de `.env.example`, une installation neuve n'ayant pas de realm configuré) :
 > `get_current_user` renvoie **le premier admin actif sans regarder le token**, et `require_admin`
 > laisse tout passer (`api/app/auth/deps.py`). **Toutes les colonnes ci-dessus s'effondrent en une
 > seule : tout est ouvert, en admin.** Le chemin JWT existe toujours et reste utilisé si
@@ -422,7 +427,7 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 | ~~R1~~ | ~~**CI rouge**~~ | ✅ **résolu (étape 0)** | Était rouge depuis le commit initial, à l'étape lint (§6). `ruff check .` et `pytest -q` passent désormais. |
 | ~~R2~~ | ~~**Dérive modèles ↔ migrations**~~ | ✅ **résolu (C5, 2026-07-22)** | Modèle aligné : `index=True` déclaré sur les colonnes de `milestone_project` (les index de `0008`), et migration `0009` qui normalise l'unicité `users.email` en un seul index unique (retrait de la contrainte + index non-unique redondants de `0001`). `alembic check` : *No new upgrade operations detected*, y compris sur base vierge. **Verrouillé en CI** par C12 (le check tourne à chaque PR). |
 | ~~R3~~ | ~~**1 invariant testé sur 20**~~ | ✅ **résolu (C3)** | Les 25 invariants actifs sont couverts : **191 tests, 0 xfail**, sur 3 couches (unitaire, API, Hypothesis), plus un garde-fou de couverture. Suite éprouvée par mutation : 8/8. |
-| R4 | **RBAC : tout membre peut tout détruire** | 🟡 | 3 endpoints gardés par `require_admin` sur 40. **Conforme à la SPEC §6** (« membre : CRUD métier sans gestion users ») — la v1 de ce document le présentait à tort comme un écart. Reste une question de **conception**, pas de conformité : est-il voulu qu'un membre puisse supprimer un epic entier ? Y toucher serait un changement de besoin, à trancher dans la SPEC avant d'être codé. Seul écart réel : `GET /api/users` n'est pas gaté admin. |
+| R4 | **RBAC : tout membre peut tout détruire** | 🟡 | 3 endpoints gardés par `require_admin` sur 40. **Conforme à la SPEC §6** (« membre : CRUD métier sans gestion users ») — reste une question de **conception**, pas de conformité. ⚠️ **Redevenu actionnable le 2026-07-29** : pendant l'interlude sans authentification, ce risque était sans objet (aucune identité par utilisateur). Keycloak la rétablit, donc restreindre les suppressions aux admins redevient un choix possible — et un changement de besoin, à trancher dans la SPEC avant d'être codé (chantier C7). Seul écart réel : `GET /api/users` n'est pas gaté admin. |
 | ~~R5~~ | ~~**Gantt couplé au DOM de la lib**~~ | ✅ **résolu (bascule SVAR, #54, 2026-07-28)** | `gantt-task-react` et son mapping par index DOM ont été **supprimés** avec `GanttPage.tsx`. Le moteur SVAR ne manipule pas le DOM de la lib et n'a aucun `setInterval`. |
 | ~~R6~~ | ~~**Backup tolère la corruption**~~ | ✅ **résolu (C6, 2026-07-22)** | `set -o pipefail` (busybox ash le supporte) + écriture dans un `.part` renommé seulement en cas de succès + `gzip -t` : plus de `.sql.gz` tronqué compté comme réussi. Rétention par âge **avec plancher `BACKUP_MIN_COPIES`** (défaut 7) : une longue panne ne peut plus vider le dossier. Testé en isolation (5/5) et cycle backup→restore vérifié contre la stack. **Reste hors périmètre** : aucune copie hors-volume (choix d'infra — S3/NAS — à la charge du déploiement). |
 | ~~R7~~ | ~~**Pas de lockfile npm**~~ | ✅ **résolu (C1)** | `web/package-lock.json` est versionné et la CI fait `npm ci` sans repli. Cette ligne décrivait l'état d'avant C1. |
@@ -432,7 +437,7 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 | ~~R11~~ | ~~`docs/RESTORE.md` : `psql -U postgres`~~ | ✅ **résolu (C6)** | Runbook réécrit et cohérent (tout via le conteneur `backup`, qui a `psql` + le volume + les variables `PG*`). Vérifié : le cycle documenté restaure réellement (marqueur post-backup disparu, données revenues). |
 | ~~R12~~ | ~~`scripts/` non lintés, deps non déclarées~~ | ✅ **résolu (2026-07-28)** | `ruff check ../scripts` ajouté au job `api` (mêmes règles que l'API) : 2 blocs d'imports mal triés dormaient là, non détectés faute de linter. `playwright` — la dernière dépendance non déclarée — l'est désormais dans un extra `[inspect]` dédié (lourd, utile au seul `inspect_gantt.py`) ; `requests`/`openpyxl` l'avaient été en C14. Au passage, `inspect_gantt.py` visait encore `svg g[tabindex]`, le DOM de l'ancien Gantt supprimé → sélecteur SVAR. |
 | R13 | Code mort | 🟡 | ~~INV-9/INV-13 (§5)~~ ✅ purgés en étape 0, ~~`Boolean` (epic)~~ ✅ retiré par `ruff --fix` — restent : `_slug()` (seed), `nav`/`navState` (GanttPage), `equipes.get` |
-| **R14** | **L'app expédiée tourne sans authentification** | 🔴 | Depuis #36 (2026-07-24) : plus de login ni de guard côté front, et `AUTH_DISABLED` court-circuite `get_current_user`/`require_admin` côté API (tout appelant est traité en **premier admin actif**). Le défaut du code est `false`, **mais `.env.example` livre `AUTH_DISABLED=true`** — donc un déploiement suivant le README expose **les 42 endpoints en écriture, sans identification**. **Décision délibérée et temporaire** (interim avant Keycloak), pas un bug : le risque est le **temps d'exposition**, d'autant que **Keycloak n'est encore que des commentaires** (`.env.example`, `docker-compose.yml`, `auth.tsx`, `client.ts` — aucun conteneur ni code). Corollaire : R4 (RBAC) est sans objet tant que R14 dure. **À refermer avant toute mise en ligne.** |
+| ~~R14~~ | ~~**L'app expédiée tourne sans authentification**~~ | ✅ **résolu (#66 → #69, 2026-07-29)** | Keycloak (OIDC) est branché : code + PKCE S256 côté front, validation RS256/JWKS côté API avec contrôle de `iss` et `aud`. Porte d'entrée `app-projets9-access`, refus par défaut. **Reste une condition** : l'adossement est inactif tant que `KEYCLOAK_*`/`VITE_OIDC_*` ne sont pas renseignés — une installation neuve démarre donc encore en mode débrayé, à configurer avant toute mise en ligne. |
 | ~~R15~~ | ~~**Deux moteurs Gantt en parallèle**~~ | ✅ **résolu (#54)** | L'ancien moteur et sa lib ont été retirés. Effet de bord acquis : **React 19** n'est plus bloqué (#55). |
 
 ### Faux positif écarté

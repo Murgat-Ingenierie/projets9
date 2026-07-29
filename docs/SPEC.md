@@ -360,7 +360,7 @@ L'allocation d'heures par équipe se fait depuis l'écran d'édition d'une **Tâ
 | Backend API | Python 3.14 + FastAPI |
 | ORM | SQLAlchemy 2.x |
 | Migrations | Alembic |
-| Auth | JWT + bcrypt (appel direct — `passlib` retiré, non maintenu depuis 2020). ⚠️ Débrayée côté front, cf. §6 |
+| Auth | **Keycloak (OIDC)** — code + PKCE S256 côté front, validation RS256/JWKS côté API. bcrypt en direct pour les comptes hérités (`passlib` retiré, non maintenu depuis 2020). Cf. §6 |
 | Base | PostgreSQL 16 |
 | Frontend | React 19 + Vite 8 + TypeScript 6 |
 | Lib Gantt | `@svar-ui/react-gantt` ^2.7 — **remplace `gantt-task-react`**, retiré à la bascule C9 (2026-07-28) |
@@ -379,16 +379,28 @@ L'allocation d'heures par équipe se fait depuis l'écran d'édition d'une **Tâ
 
 ## 6. Sécurité
 
-> ⚠️ **État réel depuis le 2026-07-24 (PR #36) — à lire avant le reste de cette section.**
-> L'authentification applicative est **débrayée**, délibérément et temporairement. Le front n'a
-> plus ni page de login ni guard de route ; `AUTH_DISABLED=true` est la valeur livrée par
-> `.env.example`, et l'API exécute alors chaque requête en tant que premier admin actif.
-> **La protection est reportée au périmètre** (VHost Apache devant l'application) en attendant
-> **Keycloak**, qui n'est à ce jour qu'une intention — aucun conteneur, aucun code.
+> **État au 2026-07-29 — l'authentification passe par Keycloak (OIDC).**
+> L'interlude sans authentification (PR #36 → #69) est terminé. Le front obtient un jeton par
+> *authorization code + PKCE S256* auprès du realm ; l'API le valide en **RS256 via JWKS**, en
+> vérifiant l'**émetteur** et l'**audience** — sans ce dernier contrôle, un jeton émis pour une
+> autre application du même realm serait accepté.
 >
-> Conséquence directe : tant que cette bascule dure, **le RBAC décrit ci-dessous est sans objet**
-> (il n'y a pas d'identité par utilisateur), et la traçabilité `updated_by_id` n'identifie personne.
-> Ce qui suit décrit donc la cible, pas le comportement courant.
+> **Keycloak fait autorité sur l'identité et les rôles.** La table `users` subsiste néanmoins :
+> `projects.responsable_id` et `tasks.responsable_id` sont des clés étrangères vers `users.id`.
+> Le pont est `users.keycloak_sub` (le `sub` du jeton, stable — contrairement à l'email, qui peut
+> changer dans le realm). Au premier passage, le compte est rapproché par `sub`, sinon par email,
+> sinon créé ; rôle et email sont resynchronisés à chaque connexion. `users.role` n'est donc qu'un
+> **reflet** de Keycloak — ce qui laisse `require_admin` et l'écran de gestion fonctionner tels quels.
+>
+> **Porte d'entrée** : le rôle `app-projets9-access` conditionne l'accès à cette application.
+> Appartenir au realm ne suffit pas. `admin` donne `UserRole.admin`, sinon `membre`. Le refus est
+> le défaut : une erreur de configuration ne peut pas ouvrir l'application.
+>
+> ⚠️ **Sans configuration Keycloak, l'adossement reste inactif** et `.env.example` livre toujours
+> `AUTH_DISABLED=true` : une installation neuve tourne donc **sans authentification** tant que
+> `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM` (API) et `VITE_OIDC_*` (front) ne sont pas renseignés.
+> C'est délibéré — cela permet de développer sans dépendre du realm — mais ça se configure avant
+> toute mise en ligne.
 
 - Authentification obligatoire sur tous les endpoints sauf `/login` — et `/api/health`,
   volontairement ouvert (sonde, ne divulgue rien).
@@ -419,11 +431,11 @@ Absent de la 0.1, présent dans le code et dans `.env.example`. Quand `AUTH_DISA
 **ignore tout token** et exécute chaque requête en tant que premier admin actif — authentification
 et RBAC entièrement court-circuités. Prévu à l'origine pour le pilotage par script (`scripts/import_data.py` en dépend).
 
-⚠️ **Révisé le 2026-07-28.** La valeur par défaut du *code* reste `false`, mais `.env.example`
-livre `AUTH_DISABLED=true` : une installation qui suit le README tourne donc **sans
-authentification applicative**. Ce n'est plus une simple bascule de développement, c'est le mode
-de fonctionnement courant assumé, la protection étant reportée sur le VHost Apache en attendant
-Keycloak. À refermer dès que Keycloak sera branché.
+⚠️ **Révisé le 2026-07-29.** Depuis le branchement de Keycloak, cette bascule redevient ce
+qu'elle était censée être : **un confort de développement**, pour travailler sans dépendre du
+realm. Elle reste à `true` dans `.env.example` — une installation neuve n'a pas encore de
+configuration Keycloak, et démarrerait sinon sur une authentification impossible à satisfaire.
+**À passer à `false` en même temps qu'on renseigne le realm**, et jamais après.
 
 ## 7. Persistance / Backup
 
