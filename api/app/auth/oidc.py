@@ -53,13 +53,26 @@ def role_applicatif(roles: set[str]) -> UserRole | None:
 
 
 def keycloak_configure() -> bool:
-    """Vrai si l'adossement Keycloak est renseigné (sinon : mode hérité/débrayé)."""
+    """Vrai si l'adossement Keycloak est renseigné.
+
+    Depuis le retrait de l'authentification maison, il n'y a plus de « sinon » :
+    c'est une condition de démarrage, vérifiée par `app.main`, pas une bascule.
+    """
     return bool(settings.keycloak_base_url and settings.keycloak_realm)
 
 
 def issuer() -> str:
     base = settings.keycloak_base_url.rstrip("/")
     return f"{base}/realms/{settings.keycloak_realm}"
+
+
+def endpoint_jeton() -> str:
+    """Endpoint d'émission des jetons — pour la doc OpenAPI seulement.
+
+    L'API n'émet plus de jeton depuis le retrait de `POST /api/auth/login` ; le
+    bouton « Authorize » de `/api/docs` doit donc pointer chez Keycloak.
+    """
+    return f"{issuer()}/protocol/openid-connect/token"
 
 
 @lru_cache(maxsize=1)

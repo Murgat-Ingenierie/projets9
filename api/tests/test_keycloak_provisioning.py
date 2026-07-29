@@ -59,7 +59,6 @@ def test_compte_preexistant_rapproche_par_email_et_lie_au_sub(db):
     ancien = User(
         nom="Pierre Ancien",
         email="pierre@lesfontaines.local",
-        password_hash="x",
         role=UserRole.admin,
         actif=True,
     )
@@ -129,7 +128,7 @@ def test_limite_d_utilisateurs_actifs_respectee(db, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "max_active_users", 1)
-    db.add(User(nom="Déjà là", email="a@b.local", password_hash="x", role=UserRole.admin, actif=True))
+    db.add(User(nom="Déjà là", email="a@b.local", role=UserRole.admin, actif=True))
     db.commit()
 
     with pytest.raises(HTTPException) as e:

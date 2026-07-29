@@ -43,7 +43,6 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import SessionLocal
 from app.invariants import (
     check_allocation_heures,
@@ -82,15 +81,18 @@ D = date  # alias court pour la table de données ci-dessous
 
 
 def _admin_id(db: Session) -> int | None:
+    """Premier admin actif, à qui attribuer le jeu de démonstration.
+
+    Il n'y en a plus au premier démarrage : la seed ne crée plus de compte, c'est
+    la première connexion Keycloak qui provisionne. Donc `None` sur une base
+    vierge — d'où le renoncement explicite dans `seed_demo`, faute de quoi
+    `updated_by_id` et `responsable_id` n'auraient aucune cible.
+    """
     admin = db.execute(
-        select(User).where(User.email == settings.seed_admin_email)
-    ).scalar_one_or_none()
-    if admin is None:
-        admin = db.execute(
-            select(User)
-            .where(User.actif.is_(True), User.role == UserRole.admin)
-            .order_by(User.id)
-        ).scalars().first()
+        select(User)
+        .where(User.actif.is_(True), User.role == UserRole.admin)
+        .order_by(User.id)
+    ).scalars().first()
     return admin.id if admin else None
 
 
@@ -145,7 +147,14 @@ def seed_demo() -> None:
 
         admin_id = _admin_id(db)
         if admin_id is None:
-            log.warning("Aucun admin en base — démo ignorée")
+            # Cas NORMAL au tout premier démarrage : plus personne n'est semé, le
+            # premier compte naît d'une connexion Keycloak. Le message dit quoi
+            # faire plutôt que de constater l'absence.
+            log.warning(
+                "Aucun administrateur en base — démo ignorée. Connectez-vous une "
+                "première fois via Keycloak, puis relancez : "
+                "docker compose exec api python -m app.seed_demo"
+            )
             return
 
         # --- Epics (enrichis, ou créés si le CSV n'a pas tourné) -------------

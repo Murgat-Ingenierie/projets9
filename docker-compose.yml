@@ -20,24 +20,18 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ALGORITHM: ${JWT_ALGORITHM}
-      JWT_EXPIRES_MIN: ${JWT_EXPIRES_MIN}
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
-      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME}
       SEED_CSV_PATH: /seed/epics.csv
-      # Auth débrayée par défaut en attendant Keycloak (login + guards retirés
-      # côté front). get_current_user renvoie l'admin par défaut. Repasser à
-      # false quand Keycloak sera branché.
-      AUTH_DISABLED: ${AUTH_DISABLED:-true}
       SEED_DEMO: ${SEED_DEMO:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
-      # Adossement Keycloak. Vides = inactif : l'API reste sur le mode hérité ou
-      # débrayé. Ce service ne reçoit QUE les variables listées ici — les mettre
-      # dans `.env` ne suffit pas, il faut aussi les déclarer dans ce bloc.
-      KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:-}
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-}
+      # Adossement Keycloak — OBLIGATOIRE : c'est le seul moyen d'authentifier
+      # depuis le retrait du login maison, et l'API refuse de démarrer sans.
+      # Pas de valeur par défaut ici, volontairement : une valeur par défaut
+      # ferait démarrer le conteneur sur un realm qui n'existe pas, et le
+      # symptôme (tout le monde en 401) ne désignerait pas la cause.
+      # Ce service ne reçoit QUE les variables listées ici — les mettre dans
+      # `.env` ne suffit pas, il faut aussi les déclarer dans ce bloc.
+      KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:?renseigner KEYCLOAK_BASE_URL dans .env}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:?renseigner KEYCLOAK_REALM dans .env}
       KEYCLOAK_API_AUDIENCE: ${KEYCLOAK_API_AUDIENCE:-projets9-api}
     volumes:
       - ./Liste des projets en cours - Epic.csv:/seed/epics.csv:ro
@@ -59,11 +53,12 @@ services:
     build:
       context: ./web
       # Vite inscrit ces valeurs dans le bundle AU BUILD (pas au démarrage) :
-      # changer la config OIDC impose donc de reconstruire l'image `web`.
-      # Vides = adossement inactif.
+      # changer la config OIDC impose donc de reconstruire l'image `web`
+      # (docker compose up -d --build web). Obligatoires, comme côté API : un
+      # front sans OIDC n'obtient aucun jeton, et l'API les exige tous.
       args:
-        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-}
-        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-}
+        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:?renseigner VITE_OIDC_AUTHORITY dans .env}
+        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:?renseigner VITE_OIDC_CLIENT_ID dans .env}
         VITE_OIDC_API_CLIENT_ID: ${VITE_OIDC_API_CLIENT_ID:-projets9-api}
     restart: unless-stopped
     depends_on:
@@ -98,8 +93,10 @@ services:
       - "${PROXY_PORT}:80"
     environment:
       # Origine du serveur d'authentification, injectée dans la CSP au démarrage.
-      # Vide = aucune origine externe autorisée (CSP stricte inchangée).
-      KEYCLOAK_ORIGIN: ${KEYCLOAK_ORIGIN:-}
+      # Sans elle, la CSP stricte BLOQUE le navigateur qui tente de joindre
+      # Keycloak — l'application se charge puis reste sur un écran d'erreur, sans
+      # que rien dans les journaux serveur ne l'explique. D'où l'exigence.
+      KEYCLOAK_ORIGIN: ${KEYCLOAK_ORIGIN:?renseigner KEYCLOAK_ORIGIN dans .env (origine du serveur Keycloak)}
       # ⚠️ Restreint la substitution à CETTE variable. Sans ce filtre, envsubst
       # remplacerait aussi les variables de nginx lui-même ($host, $uri,
       # $remote_addr…) par du vide — et la configuration deviendrait absurde.

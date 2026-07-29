@@ -19,7 +19,6 @@ export default function UserNewPage() {
   const [draft, setDraft] = useState({
     nom: "",
     email: "",
-    password: "",
     role: "membre" as UserRole,
     actif: true,
   });
@@ -39,6 +38,12 @@ export default function UserNewPage() {
     <>
       <Breadcrumb items={[...parentCrumbs, { label: "Nouvel utilisateur" }]} />
       <h2>Nouvel utilisateur</h2>
+      <p className="muted">
+        Crée un compte <strong>en attente de première connexion</strong>, pour pouvoir lui
+        affecter des projets ou des tâches tout de suite. Cela ne crée <em>pas</em> d'accès :
+        l'authentification et les droits viennent de Keycloak, et le rôle ci-dessous sera
+        remplacé par celui du realm dès la première connexion.
+      </p>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>
         <label>Nom</label>
@@ -50,14 +55,10 @@ export default function UserNewPage() {
           onChange={(e) => setDraft({ ...draft, email: e.target.value })}
           required
         />
-        <label>Mot de passe (8 caractères minimum)</label>
-        <input
-          type="password"
-          minLength={8}
-          value={draft.password}
-          onChange={(e) => setDraft({ ...draft, password: e.target.value })}
-          required
-        />
+        <p className="muted" style={{ margin: "-4px 0 8px" }}>
+          Doit être l'adresse du compte Keycloak : c'est elle qui rapprochera les deux à
+          la première connexion.
+        </p>
         <label>Rôle</label>
         <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value as UserRole })}>
           {USER_ROLES.map((r) => <option key={r} value={r}>{USER_ROLE_LABELS[r]}</option>)}

@@ -29,5 +29,14 @@ export default defineConfig({
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+    // L'application EXIGE une configuration OIDC depuis le retrait du mode sans
+    // authentification — sans elle, elle affiche « Application mal configurée »
+    // au lieu du planning. Autorité fictive, jamais jointe : les tests posent
+    // eux-mêmes une session valide dans le stockage (cf. e2e/mockApi.ts) et
+    // l'API est mockée. Doit rester aligné avec les constantes de ce fichier-là.
+    env: {
+      VITE_OIDC_AUTHORITY: "https://auth.e2e.invalid/realms/e2e",
+      VITE_OIDC_CLIENT_ID: "projets9-front",
+    },
   },
 });

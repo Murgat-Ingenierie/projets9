@@ -47,6 +47,16 @@ const postDep = (calls: ApiCall[]) =>
   calls.find((c) => c.method === "POST" && c.path.endsWith("/api/dependencies"));
 
 test.describe("Planning SVAR — parité 2b", () => {
+  test("les requêtes portent le jeton de la session Keycloak", async ({ page }) => {
+    // Depuis le retrait du mode sans authentification, c'est le SEUL chemin :
+    // l'application obtient un jeton de la session OIDC et l'attache à chaque
+    // requête. Sans ce test, les autres passeraient identiquement avec un front
+    // qui n'authentifie rien — l'API est mockée et répond à tout le monde.
+    const calls = await gotoSvar(page);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) expect(c.auth).toBe("Bearer jeton-e2e");
+  });
+
   test("rend les projets et jalons (à plat par défaut)", async ({ page }) => {
     await gotoSvar(page);
     await expect(page.getByText("Capteurs O2").first()).toBeVisible();

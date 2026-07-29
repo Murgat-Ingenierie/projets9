@@ -116,7 +116,6 @@ def ensure_users(api: ClientImport, names: Iterable[str]) -> dict[str, int]:
         payload = {
             "nom": nm,
             "email": slug_email(nm),
-            "password": "changeme_dev",
             "role": "membre",
             "actif": True,
         }

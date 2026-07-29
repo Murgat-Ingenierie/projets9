@@ -12,16 +12,23 @@ class UserRole(str, enum.Enum):
 
 
 class User(Base, TimestampMixin):
+    """Reflet local d'une identité Keycloak.
+
+    Cette table ne contient plus aucun secret : depuis le retrait du login
+    maison, elle n'existe que parce que `projects.responsable_id` et
+    `tasks.responsable_id` ont besoin d'une clé étrangère (cf. migration 0011,
+    qui a supprimé `password_hash`).
+    """
+
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nom: Mapped[str] = mapped_column(String(200), nullable=False)
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     # Pont vers Keycloak : `sub` du jeton (UUID). Identifiant STABLE, contrairement
-    # à l'email qui peut changer dans le realm. Nullable : les comptes créés avant
-    # l'adossement (et l'admin de seed) n'en ont pas tant qu'ils ne se sont pas
-    # connectés une première fois via OIDC.
+    # à l'email qui peut changer dans le realm. Nullable : un compte créé à
+    # l'avance (import du classeur, ajout manuel) n'en a pas tant que la personne
+    # ne s'est pas connectée une première fois — c'est l'email qui les rapproche.
     keycloak_sub: Mapped[str | None] = mapped_column(
         String(36), nullable=True, unique=True, index=True
     )

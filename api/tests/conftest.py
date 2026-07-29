@@ -25,6 +25,9 @@ Avant l'adossement à Keycloak, ces fixtures passaient par un vrai
 `POST /api/auth/login`, ce qui couvrait le chemin d'authentification dans chaque
 test. Ce chemin n'existe plus : il est désormais couvert explicitement par
 `test_keycloak_roles.py` et `test_keycloak_provisioning.py`.
+
+(La configuration Keycloak que `app.main` exige au démarrage est posée par le
+`conftest.py` racine, qui se charge avant ce fichier.)
 """
 
 from __future__ import annotations
@@ -42,13 +45,11 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (import pour peupler Base.metadata)
 from app.auth.deps import get_current_user
-from app.auth.security import hash_password
 from app.database import Base, get_db
 from app.main import app as fastapi_app
 from app.models.user import User, UserRole
 
 ADMIN_EMAIL = "admin@test.local"
-ADMIN_PASSWORD = "motdepasse-admin"
 
 
 def _moteur_sqlite() -> Engine:
@@ -117,23 +118,16 @@ def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None
 class Compte:
     id: int
     email: str
-    password: str
 
 
 @pytest.fixture
 def admin(session_factory: sessionmaker[Session]) -> Compte:
     db = session_factory()
-    u = User(
-        nom="Admin Test",
-        email=ADMIN_EMAIL,
-        password_hash=hash_password(ADMIN_PASSWORD),
-        role=UserRole.admin,
-        actif=True,
-    )
+    u = User(nom="Admin Test", email=ADMIN_EMAIL, role=UserRole.admin, actif=True)
     db.add(u)
     db.commit()
     db.refresh(u)
-    compte = Compte(id=u.id, email=u.email, password=ADMIN_PASSWORD)
+    compte = Compte(id=u.id, email=u.email)
     db.close()
     return compte
 
@@ -175,17 +169,11 @@ def auth(admin: Compte) -> dict[str, str]:
 def membre(session_factory: sessionmaker[Session]) -> Compte:
     """Compte NON administrateur — de quoi vérifier ce qui doit lui être refusé."""
     db = session_factory()
-    u = User(
-        nom="Membre Test",
-        email=MEMBRE_EMAIL,
-        password_hash="!keycloak",
-        role=UserRole.membre,
-        actif=True,
-    )
+    u = User(nom="Membre Test", email=MEMBRE_EMAIL, role=UserRole.membre, actif=True)
     db.add(u)
     db.commit()
     db.refresh(u)
-    compte = Compte(id=u.id, email=u.email, password="")
+    compte = Compte(id=u.id, email=u.email)
     db.close()
     return compte
 

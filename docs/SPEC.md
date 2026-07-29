@@ -396,18 +396,20 @@ L'allocation d'heures par équipe se fait depuis l'écran d'édition d'une **Tâ
 > Appartenir au realm ne suffit pas. `admin` donne `UserRole.admin`, sinon `membre`. Le refus est
 > le défaut : une erreur de configuration ne peut pas ouvrir l'application.
 >
-> ⚠️ **Sans configuration Keycloak, l'adossement reste inactif** et `.env.example` livre toujours
-> `AUTH_DISABLED=true` : une installation neuve tourne donc **sans authentification** tant que
-> `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM` (API) et `VITE_OIDC_*` (front) ne sont pas renseignés.
-> C'est délibéré — cela permet de développer sans dépendre du realm — mais ça se configure avant
-> toute mise en ligne.
+> ⚠️ **La configuration Keycloak est obligatoire** depuis le retrait de l'authentification maison
+> (2026-07-29). Sans `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM`, l'API refuse de démarrer ; sans
+> `VITE_OIDC_*`, le front affiche « Application mal configurée » au lieu de s'ouvrir. Il n'y a plus
+> de repli : ni login maison, ni mode débrayé. Corollaire assumé — **on ne peut plus développer
+> sans realm joignable**.
 
-- Authentification obligatoire sur tous les endpoints sauf `/login` — et `/api/health`,
-  volontairement ouvert (sonde, ne divulgue rien).
-- Mots de passe stockés en bcrypt.
-- JWT court (1h) + refresh. → **le refresh n'est pas implémenté** : il n'existe qu'un
-  `POST /api/auth/login`. À l'expiration, le client repasse par l'écran de connexion. Reste au
-  périmètre.
+- Authentification obligatoire sur tous les endpoints sauf `/api/health`, volontairement ouvert
+  (sonde, ne divulgue rien).
+- ~~Mots de passe stockés en bcrypt.~~ → **sans objet** : l'application ne détient plus aucun
+  mot de passe. Keycloak authentifie ; la colonne `users.password_hash` a été supprimée
+  (migration 0011), pour ne pas conserver des empreintes qui n'ouvrent plus rien.
+- ~~JWT court (1h) + refresh.~~ → **assuré par Keycloak** : durée de vie et renouvellement sont
+  réglés dans le realm, et le front renouvelle silencieusement (`automaticSilentRenew`). L'API
+  n'émet plus de jeton — `POST /api/auth/login` a été retiré avec le reste.
 - Rôles : `admin` (toutes opérations + gestion users), `membre` (CRUD
   métier sans gestion users).
 - HTTPS attendu côté proxy en production (serveur pisci). *Non configuré à ce jour : le proxy ne
@@ -425,17 +427,45 @@ Seul écart réel constaté : `GET /api/users` n'est pas réservé aux admins �
 énumérer les comptes (nom, email, rôle, actif ; les hash ne sont jamais exposés). À arbitrer :
 lister n'est sans doute pas « gérer », mais l'intention n'est pas tranchée par la 0.1.
 
-### Bascule de développement `AUTH_DISABLED`
+### ~~Bascule de développement `AUTH_DISABLED`~~ — retirée le 2026-07-29
 
-Absent de la 0.1, présent dans le code et dans `.env.example`. Quand `AUTH_DISABLED=true`, l'API
-**ignore tout token** et exécute chaque requête en tant que premier admin actif — authentification
-et RBAC entièrement court-circuités. Prévu à l'origine pour le pilotage par script (`scripts/import_data.py` en dépend).
+Quand elle valait `true`, l'API **ignorait tout token** et exécutait chaque requête en tant que
+premier admin actif. Prévue comme confort de développement, elle avait un défaut qu'aucune
+discipline ne corrige : son mode de défaillance était silencieux et maximal. Une variable
+oubliée à `true` n'ouvrait pas l'application « un peu » — elle donnait les droits
+d'**administrateur** à quiconque atteignait le port, sans rien dans les journaux pour le
+signaler.
 
-⚠️ **Révisé le 2026-07-29.** Depuis le branchement de Keycloak, cette bascule redevient ce
-qu'elle était censée être : **un confort de développement**, pour travailler sans dépendre du
-realm. Elle reste à `true` dans `.env.example` — une installation neuve n'a pas encore de
-configuration Keycloak, et démarrerait sinon sur une authentification impossible à satisfaire.
-**À passer à `false` en même temps qu'on renseigne le realm**, et jamais après.
+Elle disparaît avec l'authentification maison. Le nouveau mode de défaillance est l'inverse :
+mal configurée, l'API **ne démarre pas** et dit quelles variables manquent (garanti par
+`tests/test_retrait_auth_maison.py`).
+
+Ce qui en dépendait :
+- `scripts/import_data.py` — supprimé, l'import vit dans l'application (Paramètres) ;
+- les fixtures de test — elles surchargent `get_current_user`, sans jamais toucher à la
+  configuration ;
+- le développement local sans realm — **plus possible**, c'est le prix assumé.
+
+### Retrait du login maison (2026-07-29)
+
+Sont partis en même temps : `POST /api/auth/login`, `create_access_token`/`decode_token`,
+`hash_password`/`verify_password`, la colonne `users.password_hash`, et le compte administrateur
+semé au premier démarrage (`SEED_ADMIN_*`).
+
+Deux raisons de ne pas les garder « au cas où » :
+- **un second chemin d'authentification est un second chemin à sécuriser**, avec son propre
+  secret (`JWT_SECRET`) et sa propre durée de vie — hors de portée de toute révocation côté
+  realm ;
+- **l'admin semé** naissait avec un mot de passe par défaut que `.env.example` invitait à
+  changer, et que personne ne change.
+
+Conséquence sur une installation neuve : la base ne contient **aucun compte**. Le premier
+utilisateur du realm portant `app-projets9-access` et `admin` est créé à sa connexion.
+
+`POST /api/users` subsiste, avec un sens différent : il ne crée plus une identité mais une
+**cible de clé étrangère** (`responsable_id`), pour affecter du travail à quelqu'un qui ne s'est
+pas encore connecté — ce que fait l'import du classeur avec les chargés de projet. Le
+rapprochement avec le realm se fait ensuite par l'email.
 
 ## 7. Persistance / Backup
 

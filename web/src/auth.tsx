@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { users } from "./api/endpoints";
 import {
   CHEMIN_CALLBACK,
-  estActif,
+  defautDeConfiguration,
   seConnecter,
   seDeconnecter,
   terminerConnexion,
@@ -10,23 +10,23 @@ import {
 } from "./auth/oidc";
 import type { User } from "./types";
 
-// Deux modes, choisis par la configuration (cf. auth/oidc.ts) :
+// Un seul mode : une session Keycloak est exigée. Sans elle, redirection vers le
+// serveur d'authentification — c'est le garde de route, retrouvé après avoir été
+// retiré en #36.
 //
-// - **OIDC actif** : une session Keycloak est exigée. Sans elle, redirection vers
-//   le serveur d'authentification — c'est le garde de route, retrouvé après avoir
-//   été retiré en #36.
-// - **OIDC inactif** : comportement inchangé — pas de login, l'API tourne en
-//   AUTH_DISABLED et `users.me()` renvoie l'admin par défaut.
+// Le mode « OIDC inactif », qui accompagnait la bascule, a disparu avec
+// l'authentification maison. Une configuration incomplète n'ouvre donc plus
+// l'application sans login : elle s'affiche, ce qui est le seul comportement
+// honnête quand l'API, elle, exige un jeton pour tout.
 //
-// Dans les deux cas, `user` reste l'utilisateur **local** (table `users`), pas les
-// claims du jeton : c'est lui que référencent `responsable_id` et l'audit
-// `updated_by`. Le rapprochement est fait côté API, au provisioning.
+// `user` reste l'utilisateur **local** (table `users`), pas les claims du jeton :
+// c'est lui que référencent `responsable_id` et l'audit `updated_by`. Le
+// rapprochement est fait côté API, au provisioning.
 
 interface AuthCtx {
   user: User | null;
   loading: boolean;
-  /** null quand l'OIDC est inactif : il n'y a rien à déconnecter. */
-  deconnexion: (() => void) | null;
+  deconnexion: () => void;
 }
 
 const Ctx = createContext<AuthCtx>(null!);
@@ -40,15 +40,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let annule = false;
 
     async function demarrer() {
-      if (!estActif()) {
-        try {
-          const u = await users.me();
-          if (!annule) setUser(u);
-        } catch {
-          if (!annule) setUser(null);
-        } finally {
-          if (!annule) setLoading(false);
-        }
+      const defaut = defautDeConfiguration();
+      if (defaut !== null) {
+        setErreur(defaut);
+        setLoading(false);
         return;
       }
 
@@ -88,21 +83,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (erreur) {
+    // Pas de bouton « Se déconnecter » quand c'est la CONFIGURATION qui manque :
+    // il n'y a pas de session à fermer, et le proposer ferait lever le
+    // gestionnaire OIDC — une seconde erreur par-dessus la première.
+    const configurable = defautDeConfiguration() === null;
     return (
       <div style={{ padding: 32, maxWidth: 640 }}>
-        <h2>Connexion impossible</h2>
+        <h2>{configurable ? "Connexion impossible" : "Application mal configurée"}</h2>
         <p>{erreur}</p>
-        <button className="btn" onClick={() => void seDeconnecter()}>
-          Se déconnecter
-        </button>
+        {configurable && (
+          <button className="btn" onClick={() => void seDeconnecter()}>
+            Se déconnecter
+          </button>
+        )}
       </div>
     );
   }
 
   return (
-    <Ctx.Provider
-      value={{ user, loading, deconnexion: estActif() ? () => void seDeconnecter() : null }}
-    >
+    <Ctx.Provider value={{ user, loading, deconnexion: () => void seDeconnecter() }}>
       {children}
     </Ctx.Provider>
   );

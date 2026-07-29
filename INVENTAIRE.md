@@ -99,10 +99,13 @@ refusent toujours (INV-1, INV-4, INV-7, INV-8, INV-14, INV-15), ceux retirés ac
 | users | **1** (admin) |
 | projects · tasks · milestones · dependencies · measures · equipes | **0** |
 
-> ⚠️ **La vue Gantt — « vue centrale » de la SPEC — est vide au premier démarrage** (« Aucun projet planifié. »).
-> La seed ne crée que les epics. Le seul outil qui peuple projets/tâches est `scripts/import_data.py`,
-> qui lit `data/source.xlsx` — fichier **gitignoré et absent du dépôt**. Il n'existe donc aucun chemin
-> supporté pour remplir le planning : tout doit être saisi à la main. Voir chantier **C4**.
+> ⚠️ **La vue Gantt est vide au premier démarrage** (« Aucun projet planifié. ») : la seed ne crée
+> que les epics.
+>
+> ✅ **Résolu (2026-07-29)** : l'écran **Paramètres → Import du classeur source** charge l'export
+> `.xlsx` du tableur de suivi, à travers les routes de l'API — donc à travers les invariants, avec
+> un rapport des lignes refusées. Remplace `scripts/import_data.py`, supprimé avec le login maison
+> dont il dépendait pour s'authentifier.
 
 ---
 
@@ -181,33 +184,33 @@ Le proxy passe `/api/` **sans réécriture** — cohérent par construction.
 
 | Ouvert | Admin uniquement | Authentifié (tout membre) |
 |---|---|---|
-| `POST /api/auth/login`, `GET /api/health` | `POST`/`PUT`/`DELETE /api/users/{id}` (3) | **les 37 autres** |
+| `GET /api/health` | gestion des comptes, **suppressions**, `POST /api/import/xlsx` | le reste |
 
-> **MàJ 2026-07-29 — ce tableau redevient exact** dès que Keycloak est configuré : l'API valide un
-> jeton du realm et applique le rôle qu'il porte. La colonne « Authentifié » signifie désormais
-> « porteur d'un jeton valide **et** du rôle `app-projets9-access` ».
+> **MàJ 2026-07-29 — ce tableau est exact, sans réserve.** Il n'y a plus qu'un chemin d'entrée :
+> un jeton du realm, validé en RS256/JWKS. « Authentifié » signifie « porteur d'un jeton valide
+> **et** du rôle `app-projets9-access` ».
 >
-> ⚠️ Le mode débrayé subsiste comme confort de développement. Quand `AUTH_DISABLED=true` (encore la
-> valeur de `.env.example`, une installation neuve n'ayant pas de realm configuré) :
-> `get_current_user` renvoie **le premier admin actif sans regarder le token**, et `require_admin`
-> laisse tout passer (`api/app/auth/deps.py`). **Toutes les colonnes ci-dessus s'effondrent en une
-> seule : tout est ouvert, en admin.** Le chemin JWT existe toujours et reste utilisé si
-> `AUTH_DISABLED=false`. Côté front, plus de login ni de guard, et `client.ts` **ne redirige plus
-> sur 401** — l'erreur remonte comme les autres. Voir **R14**.
+> Le mode débrayé (`AUTH_DISABLED`), le login maison et l'admin semé ont été **retirés**. C'est ce
+> qui rend le tableau lisible : auparavant, une variable à `true` faisait s'effondrer toutes les
+> colonnes en une seule — tout ouvert, en admin, sans rien dans les journaux. Mal configurée,
+> l'API **ne démarre plus**.
 
 ### Constats
 
 - **RBAC quasi inexistant** : `require_admin` ne garde que la gestion des users. **Tout membre actif peut
   créer/modifier/supprimer n'importe quel epic, projet, tâche, jalon, dépendance, mesure, équipe** — aucun
   contrôle d'appartenance ni de `responsable_id`. `GET /api/users` n'est pas gaté : tout membre énumère les users.
-- Le claim `role` du JWT est **décoratif** : posé au login, jamais relu (`require_admin` relit la DB — correct,
-  mais le claim est mort).
-- `POST /api/auth/login` consomme du **JSON**, alors que `OAuth2PasswordBearer(tokenUrl=...)` annonce un
-  endpoint form-encodé → **le bouton « Authorize » de Swagger ne fonctionne pas** contre lui.
+- ~~Le claim `role` du JWT est décoratif~~ → **résolu** : les rôles viennent du jeton Keycloak et
+  sont resynchronisés en base à chaque connexion (`auth/provisioning.py`). `users.role` est un
+  reflet, `require_admin` le relit.
+- ~~`POST /api/auth/login` consomme du JSON, le bouton « Authorize » de Swagger ne marche pas~~ →
+  **sans objet** : l'endpoint a disparu, et `tokenUrl` pointe maintenant sur l'endpoint de jeton
+  du realm.
 - ~~**CORS `allow_origins=["*"]` + `allow_credentials=True`**~~ ✅ **corrigé (C15/SAST, 2026-07-22)** : le wildcard (flaggé par Semgrep) est retiré. CORS désormais opt-in par `CORS_ORIGINS` (vide par défaut = même origine via proxy, aucun CORS ; jamais de `*`).
 - Verbes manquants : pas de `PUT` sur `dependencies` (assumé) ; pas de `GET /{id}` sur users, milestones,
   measures, tache-equipe → le front récupère la collection entière pour trouver une ligne.
-- Pas de refresh token (la SPEC §6 en prévoit un).
+- ~~Pas de refresh token~~ → **délégué à Keycloak** : durée de vie réglée dans le realm,
+  renouvellement silencieux côté front.
 
 ---
 
@@ -313,7 +316,8 @@ il annonçait lui-même être un placeholder « avant phase 2 ».
 | `tests/test_invariants_api.py` | 47 tests d'intégration. Prouvent que **la route appelle réellement** le check et surface le bon code. Seul chemin possible pour INV-4, INV-5, INV-AUTH-1 et INV-21, qui n'ont pas de fonction dédiée. |
 | `tests/test_invariants_hypothesis.py` | 14 propriétés. Cœur : INV-14 confronté à un **oracle indépendant** (algorithme de Kahn) sur des centaines de graphes générés. |
 | `tests/test_couverture_invariants.py` | Garde-fou : échoue si un `InvariantError("INV-…")` apparaît sans test qui le cite, ou si un test attend un code que plus personne ne lève. |
-| `tests/conftest.py` | SQLite en mémoire + `TestClient`. L'auth n'est **pas** court-circuitée : vrai admin, vrai `POST /api/auth/login`, vrai JWT. |
+| `tests/conftest.py` | SQLite en mémoire + `TestClient`. L'auth est **injectée** : `get_current_user` est surchargée (en-tête `X-Test-User`), `require_admin` garde sa vraie logique. Le chemin d'authentification lui-même est couvert à part (`test_keycloak_*.py`, `test_retrait_auth_maison.py`) — il n'y a plus de login maison à traverser. |
+| `tests/test_retrait_auth_maison.py` | Ce qui ne doit pas revenir : démarrage impossible sans Keycloak, aucune route d'authentification, aucun champ mot de passe au contrat, base sans compte après la seed. |
 
 **Chaque test invalide assert le code `INV-X`**, pas seulement le statut HTTP : l'ID stable est le
 contrat entre la SPEC, l'API et le client.
@@ -336,7 +340,7 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 
 > **Second défaut trouvé en écrivant les tests — ✅ corrigé (C11, 2026-07-22).** `UserCreate.email`
 > était un `EmailStr`, et `email-validator` **rejette les domaines réservés** comme `.local` → `POST
-> /api/users` renvoyait 422, alors que `.env.example` impose `SEED_ADMIN_EMAIL=charles@lesfontaines.local`.
+> /api/users` renvoyait 422, alors que la convention interne du projet est `…@lesfontaines.local`.
 > La seed écrivant en base directement (donc passait) et `LoginRequest.email` étant un `str` nu (donc
 > la connexion marchait), **l'application ne savait pas créer un compte suivant sa propre convention.**
 > Corrigé en remplaçant `EmailStr` par un validateur de format maison qui tolère les TLD internes tout
@@ -437,7 +441,7 @@ la suite (XPASS strict) tant que le marqueur n'est pas retiré. Un défaut connu
 | ~~R11~~ | ~~`docs/RESTORE.md` : `psql -U postgres`~~ | ✅ **résolu (C6)** | Runbook réécrit et cohérent (tout via le conteneur `backup`, qui a `psql` + le volume + les variables `PG*`). Vérifié : le cycle documenté restaure réellement (marqueur post-backup disparu, données revenues). |
 | ~~R12~~ | ~~`scripts/` non lintés, deps non déclarées~~ | ✅ **résolu (2026-07-28)** | `ruff check ../scripts` ajouté au job `api` (mêmes règles que l'API) : 2 blocs d'imports mal triés dormaient là, non détectés faute de linter. `playwright` — la dernière dépendance non déclarée — l'est désormais dans un extra `[inspect]` dédié (lourd, utile au seul `inspect_gantt.py`) ; `requests`/`openpyxl` l'avaient été en C14. Au passage, `inspect_gantt.py` visait encore `svg g[tabindex]`, le DOM de l'ancien Gantt supprimé → sélecteur SVAR. |
 | R13 | Code mort | 🟡 | ~~INV-9/INV-13 (§5)~~ ✅ purgés en étape 0, ~~`Boolean` (epic)~~ ✅ retiré par `ruff --fix` — restent : `_slug()` (seed), `nav`/`navState` (GanttPage), `equipes.get` |
-| ~~R14~~ | ~~**L'app expédiée tourne sans authentification**~~ | ✅ **résolu (#66 → #69, 2026-07-29)** | Keycloak (OIDC) est branché : code + PKCE S256 côté front, validation RS256/JWKS côté API avec contrôle de `iss` et `aud`. Porte d'entrée `app-projets9-access`, refus par défaut. **Reste une condition** : l'adossement est inactif tant que `KEYCLOAK_*`/`VITE_OIDC_*` ne sont pas renseignés — une installation neuve démarre donc encore en mode débrayé, à configurer avant toute mise en ligne. |
+| ~~R14~~ | ~~**L'app expédiée tourne sans authentification**~~ | ✅ **résolu (#66 → #69, 2026-07-29)** | Keycloak (OIDC) est branché : code + PKCE S256 côté front, validation RS256/JWKS côté API avec contrôle de `iss` et `aud`. Porte d'entrée `app-projets9-access`, refus par défaut. **Condition levée (#74, 2026-07-29)** : le mode débrayé, le login maison et l'admin semé sont retirés. La configuration Keycloak est obligatoire — sans elle l'API ne démarre pas, le front affiche un message de configuration. Plus aucun chemin ne contourne le realm. |
 | ~~R15~~ | ~~**Deux moteurs Gantt en parallèle**~~ | ✅ **résolu (#54)** | L'ancien moteur et sa lib ont été retirés. Effet de bord acquis : **React 19** n'est plus bloqué (#55). |
 
 ### Faux positif écarté
@@ -496,7 +500,7 @@ gh api -X PUT repos/Murgat-Ingenierie/projets9/branches/main/protection --input 
 JSON
 ```
 | **C4** | 🟡 **Volet démo fait (2026-07-22).** `app/seed_demo.py` : jeu de démonstration réaliste (4 projets, 13 tâches, 10 dépendances, 3 jalons, 3 équipes, 7 allocations, 4 mesures), activable par `SEED_DEMO=true` ou `python -m app.seed_demo`. Idempotent, auto-validé contre les 25 invariants avant commit. Vérifié end-to-end : Gantt peuplé (groupe par epic, pastille terminé, hachure hors-fenêtre, flèches, jalons), vue Charge avec surcharge rouge à 142 %. **Reste** : le volet « usage réel » (fiabiliser/documenter l'import du vrai tableur) — voir C14. | Le produit ne démontrait rien au premier lancement | M |
-| **C14** | 🟡 **Script réparé (2026-07-22).** `import_data.py` était **plus cassé que l'inventaire ne le disait** : au-delà des deps/port, il était désynchronisé de l'API (tâches en `statut: prevu/realise` + `avancement` → 422 ; jalons en `project_id: None` + `epic_trigramme` → 422 ; `--token` promis mais absent). Réparé contre le schéma actuel, deps déclarées (`.[scripts]`), auth par `--email/--password`. `make_sample_source.py` génère un classeur d'exemple conforme (spec exécutable). Vérifié end-to-end : import en 0 refus, comptes exacts, idempotent, INV-18/INV-6 respectés, responsables rapprochés par nom. **Reste** : lancer l'import sur le **vrai** `data/source.xlsx` (hors dépôt) — nécessite le fichier de Charles, et de confirmer que sa structure correspond au format attendu. | La seed de démo montre le produit ; elle ne charge pas les vraies données | M |
+| **C14** | ✅ **Fait (2026-07-29, #73).** L'import vit dans l'application : **Paramètres → Import du classeur source**, réservé aux admins, avec rapport des lignes refusées. La logique du script a été **déplacée** (pas réécrite) dans `app/services/import_xlsx.py`, et `ClientEnProcess` dispatche ses appels vers les **fonctions de route** : les invariants restent appliqués par le code qui les applique déjà. `scripts/import_data.py` supprimé — il s'authentifiait sur le login maison, parti avec Keycloak. 12 tests, dont le cas réel INV-10 reproduit. <br><br>*Historique :* 🟡 **Script réparé (2026-07-22).** `import_data.py` était **plus cassé que l'inventaire ne le disait** : au-delà des deps/port, il était désynchronisé de l'API (tâches en `statut: prevu/realise` + `avancement` → 422 ; jalons en `project_id: None` + `epic_trigramme` → 422 ; `--token` promis mais absent). Réparé contre le schéma actuel, deps déclarées (`.[scripts]`), auth par `--email/--password`. `make_sample_source.py` génère un classeur d'exemple conforme (spec exécutable). Vérifié end-to-end : import en 0 refus, comptes exacts, idempotent, INV-18/INV-6 respectés, responsables rapprochés par nom. **Reste** : lancer l'import sur le **vrai** `data/source.xlsx` (hors dépôt) — nécessite le fichier de Charles, et de confirmer que sa structure correspond au format attendu. | La seed de démo montre le produit ; elle ne charge pas les vraies données | M |
 | **C5** | ✅ **Fait (2026-07-22).** `index=True` sur les colonnes de `milestone_project` + migration `0009` normalisant l'unicité `users.email`. `alembic check` vert (base existante ET vierge). Verrouillé en CI par C12. | `autogenerate` produisait du churn d'index | S |
 | **C6** | ✅ **Fait (2026-07-22).** `pipefail` + `.part` atomique + `gzip -t` (fin des dumps tronqués) ; rétention à plancher `BACKUP_MIN_COPIES` (fin du vidage possible) ; `RESTORE.md` réécrit et corrigé. Testé : logique 5/5 en isolation, backup réel intègre (11 tables), cycle backup→restore validé contre la stack (R6, R11). | Un backup non vérifié n'est pas un backup | S |
 | **C7** | ✅ **Fait (2026-07-29).** Les **8 suppressions métier** passent en `require_admin` ; création et modification restent ouvertes à tout membre (travail quotidien, réversible). Décision prise au vu de la **portée réelle** d'un `DELETE` : les FK sont en CASCADE sur toute la hiérarchie, donc `DELETE /api/epics/{tri}` emportait jusqu'à 9 projets et 34 tâches sur les données réelles — accessible à n'importe quel membre. `GET /api/users` est également réservé aux admins (seul écart réel à la SPEC §6) ; un nouvel **`/api/users/annuaire`** (id + nom, comptes actifs) reste ouvert, sans quoi l'affectation d'un responsable aurait cassé pour les non-admins. 13 tests, dont le versant négatif (un membre est refusé) et la preuve qu'un refus ne détruit rien. | Écart à la SPEC §6 | M |

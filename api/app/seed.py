@@ -1,9 +1,14 @@
-"""Peuple la base au premier démarrage.
-
-- Crée l'admin initial s'il n'existe pas.
-- Importe le CSV des epics s'il est présent et que la table est vide.
+"""Peuple la base au premier démarrage : le CSV des epics, si la table est vide.
 
 Idempotent : si les données existent déjà, ne fait rien.
+
+**Plus d'admin initial.** La seed en créait un (`SEED_ADMIN_*`) parce qu'il
+fallait bien un compte pour se connecter à une base neuve. Keycloak a repris ce
+rôle : le premier utilisateur portant `app-projets9-access` + `admin` est
+provisionné à sa première connexion (cf. `auth/provisioning.py`). Continuer à
+semer un compte local reviendrait à créer une identité que le realm ne connaît
+pas — et, tant que le login maison existait, une porte d'entrée avec un mot de
+passe par défaut qui survit rarement à une mise en production.
 """
 
 from __future__ import annotations
@@ -17,11 +22,9 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from app.auth.security import hash_password
 from app.config import settings
 from app.database import SessionLocal
 from app.models.epic import Epic, EpicCategory, EpicStatus
-from app.models.user import User, UserRole
 
 log = logging.getLogger("seed")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [seed] %(message)s")
@@ -46,26 +49,6 @@ _CATEGORY_BY_TRIGRAMME: dict[str, EpicCategory] = {
     "ERX": EpicCategory.strategique,
     "ESU": EpicCategory.strategique,
 }
-
-
-def _ensure_admin() -> None:
-    with SessionLocal() as db:
-        existing = db.execute(
-            select(User).where(User.email == settings.seed_admin_email)
-        ).scalar_one_or_none()
-        if existing is not None:
-            log.info("Admin déjà présent (%s)", existing.email)
-            return
-        admin = User(
-            nom=settings.seed_admin_name,
-            email=settings.seed_admin_email,
-            password_hash=hash_password(settings.seed_admin_password),
-            role=UserRole.admin,
-            actif=True,
-        )
-        db.add(admin)
-        db.commit()
-        log.info("Admin créé : %s", admin.email)
 
 
 def _ensure_epics_from_csv() -> None:
@@ -115,7 +98,6 @@ def _ensure_epics_from_csv() -> None:
 
 def main() -> None:
     log.info("DATABASE_URL=%s", os.environ.get("DATABASE_URL", "<from .env>"))
-    _ensure_admin()
     _ensure_epics_from_csv()
     if settings.seed_demo:
         from app.seed_demo import seed_demo

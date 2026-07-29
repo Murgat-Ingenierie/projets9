@@ -120,8 +120,7 @@ def test_l_annuaire_n_expose_ni_email_ni_role(client, auth_membre):
 def test_l_annuaire_ignore_les_comptes_desactives(client, auth, auth_membre, session_factory):
     """On ne doit pas pouvoir affecter du travail à quelqu'un qui n'a plus accès."""
     db = session_factory()
-    u = User(nom="Parti", email="parti@test.local", password_hash="x",
-             role=UserRole.membre, actif=False)
+    u = User(nom="Parti", email="parti@test.local", role=UserRole.membre, actif=False)
     db.add(u)
     db.commit()
     db.close()

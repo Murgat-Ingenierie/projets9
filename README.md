@@ -15,9 +15,10 @@ Epics opérationnels et stratégiques de la pisciculture.
 > (*authorization code* + PKCE S256), l'API valide le jeton en RS256/JWKS. Keycloak fait autorité
 > sur l'identité et les rôles ; le rôle `app-projets9-access` conditionne l'accès à l'application.
 >
-> ⚠️ **L'adossement est inactif tant qu'il n'est pas configuré** : une installation neuve démarre
-> en mode débrayé (`AUTH_DISABLED=true`), donc **sans authentification**. C'est voulu — on peut
-> développer sans dépendre du realm — mais cela **doit être configuré avant toute mise en ligne**.
+> ⚠️ **Configuration obligatoire.** C'est le seul moyen d'entrer : le login maison et le mode
+> débrayé ont été retirés. Sans `KEYCLOAK_BASE_URL`/`KEYCLOAK_REALM`, l'API **refuse de
+> démarrer** — une API qui ne peut authentifier personne n'a pas à écouter sur un port.
+> Corollaire : il n'y a plus de mode de développement sans realm joignable.
 > Voir « Authentification » ci-dessous.
 
 État de l'existant, dette et chantiers ouverts : [INVENTAIRE.md](INVENTAIRE.md).
@@ -27,7 +28,7 @@ Epics opérationnels et stratégiques de la pisciculture.
 ```bash
 # 1. Configurer l'environnement
 cp .env.example .env
-# Éditer .env et changer les mots de passe / secret JWT
+# Éditer .env : mots de passe Postgres, et la configuration Keycloak (obligatoire)
 
 # 2. Lancer la stack
 docker compose up --build
@@ -39,13 +40,12 @@ docker compose up --build
 
 L'API exécute automatiquement au démarrage :
 1. Les migrations Alembic (`alembic upgrade head`)
-2. La *seed* (`python -m app.seed`) — crée l'admin initial et importe les
-   epics depuis `Liste des projets en cours - Epic.csv` si la table est vide.
+2. La *seed* (`python -m app.seed`) — importe les epics depuis
+   `Liste des projets en cours - Epic.csv` si la table est vide.
 
-Il n'y a **pas d'écran de connexion** : l'application s'ouvre directement sur le planning
-(cf. l'avertissement ci-dessus). Le compte admin créé par la seed
-(`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`) sert encore aux scripts et redeviendra le compte
-d'entrée quand l'authentification sera rebranchée.
+Ouvrir l'application redirige vers Keycloak. La base ne contient **aucun compte** au
+départ : le vôtre est créé à votre première connexion, avec le rôle que porte votre
+jeton.
 
 ### Authentification (Keycloak)
 
@@ -57,8 +57,9 @@ KEYCLOAK_REALM=<realm>
 KEYCLOAK_ORIGIN=https://<serveur-keycloak>     # proxy : autorise l'origine dans la CSP
 VITE_OIDC_AUTHORITY=https://<serveur-keycloak>/realms/<realm>   # front
 VITE_OIDC_CLIENT_ID=projets9-front
-AUTH_DISABLED=false                            # à basculer EN MÊME TEMPS
 ```
+
+Aucune n'a de valeur par défaut : `docker compose up` s'arrête en les nommant si elles manquent.
 
 Côté realm, deux clients : **`projets9-front`** (public, PKCE S256, URI de redirection
 `<origine>/auth/callback`) et **`projets9-api`** (audience, porteur des rôles). Trois rôles sur
@@ -71,6 +72,11 @@ rejette le jeton.
   `docker compose up -d --build web`, un redémarrage ne suffit pas ;
 - `KEYCLOAK_ORIGIN` est **indispensable** : sans elle, la CSP du proxy bloque le navigateur qui
   tente de joindre Keycloak, avec pour seul symptôme un « Failed to fetch ».
+
+**Premier démarrage.** La base ne contient aucun compte : il n'y a plus d'admin semé. Le premier
+utilisateur du realm portant `app-projets9-access` **et** `admin` est créé à sa connexion. S'il
+n'a que `app-projets9-access`, il entre en simple membre — et personne ne pourra rien administrer
+tant qu'un admin ne s'est pas connecté.
 
 ### Jeu de démonstration
 
@@ -87,29 +93,32 @@ docker compose exec api python -m app.seed_demo
 Idempotent : ne s'exécute jamais par-dessus des données existantes. À laisser
 désactivé pour une installation réelle.
 
+Le jeu est rattaché à un administrateur, et il n'y en a aucun tant que personne
+ne s'est connecté : sur une installation neuve, `SEED_DEMO=true` est donc ignoré
+au premier démarrage. Se connecter une fois, puis relancer la commande ci-dessus.
+
 ### Import du classeur source (données réelles)
 
-`scripts/import_data.py` importe le classeur Google Sheets exporté en `.xlsx`
-**via l'API** — donc à travers les invariants (une ligne invalide est refusée,
-pas insérée en douce). Idempotent, ré-exécutable sans doublons.
+Depuis l'application : **Paramètres → Import du classeur source**, réservé aux
+administrateurs. Déposer l'export `.xlsx` du tableur de suivi ; le rapport indique ce
+qui est passé et, surtout, **les lignes refusées avec leur motif**.
+
+L'import écrit à travers les routes de l'API, donc à travers les invariants : une ligne
+incohérente est refusée et signalée, jamais enregistrée à moitié. Idempotent, rejouable
+sans doublons.
 
 ```bash
-pip install -e "api/[scripts]"                      # requests + openpyxl
-
-# Format attendu du classeur : voir la docstring de scripts/import_data.py.
+# Format attendu du classeur : voir la docstring de api/app/services/import_xlsx.py.
 # `make_sample_source.py` génère un exemple conforme (spec exécutable) :
 python scripts/make_sample_source.py --out data/source.xlsx
-
-python scripts/import_data.py \
-    --api http://localhost:8080 \
-    --xlsx data/source.xlsx \
-    --email "$SEED_ADMIN_EMAIL" --password "$SEED_ADMIN_PASSWORD"
 ```
 
 Le dossier `data/` **entier** est gitignoré : ni le classeur réel, ni les fichiers dérivés
 (nettoyés, journaux d'import) ne rentrent dans le dépôt.
-L'import crée des utilisateurs, il faut donc un compte **admin** (`--email` /
-`--password`, ou `--token`, ou `AUTH_DISABLED=true` en dev).
+
+> L'ancien `scripts/import_data.py` faisait le même travail en ligne de commande. Il
+> s'authentifiait par email/mot de passe sur le login maison, retiré avec Keycloak :
+> plutôt que d'inventer un compte de service, l'import a rejoint l'application.
 
 ## Structure
 
