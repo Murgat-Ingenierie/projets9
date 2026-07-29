@@ -127,6 +127,26 @@ Le dossier `data/` **entier** est gitignoré : ni le classeur réel, ni les fich
 > s'authentifiait par email/mot de passe sur le login maison, retiré avec Keycloak :
 > plutôt que d'inventer un compte de service, l'import a rejoint l'application.
 
+### Export du planning au format source
+
+La réciproque, pour emporter l'état courant vers une autre installation ou réalimenter le
+tableur de suivi après des corrections faites dans l'application :
+
+```bash
+docker compose exec api python -m app.services.export_xlsx --out /tmp/planning.xlsx
+docker compose cp api:/tmp/planning.xlsx ./planning.xlsx
+```
+
+Le classeur produit est relisible par l'écran d'import, et rejouable sans créer de doublons
+(l'import reconnaît un projet par `(epic, nom)`, pas par son trigramme — lequel est
+refabriqué à chaque export, les originaux n'étant pas stockés).
+
+⚠️ **Ce n'est pas une sauvegarde.** Le format source décrit ce que la pisciculture saisit,
+pas tout ce que l'application stocke : dépendances, équipes, allocations, mesures,
+métadonnées d'epic, rattachement réel des jalons et date de début des projets n'y figurent
+pas. La commande annonce ce qui est perdu **pour les données réellement exportées**. Pour une
+copie fidèle, c'est un dump PostgreSQL qu'il faut — [docs/RESTORE.md](docs/RESTORE.md).
+
 ## Structure
 
 ```
