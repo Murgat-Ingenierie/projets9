@@ -41,8 +41,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (import pour peupler Base.metadata)
-from app.auth.security import hash_password
 from app.auth.deps import get_current_user
+from app.auth.security import hash_password
 from app.database import Base, get_db
 from app.main import app as fastapi_app
 from app.models.user import User, UserRole
