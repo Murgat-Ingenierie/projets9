@@ -3,9 +3,9 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.auth.oidc import issuer, keycloak_configure
 from app.config import settings
 from app.routes import (
-    auth,
     backups,
     dependencies,
     epics,
@@ -20,6 +20,19 @@ from app.routes import (
 )
 
 logging.basicConfig(level=logging.INFO)
+
+# Keycloak est désormais le SEUL moyen d'entrer : plus de login maison, plus de
+# mode débrayé. Mal configuré, l'API ne peut authentifier personne — elle refuse
+# donc de démarrer, plutôt que de répondre 401 à tout le monde en se déclarant
+# saine. Un conteneur qui redémarre en boucle avec ce message se remarque ; un
+# conteneur « healthy » dont chaque requête échoue, beaucoup moins.
+if not keycloak_configure():
+    raise RuntimeError(
+        "KEYCLOAK_BASE_URL et KEYCLOAK_REALM sont obligatoires : sans eux, aucune "
+        "authentification n'est possible depuis le retrait du login maison. "
+        "Renseigner les deux dans l'environnement du service `api`."
+    )
+logging.getLogger("auth").info("Authentification Keycloak : %s", issuer())
 
 # Le proxy ne transmet que /api/ : sans ces préfixes, la doc servie sur /docs
 # est injoignable depuis le navigateur (cf. docker/proxy/nginx.conf).
@@ -43,7 +56,6 @@ if _cors_origins:
         allow_headers=["*"],
     )
 
-app.include_router(auth.router)
 app.include_router(backups.router)
 app.include_router(imports.router)
 app.include_router(users.router)

@@ -67,10 +67,6 @@ def utilisateur_depuis_jeton(payload: dict[str, Any], db: Session) -> User:
             user = User(
                 nom=nom,
                 email=email,
-                # Aucun mot de passe local : l'authentification se fait chez
-                # Keycloak. Valeur inutilisable plutôt qu'une chaîne vide, qui
-                # laisserait croire à un hachage valide.
-                password_hash="!keycloak",
                 role=role,
                 actif=True,
                 keycloak_sub=sub,

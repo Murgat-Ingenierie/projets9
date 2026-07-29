@@ -75,21 +75,19 @@ function Sidebar({ expanded, onToggle }: { expanded: boolean; onToggle: () => vo
       {user && (
         <div className="me">
           <div className="user-name">{user.nom}</div>
-          {deconnexion && (
-            <button type="button" className="logout" onClick={deconnexion} title="Se déconnecter">
-              <Icon name="logout" />
-              <span className="label">Déconnexion</span>
-            </button>
-          )}
+          <button type="button" className="logout" onClick={deconnexion} title="Se déconnecter">
+            <Icon name="logout" />
+            <span className="label">Déconnexion</span>
+          </button>
         </div>
       )}
     </aside>
   );
 }
 
-// Le garde de route vit dans AuthProvider : quand l'OIDC est actif, il redirige
-// vers Keycloak avant même de rendre quoi que ce soit. Ici on attend seulement
-// que l'utilisateur soit résolu, pour éviter un flash de sidebar sans nom.
+// Le garde de route vit dans AuthProvider : il redirige vers Keycloak avant même
+// de rendre quoi que ce soit. Ici on attend seulement que l'utilisateur soit
+// résolu, pour éviter un flash de sidebar sans nom.
 function Layout({ children }: { children: ReactNode }) {
   const { loading } = useAuth();
   const [expanded, setExpanded] = useState(false);

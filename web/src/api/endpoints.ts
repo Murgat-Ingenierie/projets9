@@ -3,7 +3,6 @@ import type {
   Dependency,
   Epic,
   Equipe,
-  LoginResponse,
   Measure,
   Milestone,
   Project,
@@ -13,14 +12,6 @@ import type {
 } from "../types";
 import { api } from "./client";
 
-export const auth = {
-  login: (email: string, password: string) =>
-    api<LoginResponse>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    }),
-};
-
 export const users = {
   list: () => api<User[]>("/api/users"),
   /** Liste réduite (id + nom) des comptes actifs, ouverte à tout membre.
@@ -28,9 +19,11 @@ export const users = {
    *  proposer un responsable doivent utiliser celle-ci. */
   annuaire: () => api<{ id: number; nom: string }[]>("/api/users/annuaire"),
   me: () => api<User>("/api/users/me"),
-  create: (data: Partial<User> & { password: string }) =>
+  /** Crée un compte EN ATTENTE de première connexion : plus de mot de passe,
+   *  Keycloak authentifie. L'email est ce qui rapprochera les deux. */
+  create: (data: Partial<User> & { nom: string; email: string }) =>
     api<User>("/api/users", { method: "POST", body: JSON.stringify(data) }),
-  update: (id: number, data: Partial<User> & { password?: string }) =>
+  update: (id: number, data: Partial<User>) =>
     api<User>(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   remove: (id: number) => api<void>(`/api/users/${id}`, { method: "DELETE" }),
 };

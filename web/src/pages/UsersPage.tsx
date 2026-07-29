@@ -17,7 +17,7 @@ export default function UsersPage() {
   const [items, setItems] = useState<User[]>([]);
   const [err, setErr] = useState<unknown>(null);
   const { editingId: editing, draft: editDraft, start, cancel, patch, isEditing } =
-    useInlineEdit<User & { password?: string }>();
+    useInlineEdit<User>();
 
   function load() {
     usersApi.list().then(setItems).catch(setErr);
@@ -33,13 +33,12 @@ export default function UsersPage() {
   async function saveEdit() {
     if (editing == null) return;
     setErr(null);
-    const payload: any = {
+    const payload = {
       nom: editDraft.nom,
       email: editDraft.email,
       role: editDraft.role,
       actif: editDraft.actif,
     };
-    if (editDraft.password) payload.password = editDraft.password;
     try {
       await usersApi.update(editing, payload);
       cancel();
@@ -67,6 +66,12 @@ export default function UsersPage() {
         <button className="btn" onClick={() => nav("/users/new", navState(PARENT, SELF))}>+ Ajouter</button>
       </div>
       <ErrorBanner error={err} />
+      <p className="muted">
+        Reflet local des comptes Keycloak. <strong>Le rôle et l'email sont resynchronisés
+        depuis le realm</strong> à chaque connexion : les modifier ici ne tient que jusqu'à
+        la suivante. Décocher « Actif » est le seul levier de révocation immédiate côté
+        application.
+      </p>
       <p className="muted">{filteredCount} sur {totalCount}</p>
 
       <table>
@@ -112,13 +117,6 @@ export default function UsersPage() {
                   />
                 </td>
                 <td className="row-actions">
-                  <input
-                    type="password"
-                    placeholder="(mot de passe inchangé)"
-                    style={{ width: 160 }}
-                    value={editDraft.password ?? ""}
-                    onChange={(ev) => patch({password: ev.target.value })}
-                  />
                   <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancel}>Annuler</button>
                   <button className="btn danger" onClick={() => removeRow(u.id)}>Supprimer</button>

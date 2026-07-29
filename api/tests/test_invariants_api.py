@@ -483,15 +483,13 @@ def test_inv_auth1_api_refuse_email_duplique_casse_differente(
 ) -> None:
     r = client.post(
         "/api/users",
-        json={"nom": "A", "email": "dupe@exemple.fr", "password": "motdepasse1",
-              "role": "membre"},
+        json={"nom": "A", "email": "dupe@exemple.fr", "role": "membre"},
         headers=auth,
     )
     assert r.status_code == 201, r.text
     r = client.post(
         "/api/users",
-        json={"nom": "B", "email": "DUPE@EXEMPLE.FR", "password": "motdepasse2",
-              "role": "membre"},
+        json={"nom": "B", "email": "DUPE@EXEMPLE.FR", "role": "membre"},
         headers=auth,
     )
     assert r.status_code == 409, r.text
@@ -501,14 +499,16 @@ def test_inv_auth1_api_refuse_email_duplique_casse_differente(
 def test_inv_auth1_api_accepte_le_domaine_local_du_projet(
     client: TestClient, auth
 ) -> None:
-    """Régression C11 : l'app doit savoir créer un compte suivant sa propre
-    convention (SEED_ADMIN_EMAIL=…@lesfontaines.local dans .env.example).
-    Était un xfail(strict) tant que UserCreate.email restait un EmailStr —
-    email-validator refusant les TLD réservés comme .local."""
+    """Régression C11 : l'app doit savoir créer un compte sur son domaine interne.
+
+    C'est la convention de l'import du classeur (`prenom.nom@lesfontaines.local`),
+    et elle peut être celle du realm. Était un xfail(strict) tant que
+    UserCreate.email restait un EmailStr — email-validator refusant les TLD
+    réservés comme .local."""
     r = client.post(
         "/api/users",
         json={"nom": "Second admin", "email": "second@lesfontaines.local",
-              "password": "motdepasse1", "role": "membre"},
+              "role": "membre"},
         headers=auth,
     )
     assert r.status_code == 201, r.text
@@ -521,7 +521,7 @@ def test_email_casse_refuse_a_la_creation(client: TestClient, auth, email: str) 
     format cassé doit toujours être refusé (422), pas tout accepter."""
     r = client.post(
         "/api/users",
-        json={"nom": "X", "email": email, "password": "motdepasse1", "role": "membre"},
+        json={"nom": "X", "email": email, "role": "membre"},
         headers=auth,
     )
     assert r.status_code == 422, r.text

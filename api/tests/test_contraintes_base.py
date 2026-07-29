@@ -98,10 +98,8 @@ def test_role_hors_enum_refuse_par_la_base(engine: Engine, session_factory: sess
     with pytest.raises((DBAPIError, IntegrityError)):
         db.execute(
             text(
-                "INSERT INTO users (nom, email, password_hash, role, actif,"
-                " created_at, updated_at)"
-                " VALUES ('Pirate', 'pirate@test.local', 'x', 'superadmin', true,"
-                " :now, :now)"
+                "INSERT INTO users (nom, email, role, actif, created_at, updated_at)"
+                " VALUES ('Pirate', 'pirate@test.local', 'superadmin', true, :now, :now)"
             ),
             {"now": "2026-01-01 00:00:00"},
         )

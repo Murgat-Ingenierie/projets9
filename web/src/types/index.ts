@@ -95,12 +95,6 @@ export interface TacheEquipe {
   heures_allouees: number;
 }
 
-export interface LoginResponse {
-  access_token: string;
-  token_type: string;
-  user: User;
-}
-
 export interface ApiError {
   detail:
     | string

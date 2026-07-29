@@ -1,9 +1,15 @@
 // Adossement du front à Keycloak (OIDC), pendant de `api/app/auth/oidc.py`.
 //
-// Même règle que côté API : **inactif tant que la configuration est vide**.
-// Sans `VITE_OIDC_AUTHORITY`, `estActif()` renvoie false et l'application se
-// comporte exactement comme avant (pas de login, l'API tourne en AUTH_DISABLED).
-// La bascule se fait donc par configuration, sans fenêtre d'indisponibilité.
+// **Obligatoire**, comme côté API depuis le retrait de l'authentification
+// maison. Il n'y a plus de mode « configuration vide = pas de login » : ce mode
+// n'existait que pour accompagner la bascule, et un front qui n'obtient aucun
+// jeton ne peut de toute façon plus rien faire d'une API qui les exige.
+//
+// Configuration manquante = **erreur affichée** (cf. auth.tsx), jamais un
+// contournement silencieux. Nuance qui compte en production : ces valeurs sont
+// inscrites dans le bundle AU BUILD, donc une variable oubliée ne se rattrape
+// pas en redémarrant le conteneur — il faut reconstruire l'image. Autant que le
+// message le dise.
 //
 // Flow : authorization code + PKCE (S256). C'est le seul flow acceptable pour un
 // SPA — il ne peut garder aucun secret, d'où un client public côté Keycloak.
@@ -20,15 +26,26 @@ const API_CLIENT_ID = import.meta.env.VITE_OIDC_API_CLIENT_ID ?? "projets9-api";
  *  « Valid redirect URIs » du client Keycloak. */
 export const CHEMIN_CALLBACK = "/auth/callback";
 
-export function estActif(): boolean {
-  return Boolean(AUTHORITY && CLIENT_ID);
+/** Message d'une configuration incomplète, ou null si tout est là. */
+export function defautDeConfiguration(): string | null {
+  const manquants = [
+    !AUTHORITY && "VITE_OIDC_AUTHORITY",
+    !CLIENT_ID && "VITE_OIDC_CLIENT_ID",
+  ].filter(Boolean);
+  if (manquants.length === 0) return null;
+  return (
+    `Configuration d'authentification incomplète : ${manquants.join(", ")}. ` +
+    `Ces valeurs sont inscrites dans le bundle au moment du build : les renseigner ` +
+    `dans .env puis reconstruire l'image web (docker compose up -d --build web).`
+  );
 }
 
 let manager: UserManager | null = null;
 
 export function gestionnaire(): UserManager {
-  if (!estActif()) {
-    throw new Error("OIDC non configuré (VITE_OIDC_AUTHORITY / VITE_OIDC_CLIENT_ID)");
+  const defaut = defautDeConfiguration();
+  if (defaut !== null) {
+    throw new Error(defaut);
   }
   if (manager === null) {
     manager = new UserManager({
@@ -56,7 +73,6 @@ export function gestionnaire(): UserManager {
 }
 
 export async function utilisateurCourant(): Promise<OidcUser | null> {
-  if (!estActif()) return null;
   return gestionnaire().getUser();
 }
 
@@ -72,7 +88,6 @@ export async function seConnecter(): Promise<void> {
 }
 
 export async function seDeconnecter(): Promise<void> {
-  if (!estActif()) return;
   await gestionnaire().signoutRedirect();
 }
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user, hash_password, require_admin
+from app.auth import get_current_user, require_admin
 from app.config import settings
 from app.database import get_db
 from app.invariants import (
@@ -71,6 +71,13 @@ def create_user(
     db: Session = Depends(get_db),
     me: User = Depends(require_admin),
 ) -> User:
+    """Crée un compte local EN ATTENTE de première connexion.
+
+    Ce n'est plus une création d'identité : Keycloak seul décide qui existe et
+    avec quel rôle. Ce que ça crée, c'est une ligne `users` à laquelle rattacher
+    un `responsable_id` — pour affecter un projet à quelqu'un avant qu'il se soit
+    connecté une première fois. Le lien avec le realm se fera par l'email.
+    """
     existing = db.execute(
         select(User).where(func.lower(User.email) == payload.email.lower())
     ).scalar_one_or_none()
@@ -82,7 +89,6 @@ def create_user(
     new = User(
         nom=payload.nom,
         email=payload.email,
-        password_hash=hash_password(payload.password),
         role=payload.role,
         actif=payload.actif,
     )
@@ -118,8 +124,6 @@ def update_user(
         user.email = payload.email
     if payload.nom is not None:
         user.nom = payload.nom
-    if payload.password is not None:
-        user.password_hash = hash_password(payload.password)
     if payload.role is not None:
         user.role = payload.role
     if payload.actif is not None:

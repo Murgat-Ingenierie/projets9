@@ -176,9 +176,28 @@ jobs:
       # les démarrer : redondant, et facturé en double sur un plan free.
       # Conséquence assumée : un build cassé se voit désormais ici, pas dans un job
       # dédié — le message est moins direct, mais l'information est la même.
+      # La configuration Keycloak est OBLIGATOIRE depuis le retrait de
+      # l'authentification maison : `docker compose` refuse d'interpoler sans
+      # elle, et `.env.example` la laisse vide à dessein (fichier versionné,
+      # dépôt public). On complète donc ici, avec un serveur **fictif** — jamais
+      # joint : la validation des jetons ne récupère les clés (JWKS) qu'à la
+      # première requête authentifiée, et il n'y en a aucune.
+      #
+      # Conséquence pour le scan, assumée : l'API répond 401 partout au lieu de
+      # servir les données comme du temps d'AUTH_DISABLED. ZAP Baseline est un
+      # scan PASSIF — en-têtes, CSP, attributs de cookies, fuites de bannière —
+      # tout cela s'observe sur un 401 comme sur un 200. Ce qu'on perdrait avec
+      # une authentification réelle relève du scan actif, qui n'est pas fait ici.
       - name: Démarrer la stack
         run: |
           cp .env.example .env
+          cat >> .env <<'EOF'
+          KEYCLOAK_BASE_URL=https://auth.invalid
+          KEYCLOAK_REALM=ci
+          KEYCLOAK_ORIGIN=https://auth.invalid
+          VITE_OIDC_AUTHORITY=https://auth.invalid/realms/ci
+          VITE_OIDC_CLIENT_ID=projets9-front
+          EOF
           docker compose up -d --build
       # On attend /api/health : il ne répond 200 qu'une fois l'API prête
       # (migrations + seed + uvicorn), donc toute la stack est debout avant ZAP.

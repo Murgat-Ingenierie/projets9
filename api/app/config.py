@@ -6,22 +6,14 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://gestion:gestion@db:5432/gestion_projet"
 
-    jwt_secret: str = "dev-secret-change-me"
-    jwt_algorithm: str = "HS256"
-    jwt_expires_min: int = 60
-
-    seed_admin_email: str = "admin@local"
-    seed_admin_password: str = "admin"
-    seed_admin_name: str = "Admin"
     seed_csv_path: str = "/seed/epics.csv"
 
     max_active_users: int = 10
 
-    auth_disabled: bool = False
-
     # --- Keycloak (realm partagé avec les autres applications) ---
-    # Vides = adossement inactif : l'API reste sur le mode hérité (JWT maison) ou
-    # débrayé (AUTH_DISABLED). Renseigner les trois pour activer l'OIDC.
+    # OBLIGATOIRES depuis le retrait de l'authentification maison : Keycloak est
+    # le seul moyen d'entrer. Sans elles l'API refuse de démarrer (cf. main.py) —
+    # une API qui ne peut authentifier personne n'a pas à écouter sur un port.
     keycloak_base_url: str = ""
     keycloak_realm: str = ""
     # Audience attendue dans le jeton, et client qui porte les rôles applicatifs.

@@ -1,15 +1,4 @@
-import { estActif, jetonAcces, seConnecter } from "../auth/oidc";
-
-const TOKEN_KEY = "gp.token";
-
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setToken(token: string | null): void {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
-}
+import { jetonAcces, seConnecter } from "../auth/oidc";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string | null, message: string) {
@@ -25,19 +14,18 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!headers.has("Content-Type") && init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  // Deux sources possibles, dans cet ordre : le jeton Keycloak quand l'OIDC est
-  // configuré, sinon le jeton hérité en localStorage. Les deux chemins coexistent
-  // le temps de la bascule (même principe que côté API).
-  const token = estActif() ? await jetonAcces() : getToken();
+  // Source unique depuis le retrait du jeton maison : la session Keycloak. Le
+  // jeton hérité vivait en localStorage sous `gp.token` ; plus personne ne
+  // l'écrit ni ne le lit, et l'API ne l'accepterait plus.
+  const token = await jetonAcces();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(path, { ...init, headers });
 
-  // 401 avec OIDC actif : la session Keycloak a expiré (ou le renouvellement
-  // silencieux a échoué). On renvoie l'utilisateur s'authentifier plutôt que de
-  // lui afficher une erreur qu'il ne peut pas résoudre. Sans OIDC, l'erreur
-  // remonte comme n'importe quelle autre — il n'y a pas de page de login.
-  if (res.status === 401 && estActif()) {
+  // 401 : la session Keycloak a expiré (ou le renouvellement silencieux a
+  // échoué). On renvoie l'utilisateur s'authentifier plutôt que de lui afficher
+  // une erreur qu'il ne peut pas résoudre.
+  if (res.status === 401) {
     await seConnecter();
     // La redirection est en cours ; cette promesse ne se résoudra pas.
     return new Promise<T>(() => {});
