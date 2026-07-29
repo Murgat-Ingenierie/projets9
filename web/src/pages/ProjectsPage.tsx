@@ -6,7 +6,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import { PROJECT_STATUS_LABELS, fmtDate } from "../labels";
-import type { Epic, Project, User } from "../types";
+import type { Epic, Project } from "../types";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Projets", to: "/projects" };
@@ -15,11 +15,11 @@ export default function ProjectsPage() {
   const nav = useNavigate();
   const [items, setItems] = useState<Project[]>([]);
   const [allEpics, setAllEpics] = useState<Epic[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: number; nom: string }[]>([]);
   const [err, setErr] = useState<unknown>(null);
 
   function load() {
-    Promise.all([projects.list(), epics.list(), users.list()])
+    Promise.all([projects.list(), epics.list(), users.annuaire()])
       .then(([p, e, u]) => {
         setItems(p);
         setAllEpics(e);

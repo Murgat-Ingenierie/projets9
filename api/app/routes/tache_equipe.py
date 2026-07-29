@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app.auth import get_current_user, require_admin
 from app.database import get_db
 from app.invariants import (
     InvariantError,
@@ -88,7 +88,7 @@ def update(
 
 @router.delete("/{te_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(
-    te_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)
+    te_id: int, db: Session = Depends(get_db), _=Depends(require_admin)
 ) -> None:
     te = db.get(TacheEquipe, te_id)
     if te is None:

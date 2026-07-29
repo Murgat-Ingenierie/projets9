@@ -9,7 +9,7 @@ import { useInlineEdit } from "../hooks/useInlineEdit";
 import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import { fmtDate } from "../labels";
-import type { Project, Task, User } from "../types";
+import type { Project, Task } from "../types";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Tâches", to: "/tasks" };
@@ -18,12 +18,12 @@ export default function TasksPage() {
   const nav = useNavigate();
   const [items, setItems] = useState<Task[]>([]);
   const [projs, setProjs] = useState<Project[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: number; nom: string }[]>([]);
   const [err, setErr] = useState<unknown>(null);
   const { editingId: editing, draft: editDraft, start, cancel, patch, isEditing } = useInlineEdit<Task>();
 
   function load() {
-    Promise.all([tasks.list(), projects.list(), users.list()])
+    Promise.all([tasks.list(), projects.list(), users.annuaire()])
       .then(([t, p, u]) => {
         setItems(t);
         setProjs(p);

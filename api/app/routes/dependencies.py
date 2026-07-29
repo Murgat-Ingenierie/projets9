@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app.auth import get_current_user, require_admin
 from app.database import get_db
 from app.invariants import InvariantError
 from app.invariants.checks import (
@@ -60,7 +60,7 @@ def create_dep(
 def delete_dep(
     dep_id: int,
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
+    _=Depends(require_admin),
 ) -> None:
     d = db.get(Dependency, dep_id)
     if d is None:
