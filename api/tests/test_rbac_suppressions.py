@@ -16,38 +16,11 @@ lui, la règle pourrait disparaître d'un endpoint sans que rien ne le signale.
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session, sessionmaker
 
-from app.auth.security import hash_password
 from app.models.user import User, UserRole
 
-MEMBRE_EMAIL = "membre@test.local"
-MEMBRE_PASSWORD = "motdepasse-membre"
-
-
-@pytest.fixture
-def membre(session_factory: sessionmaker[Session]) -> None:
-    db = session_factory()
-    db.add(
-        User(
-            nom="Membre Test",
-            email=MEMBRE_EMAIL,
-            password_hash=hash_password(MEMBRE_PASSWORD),
-            role=UserRole.membre,
-            actif=True,
-        )
-    )
-    db.commit()
-    db.close()
-
-
-@pytest.fixture
-def auth_membre(client: TestClient, membre: None) -> dict[str, str]:
-    r = client.post(
-        "/api/auth/login", json={"email": MEMBRE_EMAIL, "password": MEMBRE_PASSWORD}
-    )
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+# `auth` (admin) et `auth_membre` (non-admin) viennent du conftest : elles
+# injectent le compte en surchargeant `get_current_user`, sans jeton.
 
 
 @pytest.fixture
