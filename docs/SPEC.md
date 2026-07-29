@@ -177,7 +177,7 @@ de la base*. Une tentative de mutation qui violerait un invariant doit être
 | INV-2 | `Epic.nom` est non vide (après trim). |
 | INV-3 | `Epic.statut = actif` ⇒ `critère_réussite` non vide. |
 | INV-AUTH-1 | `User.email` est unique (insensible à la casse). |
-| INV-AUTH-2 | `count(User where actif=true) ≤ 10`. |
+| INV-AUTH-2 | `count(User where actif=true) ≤ 10`. Plafond **configurable** (`MAX_ACTIVE_USERS`) depuis le 2026-07-29 : il était figé par le fichier compose, qui ne transmettait pas la variable. Le défaut reste 10. |
 | INV-AUTH-3 | `count(User where actif=true AND rôle=admin) ≥ 1`. |
 
 ### Hiérarchie
