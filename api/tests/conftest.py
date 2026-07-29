@@ -15,9 +15,16 @@ Ce que ces tests éprouvent avant tout reste l'application des invariants par le
 PostgreSQL ajoute la garantie que la base elle-même refuserait ce que les routes
 refusent déjà.
 
-L'authentification n'est pas court-circuitée : on crée un vrai admin et on passe
-par `POST /api/auth/login` pour obtenir un vrai JWT. Le chemin d'auth est ainsi
-couvert par construction dans chaque test.
+**Authentification injectée.** Les fixtures `auth` / `auth_membre` surchargent
+`get_current_user` pour renvoyer directement un compte, sans jeton. Elles
+surchargent lui SEUL : `require_admin` en dépend par `Depends` et continue donc
+de s'exécuter avec sa vraie logique — un membre se voit bien refuser un endpoint
+admin, les tests RBAC éprouvent la règle réelle.
+
+Avant l'adossement à Keycloak, ces fixtures passaient par un vrai
+`POST /api/auth/login`, ce qui couvrait le chemin d'authentification dans chaque
+test. Ce chemin n'existe plus : il est désormais couvert explicitement par
+`test_keycloak_roles.py` et `test_keycloak_provisioning.py`.
 """
 
 from __future__ import annotations
@@ -27,13 +34,15 @@ from collections.abc import Generator
 from dataclasses import dataclass
 
 import pytest
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (import pour peupler Base.metadata)
 from app.auth.security import hash_password
+from app.auth.deps import get_current_user
 from app.database import Base, get_db
 from app.main import app as fastapi_app
 from app.models.user import User, UserRole
@@ -98,6 +107,7 @@ def client(session_factory: sessionmaker[Session]) -> Generator[TestClient, None
             db.close()
 
     fastapi_app.dependency_overrides[get_db] = _get_db
+    fastapi_app.dependency_overrides[get_current_user] = _resout_utilisateur
     with TestClient(fastapi_app) as c:
         yield c
     fastapi_app.dependency_overrides.clear()
@@ -128,14 +138,62 @@ def admin(session_factory: sessionmaker[Session]) -> Compte:
     return compte
 
 
+#: En-tête portant l'email du compte à incarner. Résolution PAR REQUÊTE — et
+#: c'est essentiel : `auth` et `auth_membre` surchargent la même dépendance, donc
+#: une surcharge posée à l'installation de la fixture serait écrasée par la
+#: suivante. Un test qui demande `auth_membre` ET une fixture bâtie sur `auth`
+#: (comme `jeu`) se retrouverait alors à agir en ADMIN sans le savoir — un test
+#: négatif passerait au vert pour la mauvaise raison.
+ENTETE_COMPTE = "X-Test-User"
+
+
+def _resout_utilisateur(request: Request, db: Session = Depends(get_db)) -> User:
+    """Renvoie le compte désigné par l'en-tête de test.
+
+    **En l'absence d'en-tête, on lève 401** plutôt que d'incarner un compte par
+    défaut : sans quoi les tests qui vérifient qu'une requête NON authentifiée
+    est refusée passeraient au vert sans rien prouver.
+    """
+    email = request.headers.get(ENTETE_COMPTE)
+    if not email:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token manquant")
+    u = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    assert u is not None, f"compte de test introuvable : {email}"
+    return u
+
+
+MEMBRE_EMAIL = "membre@test.local"
+
+
 @pytest.fixture
-def auth(client: TestClient, admin: Compte) -> dict[str, str]:
-    """En-tête Authorization d'un vrai JWT obtenu via /api/auth/login."""
-    r = client.post(
-        "/api/auth/login", json={"email": admin.email, "password": admin.password}
+def auth(admin: Compte) -> dict[str, str]:
+    """Requêtes exécutées en tant qu'ADMIN."""
+    return {ENTETE_COMPTE: admin.email}
+
+
+@pytest.fixture
+def membre(session_factory: sessionmaker[Session]) -> Compte:
+    """Compte NON administrateur — de quoi vérifier ce qui doit lui être refusé."""
+    db = session_factory()
+    u = User(
+        nom="Membre Test",
+        email=MEMBRE_EMAIL,
+        password_hash="!keycloak",
+        role=UserRole.membre,
+        actif=True,
     )
-    assert r.status_code == 200, f"login raté : {r.status_code} {r.text}"
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    compte = Compte(id=u.id, email=u.email, password="")
+    db.close()
+    return compte
+
+
+@pytest.fixture
+def auth_membre(membre: Compte) -> dict[str, str]:
+    """Requêtes exécutées en tant que MEMBRE (cf. `auth` pour le principe)."""
+    return {ENTETE_COMPTE: membre.email}
 
 
 # --- petites fabriques : montent le strict nécessaire pour chaque scénario ---
