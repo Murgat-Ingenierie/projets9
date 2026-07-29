@@ -49,3 +49,27 @@ docker compose start api
 Remplacez `<FICHIER>` par le nom exact vu à l'étape « Lister ». À l'étape 3, le
 `psql` sans `-d` explicite se connecte à `$PGDATABASE` (la base fraîchement
 recréée) via les variables d'environnement du conteneur.
+
+## « Mon dump est plus ancien que le schéma actuel »
+
+C'est le cas normal, et il fonctionne : un dump porte le schéma **du jour où il a
+été pris**, y compris sa ligne `alembic_version`. L'étape 4 rejoue les migrations
+manquantes par-dessus les données restaurées — c'est tout l'intérêt de redémarrer
+l'API plutôt que de s'arrêter à l'étape 3.
+
+Éprouvé le 2026-07-29 sur une base jetable, avec le cas le plus défavorable
+disponible : un dump en `0009`, donc antérieur à **deux** migrations, dont une
+**destructive** (`0011`, suppression de `password_hash`).
+
+| | avant | après |
+|---|---|---|
+| `alembic_version` | 0009 | **0011** |
+| `keycloak_sub` | absente | ajoutée |
+| `password_hash` | présente | supprimée |
+| epics / projets / tâches | 13 / 32 / 65 | **13 / 32 / 65** |
+| tâches rattachées à un compte | — | 51, aucune clé étrangère orpheline |
+
+Autrement dit : les données traversent, le schéma se met à niveau, les clés
+étrangères tiennent. À l'inverse, **un dump plus RÉCENT que le code déployé ne
+passera pas** — Alembic ne redescend pas tout seul. Déployer le code d'abord, la
+restauration ensuite.
