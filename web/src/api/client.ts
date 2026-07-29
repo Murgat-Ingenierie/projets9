@@ -19,7 +19,10 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers ?? {});
-  if (!headers.has("Content-Type") && init.body) {
+  // FormData (téléversement) : NE PAS fixer Content-Type. Le navigateur doit
+  // poser lui-même `multipart/form-data; boundary=…` — l'écrire à la main
+  // produit un corps que le serveur ne sait pas découper.
+  if (!headers.has("Content-Type") && init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   // Deux sources possibles, dans cet ordre : le jeton Keycloak quand l'OIDC est
