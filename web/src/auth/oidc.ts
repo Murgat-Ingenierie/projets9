@@ -91,7 +91,25 @@ export async function seDeconnecter(): Promise<void> {
   await gestionnaire().signoutRedirect();
 }
 
-/** Traite le retour de Keycloak (`/auth/callback`). */
-export async function terminerConnexion(): Promise<OidcUser> {
-  return gestionnaire().signinRedirectCallback();
+//: Échange en cours, mémoïsé. Un code d'autorisation est à USAGE UNIQUE : le
+//: consommer retire du stockage l'état qui lui correspond, si bien qu'une
+//: seconde tentative échoue sur un « No matching state ». Or le composant qui
+//: pilote le retour est monté deux fois en développement (StrictMode). Sans
+//: cette mémoïsation, la seconde tentative afficherait une erreur imméritée.
+let echangeEnCours: Promise<OidcUser> | null = null;
+
+/** Traite le retour de Keycloak (`/auth/callback`).
+ *
+ *  Deux appels concurrents partagent le MÊME échange, et reçoivent donc le même
+ *  résultat. En cas d'échec on oublie la promesse, pour qu'une nouvelle tentative
+ *  reste possible — un code expiré doit pouvoir être suivi d'une reconnexion.
+ */
+export function terminerConnexion(): Promise<OidcUser> {
+  echangeEnCours ??= gestionnaire()
+    .signinRedirectCallback()
+    .catch((e) => {
+      echangeEnCours = null;
+      throw e;
+    });
+  return echangeEnCours;
 }

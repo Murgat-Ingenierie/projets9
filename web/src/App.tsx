@@ -19,6 +19,7 @@ import UserNewPage from "./pages/UserNewPage";
 import EquipesPage from "./pages/EquipesPage";
 import EquipeNewPage from "./pages/EquipeNewPage";
 import ChargeEquipesPage from "./pages/ChargeEquipesPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
 import GanttSvarPage from "./pages/GanttSvarPage";
 import ParametresPage from "./pages/ParametresPage";
 
@@ -106,10 +107,11 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout><GanttSvarPage /></Layout>} />
         <Route path="/parametres" element={<Layout><ParametresPage /></Layout>} />
-        {/* Retour de Keycloak : AuthProvider échange le code puis remet l'URL à
-            « / ». Cette route existe pour que le SPA ne rende pas un 404 le
-            temps de l'échange. */}
-        <Route path="/auth/callback" element={<Layout><p>Connexion…</p></Layout>} />
+        {/* Retour de Keycloak. HORS `Layout` : tant qu'on ne sait pas qui entre,
+            afficher la barre latérale laisserait croire l'application ouverte.
+            La page quitte les lieux par une navigation du routeur — cf. sa
+            docstring, et le défaut qu'elle corrige. */}
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
         <Route path="/epics" element={<Layout><EpicsPage /></Layout>} />
         <Route path="/epics/new" element={<Layout><EpicNewPage /></Layout>} />
