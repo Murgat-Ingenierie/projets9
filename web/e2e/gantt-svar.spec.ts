@@ -191,8 +191,16 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expandRow(page, "Capteurs O2");
     await expect(page.getByText("Choix capteurs").first()).toBeVisible();
 
-    // Basculer le groupe reconstruit l'arbre mais NE doit PAS replier le projet.
+    // Grouper REPLIE les epics — c'est l'intérêt du bouton, reprendre de la
+    // hauteur. La tâche dépliée disparaît donc de l'écran : elle est masquée par
+    // un ancêtre fermé, pas repliée.
     await page.getByRole("button", { name: /Grouper par epic/ }).click();
+    await expect(page.getByText("Choix capteurs")).toHaveCount(0);
+
+    // C'est ICI que se joue la réactivité, et c'est la garantie qui compte :
+    // rouvrir l'epic retrouve le projet TEL QU'ON L'AVAIT LAISSÉ. Sans quoi
+    // grouper ferait perdre le dépliage, et il faudrait tout rouvrir à la main.
+    await expandRow(page, "Optimisation bassins");
     await expect(page.getByText("Choix capteurs").first()).toBeVisible();
 
     // Un filtre équipe qui garde le projet visible ne le replie pas non plus.
