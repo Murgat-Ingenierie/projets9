@@ -18,7 +18,19 @@ import { mockApi, type ApiCall } from "./mockApi";
 // en unitaire (buildSvarLinks/svarLinkToDependency/parseSvarId/planBlockShift,
 // src/planning/*.test.ts).
 
-async function gotoSvar(page: Page): Promise<ApiCall[]> {
+/** Ouvre le planning.
+ *
+ *  `vue` fixe le niveau de zoom quand le test dépend de la GÉOMÉTRIE des barres
+ *  (double-clic sur une barre, clic sur une poignée de connexion). L'application
+ *  ouvre en vue Mois, où une tâche de dix jours occupe une trentaine de pixels :
+ *  les poignées s'y chevauchent et le geste devient indéterministe. Un test sur
+ *  la géométrie doit donc la fixer, plutôt que d'hériter d'un défaut qui peut
+ *  changer — ce qui vient d'arriver.
+ *
+ *  Sans `vue`, on garde le défaut de l'application : c'est ce que vérifie le test
+ *  des contrôles de zoom.
+ */
+async function gotoSvar(page: Page, vue?: "Jour" | "Semaine" | "Mois"): Promise<ApiCall[]> {
   // Date figée dans la fenêtre des fixtures (tâches jul.–sep. 2026) + fenêtre large :
   // défilement par défaut de SVAR et géométrie déterministes, indépendants de la date
   // réelle d'exécution (les poignées des tâches 12/13 restent à l'écran).
@@ -27,6 +39,19 @@ async function gotoSvar(page: Page): Promise<ApiCall[]> {
   const calls = await mockApi(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
+  // Le titre s'affiche avant que SVAR ait dessiné quoi que ce soit. Attendre une
+  // BARRE, pas un intitulé : la vue Mois met plus longtemps à se stabiliser que
+  // l'ancienne vue Jour, et un geste lancé trop tôt tombe dans le vide — ce qui se
+  // manifeste, plus loin, par un panneau qui ne s'ouvre pas.
+  await expect(page.locator('[data-task-id^=":proj:"]').first()).toBeVisible();
+  if (vue) {
+    await page.getByRole("button", { name: vue, exact: true }).click();
+    await expect(page.getByRole("button", { name: vue, exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
+    // Pas d'attente globale ici : elle serait satisfaite par une barre RESTÉE de
+    // la vue précédente, donc trompeuse. C'est chaque geste qui attend la cible
+    // dont il a besoin (cf. `clickHandle`).
+  }
   return calls;
 }
 
@@ -37,10 +62,20 @@ async function expandRow(page: Page, name: string) {
 }
 
 // Clic sur la poignée de connexion (gauche = début, droite = fin) d'une barre.
+//
+// L'attente explicite sur la BARRE est indispensable depuis que l'application
+// ouvre en vue Mois : ces tests changent de zoom, et SVAR reconstruit alors ses
+// barres. Le `force: true` — nécessaire parce que la poignée n'apparaît qu'au
+// survol — court-circuite les vérifications d'actionnabilité de Playwright : sans
+// cette attente, un clic sur une poignée pas encore rendue « réussit » sans rien
+// déclencher, et le test échoue plus loin sur une cause qui n'est plus visible.
 async function clickHandle(page: Page, taskId: string, side: "left" | "right") {
   const bar = page.locator(`[data-task-id=":task:${taskId}"]`).first();
+  await expect(bar).toBeVisible();
   await bar.hover();
-  await bar.locator(`.wx-link.wx-${side}`).click({ force: true });
+  const poignee = bar.locator(`.wx-link.wx-${side}`);
+  await expect(poignee).toBeAttached();
+  await poignee.click({ force: true });
 }
 
 const postDep = (calls: ApiCall[]) =>
@@ -91,12 +126,12 @@ test.describe("Planning SVAR — parité 2b", () => {
     const jour = page.getByRole("button", { name: "Jour", exact: true });
     const semaine = page.getByRole("button", { name: "Semaine", exact: true });
     const mois = page.getByRole("button", { name: "Mois", exact: true });
-    await expect(jour).toHaveAttribute("aria-pressed", "true"); // Jour actif par défaut
-    await expect(semaine).toHaveAttribute("aria-pressed", "false");
-
-    await mois.click();
-    await expect(mois).toHaveAttribute("aria-pressed", "true");
+    await expect(mois).toHaveAttribute("aria-pressed", "true"); // Mois actif par défaut
     await expect(jour).toHaveAttribute("aria-pressed", "false");
+
+    await semaine.click();
+    await expect(semaine).toHaveAttribute("aria-pressed", "true");
+    await expect(mois).toHaveAttribute("aria-pressed", "false");
 
     await expect(page.getByRole("button", { name: /Aujourd'hui/ })).toBeVisible();
 
@@ -170,10 +205,18 @@ test.describe("Planning SVAR — parité 2b", () => {
   // natif de SVAR (qui est intercepté).
   test("double-cliquer une ligne ouvre EditPanel ; « Fermer » le referme", async ({ page }) => {
     await gotoSvar(page);
-    await page.locator('[data-task-id=":proj:1"]').first().dblclick();
+    const barre = page.locator('[data-task-id=":proj:1"]').first();
+    await expect(barre).toBeVisible();
+    await barre.dblclick();
     const panel = page.locator("aside.panel");
-    await expect(panel).toBeVisible();
-    await panel.getByTitle("Fermer").click();
+    // Attendre le bouton lui-même avant de cliquer. Le panneau s'ouvre d'abord
+    // sur « Chargement… » puis se re-rend avec ses données : `click()` seul peut
+    // viser un élément en cours de remplacement. Viser le BOUTON — présent dans
+    // les deux états — plutôt que l'en-tête chargé, qui dépend d'une requête et
+    // rendait le test tributaire de la charge de la machine.
+    const fermer = panel.getByTitle("Fermer");
+    await expect(fermer).toBeVisible();
+    await fermer.click();
     await expect(panel).toHaveCount(0);
   });
 

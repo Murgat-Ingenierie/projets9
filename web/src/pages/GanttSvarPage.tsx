@@ -141,7 +141,11 @@ function TaskBar({ data }: { data: ITask }) {
 
 export default function GanttSvarPage() {
   const [err, setErr] = useState<unknown>(null);
-  const [zoom, setZoom] = useState<ZoomLevel>("day");
+  // Vue MOIS par défaut : les projets de la pisciculture s'étalent sur des
+  // trimestres, parfois des années. En vue Jour, l'écran d'accueil ne montrait
+  // qu'une poignée de jours — l'utilisateur arrivait sur un planning dont
+  // l'essentiel était hors champ, et devait dézoomer avant de voir son travail.
+  const [zoom, setZoom] = useState<ZoomLevel>("month");
   // Défaut À PLAT (parité avec l'ancien Gantt) : projets au niveau racine ; le toggle
   // « Grouper par epic » ajoute les lignes d'en-tête epic (reparente sous l'epic).
   const [groupByEpic, setGroupByEpic] = useState(false);
