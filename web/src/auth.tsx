@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { users } from "./api/endpoints";
 import {
   CHEMIN_CALLBACK,
   defautDeConfiguration,
   seConnecter,
   seDeconnecter,
-  terminerConnexion,
   utilisateurCourant,
 } from "./auth/oidc";
 import type { User } from "./types";
@@ -18,6 +18,12 @@ import type { User } from "./types";
 // l'authentification maison. Une configuration incomplète n'ouvre donc plus
 // l'application sans login : elle s'affiche, ce qui est le seul comportement
 // honnête quand l'API, elle, exige un jeton pour tout.
+//
+// **Le retour de Keycloak ne se traite plus ici** mais dans `AuthCallbackPage` :
+// l'échange du code mené depuis le provider se terminait par un
+// `history.replaceState` qui laissait le routeur bloqué sur la route de retour.
+// Ce fichier répond désormais à une seule question — qui est l'utilisateur — et
+// la poignée de main a sa page.
 //
 // `user` reste l'utilisateur **local** (table `users`), pas les claims du jeton :
 // c'est lui que référencent `responsable_id` et l'audit `updated_by`. Le
@@ -32,6 +38,7 @@ interface AuthCtx {
 const Ctx = createContext<AuthCtx>(null!);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const surCallback = useLocation().pathname === CHEMIN_CALLBACK;
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -47,15 +54,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      try {
-        // Retour de Keycloak : on échange le code, puis on nettoie l'URL — ni
-        // `code` ni `state` n'ont à rester dans la barre d'adresse, ni dans
-        // l'historique, ni dans un lien partagé par mégarde.
-        if (window.location.pathname === CHEMIN_CALLBACK) {
-          await terminerConnexion();
-          window.history.replaceState({}, "", "/");
-        }
+      // Sur la page de retour, l'échange du code est en cours : il n'y a pas
+      // encore de session à trouver. Chercher ici enverrait l'utilisateur se
+      // réauthentifier — et le code, consommé au passage, serait perdu. On
+      // attend que la page ait navigué ; ce changement de route relance cet
+      // effet, qui trouvera alors la session établie.
+      if (surCallback) return;
 
+      try {
         const oidc = await utilisateurCourant();
         if (!oidc || oidc.expired) {
           await seConnecter(); // redirection : la suite ne s'exécute pas
@@ -80,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       annule = true;
     };
-  }, []);
+  }, [surCallback]);
 
   if (erreur) {
     // Pas de bouton « Se déconnecter » quand c'est la CONFIGURATION qui manque :
