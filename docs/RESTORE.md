@@ -46,6 +46,45 @@ docker compose exec backup sh -c 'gunzip -c "/backups/<FICHIER>.sql.gz" | psql'
 docker compose start api
 ```
 
+## Restaurer un dump qui ne vient PAS du conteneur `backup`
+
+Un dump reçu par un autre chemin — export d'une autre installation, sauvegarde
+récupérée à la main — n'est pas dans le volume `/backups`. Il faut donc l'y
+amener, et c'est la seule différence avec la procédure ci-dessus.
+
+```bash
+# Le chemin source est relatif au répertoire COURANT, pas à la racine du dépôt.
+# Depuis la racine, un fichier rangé dans exports/ s'écrit donc « exports/… » —
+# l'oublier donne un « no such file or directory » qui désigne le fichier, pas
+# le chemin, et se lit mal.
+docker compose cp exports/<FICHIER>.sql backup:/tmp/restaurer.sql
+```
+
+Puis les étapes 1, 2 et 4 sans changement, en remplaçant l'étape 3 par :
+
+```bash
+docker compose exec backup sh -c 'psql -v ON_ERROR_STOP=1 -q -f /tmp/restaurer.sql'
+```
+
+`ON_ERROR_STOP=1` n'est pas décoratif : sans lui, `psql` poursuit après une
+erreur et rend la main avec un code de succès sur une base à moitié chargée —
+qui démarre, répond, et ne se trahira que plus tard.
+
+Retirer ensuite le fichier du conteneur : il porte des données de production, et
+le volume `/tmp` survit aux redémarrages.
+
+```bash
+docker compose exec backup sh -c 'rm -f /tmp/restaurer.sql'
+```
+
+> **Après une restauration, plus aucun compte n'est lié à Keycloak** si le dump
+> est antérieur à la migration `0010` : la colonne `keycloak_sub` est recréée
+> vide. Chacun est donc rapproché **par email** à sa première connexion — et un
+> compte dont l'adresse ne correspond pas à celle du realm en fait naître un
+> second, qui consomme une place sur les dix d'INV-AUTH-2. Corriger les adresses
+> **avant** que les personnes se reconnectent ; après, c'est le `keycloak_sub`
+> qu'il faut déplacer, ce qui est plus délicat.
+
 Remplacez `<FICHIER>` par le nom exact vu à l'étape « Lister ». À l'étape 3, le
 `psql` sans `-d` explicite se connecte à `$PGDATABASE` (la base fraîchement
 recréée) via les variables d'environnement du conteneur.
