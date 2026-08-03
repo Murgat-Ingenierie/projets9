@@ -20,6 +20,7 @@ import { buildSvarLinks, svarLinkToDependency } from "../planning/buildSvarLinks
 import { parseSvarId } from "../planning/svarAdapter";
 import { isoDate, toDate, daysBetweenIso, fmtDate } from "../planning/dates";
 import { planBlockShift, planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
+import { couleurTexteSur } from "../planning/ganttStyles";
 import { deriveTeamFilter } from "../planning/teamFilter";
 import { useUndo } from "../planning/useUndo";
 import { useStableList } from "../planning/useStableList";
@@ -125,11 +126,15 @@ function TaskBar({ data }: { data: ITask }) {
   if (d.type === "milestone") {
     return <span className="wx-text-out">{d.text}</span>;
   }
+  // Le libellé était blanc quelle que soit la barre. Or une tâche porte la couleur
+  // de son epic ÉCLAIRCIE : sur un epic pâle, le blanc devenait illisible. On tire
+  // donc la couleur du texte de la luminance réelle du fond.
+  const couleurTexte = d.barColor ? couleurTexteSur(d.barColor) : undefined;
   return (
     <>
       {d.barColor && <span className="deco-bar" style={{ background: d.barColor }} aria-hidden />}
       {d.archived && <span className="deco-archive-hatch" aria-hidden />}
-      <span className="wx-content deco-label">{d.text}</span>
+      <span className="wx-content deco-label" style={{ color: couleurTexte }}>{d.text}</span>
       {d.archived && (
         <span className="material-symbols-outlined deco-done" aria-hidden>
           check_circle
