@@ -55,7 +55,10 @@ describe("GanttSvarPage — pas de ré-initialisation parasite de SVAR", () => {
     const firstInit = captured[0].init;
 
     // Un changement d'état SANS rapport avec les données (zoom) : il doit re-rendre…
-    fireEvent.click(screen.getByRole("button", { name: "Mois" }));
+    // « Jour », pas « Mois » : ce dernier est le niveau PAR DÉFAUT, et le
+    // reposer ne changerait rien — React court-circuite un état identique, donc
+    // aucun rendu, et le test ne prouverait plus rien.
+    fireEvent.click(screen.getByRole("button", { name: "Jour" }));
     await waitFor(() => expect(captured.length).toBeGreaterThan(initialRenders));
 
     // …mais surtout ne pas changer l'identité de `init`.
@@ -69,7 +72,7 @@ describe("GanttSvarPage — pas de ré-initialisation parasite de SVAR", () => {
     const firstTasks = captured[0].tasks;
     const firstLinks = captured[0].links;
 
-    fireEvent.click(screen.getByRole("button", { name: "Mois" }));
+    fireEvent.click(screen.getByRole("button", { name: "Jour" })); // cf. test précédent
     await waitFor(() => expect(captured.length).toBeGreaterThan(1));
 
     // Le contenu n'a pas bougé : SVAR ne doit voir aucun changement de référence.
