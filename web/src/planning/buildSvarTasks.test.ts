@@ -92,13 +92,15 @@ describe("buildSvarTasks", () => {
     expect(structural).toEqual(["epic:ZZZ", "proj:9", "epic:AAA", "proj:3", "proj:5"]);
   });
 
-  it("epic ouvert (open:true) ; projet avec tâches = summary replié (open:false)", () => {
+  it("epic ET projet repliés par défaut (open:false)", () => {
     const out = buildSvarTasks(base({
       epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")],
       tasksByProject: new Map([[1, [task(11, 1, "T")]]]),
     }));
     const m = byId(out);
-    expect(m.get("epic:O50")).toMatchObject({ open: true });
+    // Activer le groupement sert à reprendre de la hauteur : un epic ouvert
+    // d'emblée redonnerait la liste à plat qu'on vient de quitter.
+    expect(m.get("epic:O50")).toMatchObject({ open: false });
     expect(m.get("proj:1")).toMatchObject({ type: "summary", open: false });
   });
 
@@ -143,15 +145,15 @@ describe("buildSvarTasks", () => {
     expect(ids).not.toContain("task:12");
   });
 
-  it("openState surcharge l'état déplié par défaut (epic ouvert, projet replié)", () => {
+  it("openState surcharge l'état déplié par défaut (tout replié)", () => {
     const out = buildSvarTasks(base({
       epics: [epic("O50", "A")],
       projects: [proj(1, "O50", "P")],
       tasksByProject: new Map([[1, [task(11, 1, "T")]]]),
-      openState: new Map([["epic:O50", false], ["proj:1", true]]),
+      openState: new Map([["epic:O50", true], ["proj:1", true]]),
     }));
     const m = byId(out);
-    expect(m.get("epic:O50")).toMatchObject({ open: false }); // surcharge du défaut (true)
+    expect(m.get("epic:O50")).toMatchObject({ open: true }); // surcharge du défaut (false)
     expect(m.get("proj:1")).toMatchObject({ open: true }); // surcharge du défaut (false)
   });
 });

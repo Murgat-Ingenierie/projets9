@@ -61,7 +61,12 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
         id: `epic:${tri}`,
         text: epic?.nom ?? tri,
         type: "summary",
-        open: openState?.get(`epic:${tri}`) ?? true,
+        // REPLIÉS par défaut. Activer le groupement sert à reprendre de la
+        // hauteur : les ouvrir d'emblée redonne la liste à plat qu'on venait de
+        // quitter, en plus longue — une ligne d'epic par groupe. L'état déplié
+        // reste mémorisé (openState) : rouvrir un epic retrouve ses projets tels
+        // qu'on les avait laissés.
+        open: openState?.get(`epic:${tri}`) ?? false,
         barColor: epicColor,
       });
     }
