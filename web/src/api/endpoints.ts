@@ -123,7 +123,6 @@ export const measures = {
 
 export const equipes = {
   list: () => api<Equipe[]>("/api/equipes"),
-  get: (id: number) => api<Equipe>(`/api/equipes/${id}`),
   create: (data: { nom: string; temps_dispo_hebdo: number }) =>
     api<Equipe>("/api/equipes", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: Partial<{ nom: string; temps_dispo_hebdo: number }>) =>
