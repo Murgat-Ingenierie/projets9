@@ -3,7 +3,7 @@ import type { Dependency, Epic, Milestone, Project, Task } from "../types";
 import { toDate } from "./dates";
 import { calculerDepassement, echeanceLaPlusProche } from "./echeances";
 import { DEFAULT_EPIC_COLOR, adjustBrightness } from "./ganttStyles";
-import { infobulleLiensMasques, liensMasquesParTache } from "./liensMasques";
+import { infobulleLiensMasques, liensMasquesParTache, sensMasques } from "./liensMasques";
 
 // État du planning → arbre de tâches SVAR (ITask[]), via la hiérarchie NATIVE de
 // SVAR (`parent` + `type`) : epic (summary) → projet (summary) → tâche. Les jalons
@@ -126,9 +126,15 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
           // Infobulle prête à l'emploi plutôt qu'une liste : `useStableList`
           // compare les lignes par leur sérialisation, et une chaîne se compare
           // sans surprise. Le template n'a rien à mettre en forme.
-          liensMasques: masquesParTache.has(t.id)
-            ? infobulleLiensMasques(masquesParTache.get(t.id)!)
-            : undefined,
+          ...(masquesParTache.has(t.id)
+            ? {
+                liensMasques: infobulleLiensMasques(masquesParTache.get(t.id)!),
+                // Le SENS décide du côté où poser la flèche fantôme : à gauche ce
+                // qui doit finir avant, à droite ce qu'on retient.
+                masqueAmont: sensMasques(masquesParTache.get(t.id)!).amont,
+                masqueAval: sensMasques(masquesParTache.get(t.id)!).aval,
+              }
+            : {}),
         });
       }
     }

@@ -231,19 +231,52 @@
   pointer-events: none;
 }
 
-/* Marque « dépendances masquées par le filtre » : à gauche dans la barre, la
- * droite étant occupée par la coche « fait ». Cliquable au survol seulement
- * (l'infobulle native est tout le contenu), donc pointer-events actifs — c'est
- * la seule décoration dont on veut le title. */
-.wx-bar .deco-liens-masques {
+/* Flèche fantôme : moignon de dépendance que le filtre équipe empêche de tracer.
+ *
+ * Posée HORS de la barre (`.wx-bar` est en `overflow: visible`), et non dedans :
+ * une icône interne disparaissait sous le libellé dès que la barre était courte,
+ * ce qui est précisément le cas où l'on a le plus besoin du repère.
+ *
+ * La boîte fait 14×14 pour offrir une cible de survol utilisable — l'infobulle
+ * est tout le contenu de cette marque, donc elle doit être atteignable. Le trait
+ * et la pointe sont dessinés en pseudo-éléments, à `currentColor`. */
+.wx-bar .deco-lien-fantome {
   position: absolute;
-  left: 3px;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 4;
-  font-size: 15px;
-  opacity: 0.85;
+  width: 14px;
+  height: 14px;
+  z-index: 5;
+  color: #5f6368;
   cursor: help;
+}
+/* Pointillés : ce lien EXISTE mais n'est pas tracé — un trait plein le ferait
+ * passer pour une dépendance ordinaire dont l'autre bout serait hors champ. */
+.wx-bar .deco-lien-fantome::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 9px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 6px);
+}
+.wx-bar .deco-lien-fantome::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 8px;
+  border-left: 6px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+/* Entrant : à gauche, la pointe vers la barre (« ceci doit finir avant »). */
+.wx-bar .deco-lien-fantome.entrant {
+  right: 100%;
+}
+/* Sortant : à droite, la pointe vers l'extérieur (« ceci en retient une autre »). */
+.wx-bar .deco-lien-fantome.sortant {
+  left: 100%;
 }
 
 /* Jalons en orange (parité ancien Gantt #f57c00). */

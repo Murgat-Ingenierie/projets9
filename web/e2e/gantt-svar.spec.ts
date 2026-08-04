@@ -156,13 +156,22 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expandRow(page, "Regulation flux");
     await expect(page.getByText("Etude debit").first()).toBeVisible();
     // Sans filtre, la flèche est dessinée : aucune marque ne doit apparaître.
-    await expect(page.locator(".deco-liens-masques")).toHaveCount(0);
+    await expect(page.locator(".deco-lien-fantome")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Equipe B", exact: true }).click();
     await expect(page.getByText("Etude debit").first()).toBeVisible();
 
-    const marque = page.locator('[data-task-id=":task:13"] .deco-liens-masques');
+    // Sens ENTRANT : c'est l'amont (« Pose et calibration ») qui est hors filtre.
+    const marque = page.locator('[data-task-id=":task:13"] .deco-lien-fantome.entrant');
     await expect(marque).toBeVisible();
+    await expect(page.locator('[data-task-id=":task:13"] .deco-lien-fantome.sortant')).toHaveCount(0);
+    // Hors de la barre : c'est ce qui la rend visible quand le libellé la déborde.
+    const dehors = await marque.evaluate((el) => {
+      const m = el.getBoundingClientRect();
+      const barre = el.closest(".wx-bar")!.getBoundingClientRect();
+      return m.right <= barre.left + 1;
+    });
+    expect(dehors).toBe(true);
     // L'infobulle NOMME le lien caché : le compte seul n'aiderait pas à décider.
     await expect(marque).toHaveAttribute(
       "title",
@@ -171,7 +180,7 @@ test.describe("Planning SVAR — parité 2b", () => {
 
     // Filtre retiré : la flèche revient, la marque doit disparaître.
     await page.getByRole("button", { name: /Réinitialiser/ }).click();
-    await expect(page.locator(".deco-liens-masques")).toHaveCount(0);
+    await expect(page.locator(".deco-lien-fantome")).toHaveCount(0);
   });
 
   // Le barré vit dans la colonne de gauche, rendue par SVAR : on ne peut donc pas

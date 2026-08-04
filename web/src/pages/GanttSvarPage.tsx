@@ -141,6 +141,8 @@ function TaskBar({ data }: { data: ITask }) {
     termine?: boolean;
     depassement?: Depassement;
     liensMasques?: string;
+    masqueAmont?: boolean;
+    masqueAval?: boolean;
   };
   if (d.type === "milestone") {
     return <span className="wx-text-out">{d.text}</span>;
@@ -170,16 +172,15 @@ function TaskBar({ data }: { data: ITask }) {
         </span>
       )}
       {/* Le filtre équipe efface les flèches dont une extrémité sort du périmètre :
-          sans marque, la tâche paraît indépendante. Posée à GAUCHE, là où rien
-          d'autre ne se place — la coche occupe la droite. */}
-      {d.liensMasques && (
-        <span
-          className="material-symbols-outlined deco-liens-masques"
-          style={{ color: couleurTexte }}
-          title={d.liensMasques}
-        >
-          link
-        </span>
+          sans marque, la tâche paraît indépendante. Des MOIGNONS de flèche, posés
+          HORS de la barre, disent lesquelles manquent — une icône à l'intérieur
+          disparaissait sous le libellé dès que la barre était courte. Le côté suit
+          le sens : à gauche ce qui doit finir avant, à droite ce qu'on retient. */}
+      {d.masqueAmont && (
+        <span className="deco-lien-fantome entrant" title={d.liensMasques} />
+      )}
+      {d.masqueAval && (
+        <span className="deco-lien-fantome sortant" title={d.liensMasques} />
       )}
     </>
   );
