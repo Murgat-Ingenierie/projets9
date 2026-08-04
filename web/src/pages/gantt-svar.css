@@ -231,6 +231,21 @@
   pointer-events: none;
 }
 
+/* Marque « dépendances masquées par le filtre » : à gauche dans la barre, la
+ * droite étant occupée par la coche « fait ». Cliquable au survol seulement
+ * (l'infobulle native est tout le contenu), donc pointer-events actifs — c'est
+ * la seule décoration dont on veut le title. */
+.wx-bar .deco-liens-masques {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  font-size: 15px;
+  opacity: 0.85;
+  cursor: help;
+}
+
 /* Jalons en orange (parité ancien Gantt #f57c00). */
 .wx-bar.wx-milestone .wx-content {
   background-color: #f57c00 !important;

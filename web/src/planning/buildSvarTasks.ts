@@ -1,8 +1,9 @@
 import type { ITask } from "@svar-ui/react-gantt";
-import type { Epic, Milestone, Project, Task } from "../types";
+import type { Dependency, Epic, Milestone, Project, Task } from "../types";
 import { toDate } from "./dates";
 import { calculerDepassement, echeanceLaPlusProche } from "./echeances";
 import { DEFAULT_EPIC_COLOR, adjustBrightness } from "./ganttStyles";
+import { infobulleLiensMasques, liensMasquesParTache } from "./liensMasques";
 
 // État du planning → arbre de tâches SVAR (ITask[]), via la hiérarchie NATIVE de
 // SVAR (`parent` + `type`) : epic (summary) → projet (summary) → tâche. Les jalons
@@ -14,6 +15,9 @@ export interface BuildSvarTasksInput {
   /** projet_id → tâches du projet. */
   tasksByProject: Map<number, Task[]>;
   milestones: Milestone[];
+  /** Sert UNIQUEMENT à signaler les liens que le filtre empêche de dessiner ;
+   *  les flèches, elles, sont construites à part (buildSvarLinks). */
+  dependencies?: Dependency[];
   /** null = pas de filtre équipe. */
   teamFilterProjectIds: Set<number> | null;
   teamFilterTaskIds: Set<number> | null;
@@ -26,9 +30,17 @@ export interface BuildSvarTasksInput {
 }
 
 export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
-  const { epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds, groupByEpic = true, openState } = input;
+  const { epics, projects, tasksByProject, milestones, dependencies = [], teamFilterProjectIds, teamFilterTaskIds, groupByEpic = true, openState } = input;
   const out: ITask[] = [];
   const epicByTri = new Map(epics.map((e) => [e.trigramme, e]));
+
+  // Noms pris sur la table NON filtrée : l'infobulle doit pouvoir nommer une
+  // tâche que le filtre écarte — c'est tout son objet.
+  const nomParTacheId = new Map<number, string>();
+  for (const liste of tasksByProject.values()) {
+    for (const t of liste) nomParTacheId.set(t.id, t.nom);
+  }
+  const masquesParTache = liensMasquesParTache(dependencies, nomParTacheId, teamFilterTaskIds);
 
   // Jalons en tête (comme la swimlane actuelle), un par jalon.
   for (const m of [...milestones].sort((a, b) => a.date.localeCompare(b.date))) {
@@ -111,6 +123,12 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
           end: toDate(t.date_fin),
           barColor: adjustBrightness(epicColor, 1.6), // tâche = couleur epic éclaircie
           termine, // tâche terminée → hachure + coche « fait » dans le template
+          // Infobulle prête à l'emploi plutôt qu'une liste : `useStableList`
+          // compare les lignes par leur sérialisation, et une chaîne se compare
+          // sans surprise. Le template n'a rien à mettre en forme.
+          liensMasques: masquesParTache.has(t.id)
+            ? infobulleLiensMasques(masquesParTache.get(t.id)!)
+            : undefined,
         });
       }
     }

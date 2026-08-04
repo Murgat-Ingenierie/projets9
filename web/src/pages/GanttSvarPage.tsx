@@ -136,7 +136,12 @@ function beforeState(
 // template REMPLACE le contenu natif de la barre → on re-rend le libellé nous-mêmes.
 // Champs custom posés par buildSvarTasks.
 function TaskBar({ data }: { data: ITask }) {
-  const d = data as ITask & { barColor?: string; termine?: boolean; depassement?: Depassement };
+  const d = data as ITask & {
+    barColor?: string;
+    termine?: boolean;
+    depassement?: Depassement;
+    liensMasques?: string;
+  };
   if (d.type === "milestone") {
     return <span className="wx-text-out">{d.text}</span>;
   }
@@ -162,6 +167,18 @@ function TaskBar({ data }: { data: ITask }) {
       {d.termine && (
         <span className="material-symbols-outlined deco-done" style={{ color: couleurTexte }} aria-hidden>
           check_circle
+        </span>
+      )}
+      {/* Le filtre équipe efface les flèches dont une extrémité sort du périmètre :
+          sans marque, la tâche paraît indépendante. Posée à GAUCHE, là où rien
+          d'autre ne se place — la coche occupe la droite. */}
+      {d.liensMasques && (
+        <span
+          className="material-symbols-outlined deco-liens-masques"
+          style={{ color: couleurTexte }}
+          title={d.liensMasques}
+        >
+          link
         </span>
       )}
     </>
@@ -344,6 +361,7 @@ export default function GanttSvarPage() {
         projects,
         tasksByProject,
         milestones,
+        dependencies,
         teamFilterProjectIds,
         teamFilterTaskIds,
         groupByEpic,
@@ -352,7 +370,7 @@ export default function GanttSvarPage() {
         // eslint-disable-next-line react-hooks/refs
         openState: openStateRef.current,
       }),
-    [epics, projects, tasksByProject, milestones, teamFilterProjectIds, teamFilterTaskIds, groupByEpic],
+    [epics, projects, tasksByProject, milestones, dependencies, teamFilterProjectIds, teamFilterTaskIds, groupByEpic],
   );
 
   // Liens filtrés au périmètre équipe : on ne garde que les dépendances dont les DEUX
