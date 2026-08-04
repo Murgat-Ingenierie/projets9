@@ -3,13 +3,17 @@ interface Props {
   onChange: (checked: boolean) => void;
   label?: string;
   disabled?: boolean;
+  /** Relie la case à un `<label htmlFor>` EXTÉRIEUR. Le libellé interne (prop
+   *  `label`) ne sert que lorsque le texte accompagne la bascule ; dans les
+   *  formulaires il est posé au-dessus, en frère, et doit donc viser cet id. */
+  id?: string;
 }
 
 /**
  * Bouton bascule (style Material). Réutilisable pour tout champ booléen
  * (Fini, Atteint, Actif, etc.).
  */
-export function Switch({ checked, onChange, label, disabled }: Props) {
+export function Switch({ checked, onChange, label, disabled, id }: Props) {
   const trackBg = checked ? "#1976d2" : "#bdbdbd";
   const thumbX = checked ? 20 : 2;
   return (
@@ -52,6 +56,7 @@ export function Switch({ checked, onChange, label, disabled }: Props) {
       </span>
       {label && <span>{label}</span>}
       <input
+        id={id}
         type="checkbox"
         checked={checked}
         onChange={(e) => !disabled && onChange(e.target.checked)}

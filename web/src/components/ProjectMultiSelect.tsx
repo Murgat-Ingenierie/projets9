@@ -8,6 +8,8 @@ interface Props {
   placeholder?: string;
   /** Hauteur max de la liste déroulante. */
   maxListHeight?: number;
+  /** Relie le champ de saisie à son `<label htmlFor>`. */
+  id?: string;
 }
 
 /**
@@ -22,6 +24,7 @@ export function ProjectMultiSelect({
   onChange,
   placeholder = "Tape pour filtrer un projet…",
   maxListHeight = 260,
+  id,
 }: Props) {
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [allEpics, setAllEpics] = useState<Epic[]>([]);
@@ -192,6 +195,7 @@ export function ProjectMultiSelect({
           );
         })}
         <input
+          id={id}
           ref={inputRef}
           type="text"
           value={query}

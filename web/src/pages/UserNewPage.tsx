@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { users as usersApi } from "../api/endpoints";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
@@ -13,6 +13,7 @@ const DEFAULT_PARENT: Crumb[] = [
 ];
 
 export default function UserNewPage() {
+  const id = useId();
   const nav = useNavigate();
   const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
@@ -46,10 +47,11 @@ export default function UserNewPage() {
       </p>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>
-        <label>Nom</label>
-        <input value={draft.nom} onChange={(e) => setDraft({ ...draft, nom: e.target.value })} required />
-        <label>Email</label>
+        <label htmlFor={`${id}-nom`}>Nom</label>
+        <input id={`${id}-nom`} value={draft.nom} onChange={(e) => setDraft({ ...draft, nom: e.target.value })} required />
+        <label htmlFor={`${id}-email`}>Email</label>
         <input
+          id={`${id}-email`}
           type="email"
           value={draft.email}
           onChange={(e) => setDraft({ ...draft, email: e.target.value })}
@@ -59,8 +61,8 @@ export default function UserNewPage() {
           Doit être l'adresse du compte Keycloak : c'est elle qui rapprochera les deux à
           la première connexion.
         </p>
-        <label>Rôle</label>
-        <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value as UserRole })}>
+        <label htmlFor={`${id}-role`}>Rôle</label>
+        <select id={`${id}-role`} value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value as UserRole })}>
           {USER_ROLES.map((r) => <option key={r} value={r}>{USER_ROLE_LABELS[r]}</option>)}
         </select>
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
