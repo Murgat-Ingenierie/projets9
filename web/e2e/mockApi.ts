@@ -2,7 +2,17 @@
 // (Playwright route), renvoie les fixtures pour les GET et capture les mutations.
 // `users.me()` mocké => l'AuthProvider résout l'utilisateur local.
 import type { Page, Route } from "@playwright/test";
+import type { Project, Task } from "../src/types";
 import { ADMIN, EPICS, PROJECTS, TASKS, MILESTONES, DEPENDENCIES, EQUIPES, TACHE_EQUIPE } from "./fixtures";
+
+/** Écarts aux fixtures, pour un test qui a besoin d'un état particulier.
+ *
+ *  Modifier les fixtures partagées à la place ferait porter cet état à TOUS les
+ *  tests, dont plusieurs assèrent sur les statuts d'origine. */
+export interface Surcharges {
+  projects?: Project[];
+  tasks?: Task[];
+}
 
 export interface ApiCall {
   method: string;
@@ -49,7 +59,7 @@ async function sessionKeycloak(page: Page): Promise<void> {
   );
 }
 
-export async function mockApi(page: Page): Promise<ApiCall[]> {
+export async function mockApi(page: Page, over: Surcharges = {}): Promise<ApiCall[]> {
   await sessionKeycloak(page);
   const calls: ApiCall[] = [];
   const json = (data: unknown) =>
@@ -68,8 +78,8 @@ export async function mockApi(page: Page): Promise<ApiCall[]> {
     if (method === "GET") {
       if (path.endsWith("/api/users/me")) return route.fulfill(json(ADMIN));
       if (path.endsWith("/api/epics")) return route.fulfill(json(EPICS));
-      if (path.endsWith("/api/projects")) return route.fulfill(json(PROJECTS));
-      if (path.endsWith("/api/tasks")) return route.fulfill(json(TASKS));
+      if (path.endsWith("/api/projects")) return route.fulfill(json(over.projects ?? PROJECTS));
+      if (path.endsWith("/api/tasks")) return route.fulfill(json(over.tasks ?? TASKS));
       if (path.endsWith("/api/dependencies")) return route.fulfill(json(DEPENDENCIES));
       if (path.endsWith("/api/milestones")) return route.fulfill(json(MILESTONES));
       if (path.endsWith("/api/equipes")) return route.fulfill(json(EQUIPES));

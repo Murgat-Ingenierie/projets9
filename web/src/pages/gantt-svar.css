@@ -200,8 +200,8 @@
   z-index: 1;
   pointer-events: none;
 }
-/* Tâche archivée : hachures 45° translucides par-dessus la couleur. */
-.wx-bar .deco-archive-hatch {
+/* TERMINÉ (tâche archivée ou projet réalisé) : hachures 45° translucides. */
+.wx-bar .deco-termine-hatch {
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -214,7 +214,12 @@
   position: relative;
   z-index: 3;
 }
-/* Coche « fait » à droite dans la barre (Material Symbols, comme la corbeille). */
+/* Coche « fait » à droite dans la barre (Material Symbols, comme la corbeille).
+ *
+ * La couleur vient du template, déduite du fond de la barre (couleurTexteSur),
+ * comme le libellé depuis #85 : le vert d'origine convenait aux tâches, dont la
+ * barre est éclaircie, mais devenait illisible sur un projet à la couleur pleine
+ * de son epic. Le vert ci-dessous ne sert plus qu'aux barres sans couleur connue. */
 .wx-bar .deco-done {
   position: absolute;
   right: 3px;

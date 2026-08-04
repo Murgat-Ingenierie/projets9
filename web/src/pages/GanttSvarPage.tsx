@@ -132,10 +132,11 @@ function beforeState(
 }
 
 // Contenu personnalisé des barres (taskTemplate) : couleur d'epic + décorations des
-// tâches archivées (hachure + coche « fait »). Le template REMPLACE le contenu natif
-// de la barre → on re-rend le libellé nous-mêmes. Champs custom posés par buildSvarTasks.
+// lignes TERMINÉES — tâche archivée ou projet réalisé (hachure + coche « fait »). Le
+// template REMPLACE le contenu natif de la barre → on re-rend le libellé nous-mêmes.
+// Champs custom posés par buildSvarTasks.
 function TaskBar({ data }: { data: ITask }) {
-  const d = data as ITask & { barColor?: string; archived?: boolean; depassement?: Depassement };
+  const d = data as ITask & { barColor?: string; termine?: boolean; depassement?: Depassement };
   if (d.type === "milestone") {
     return <span className="wx-text-out">{d.text}</span>;
   }
@@ -146,7 +147,7 @@ function TaskBar({ data }: { data: ITask }) {
   return (
     <>
       {d.barColor && <span className="deco-bar" style={{ background: d.barColor }} aria-hidden />}
-      {d.archived && <span className="deco-archive-hatch" aria-hidden />}
+      {d.termine && <span className="deco-termine-hatch" aria-hidden />}
       {/* Dépassement d'échéance : la portion de barre POSTÉRIEURE au jalon. Sa
           position se déduit des dates (ratio), donc rien n'est mesuré dans le
           DOM — ce qui la rend insensible au zoom et à la largeur de la fenêtre. */}
@@ -158,8 +159,8 @@ function TaskBar({ data }: { data: ITask }) {
         />
       )}
       <span className="wx-content deco-label" style={{ color: couleurTexte }}>{d.text}</span>
-      {d.archived && (
-        <span className="material-symbols-outlined deco-done" aria-hidden>
+      {d.termine && (
+        <span className="material-symbols-outlined deco-done" style={{ color: couleurTexte }} aria-hidden>
           check_circle
         </span>
       )}
