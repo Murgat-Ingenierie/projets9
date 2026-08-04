@@ -125,7 +125,7 @@ connexion hors de l'application.)*
 | 4 | CRUD Projets | ✅ | ⚠️ seule liste **sans** édition inline |
 | 5 | CRUD Tâches | ✅ | |
 | 6 | CRUD Jalons | ✅ | ~~⚠️ l'édition inline perd les `project_ids`~~ **FAUX, corrigé le 2026-08-04.** Affirmation portée depuis l'inventaire initial et jamais vérifiée : la route emploie `exclude_unset=True` et ne touche aux rattachements que si le champ est FOURNI. L'édition inline les omet, ils sont donc préservés ; le panneau, lui, les recharge et les renvoie. Éprouvé par `tests/test_milestones_maj.py`, qui distingue « champ absent » (ne pas y toucher) de « champ fourni » (remplacer) — rien ne couvrait ce point. |
-| 7 | CRUD Dépendances | 🟡 | create/delete seulement — **pas d'update** (ni API, ni UI) |
+| 7 | CRUD Dépendances | ✅ **complété le 2026-08-04** | ~~create/delete seulement~~ `PUT /api/dependencies/{id}` change le **type**, et l'écran l'édite directement dans la ligne. Les extrémités restent fixées à la création, délibérément : INV-14 et INV-15 ne dépendent qu'elles, donc tant qu'on n'y touche pas, la modification ne peut rien violer — c'est ce qui dispense la route de les rejouer. Les déplacer suppose toujours de supprimer puis recréer, ce qui repasse par les contrôles. |
 | 8 | Page Epic (détail) | ✅ | infos + projets + jalons + **courbe de la Mesure dans le temps** (SVG maison, géométrie pure testée — aucune librairie de graphes) |
 | 9 | CRUD Mesures | ✅ | création, édition inline, suppression depuis la page Epic. INV-20 porté par l'UI : l'unité est verrouillée dès qu'une mesure existe. (L'API et le client HTTP existaient déjà — c'était du code mort, cf. R13.) |
 | 10 | Gestion utilisateurs (admin) | ✅ | `/users`, nav gatée sur `role === "admin"` |

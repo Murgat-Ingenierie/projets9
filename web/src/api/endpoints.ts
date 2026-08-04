@@ -93,6 +93,14 @@ export const dependencies = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Seul le TYPE est modifiable : les extrémités sont fixées à la création.
+   *  C'est ce qui dispense l'API de rejouer INV-14/INV-15, qui n'en dépendent
+   *  que — cf. la docstring de `DependencyUpdate` côté serveur. */
+  update: (id: number, type: Dependency["type"]) =>
+    api<Dependency>(`/api/dependencies/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ type }),
+    }),
   remove: (id: number) =>
     api<void>(`/api/dependencies/${id}`, { method: "DELETE" }),
 };

@@ -318,9 +318,14 @@ périmètre explicitement abandonné est au §9.
 
 **Vue Gantt** (écran 2) — la 0.1 prévoyait :
 - Une ligne par Epic, repliable pour afficher Projets puis Tâches. ✅
-- Barres = Projets/Tâches, losanges = Jalons, flèches = Dépendances. ✅ — mais **seules les
-  dépendances `FS` sont dessinées** : une dépendance `SS` ou `FF` est créable et reste invisible
-  sur le planning.
+- Barres = Projets/Tâches, losanges = Jalons, flèches = Dépendances. ✅ — ~~seules les
+  dépendances `FS` sont dessinées~~ **corrigé le 2026-08-04 : les TROIS types sont dessinés**
+  depuis la bascule SVAR (#54). La phrase décrivait l'ancien moteur, qui ne rendait que les `FS` ;
+  `buildSvarLinks` mappe désormais `FS`→`e2s`, `SS`→`s2s`, `FF`→`e2e`. Vérifié en affichant une
+  `SS`.
+  <br>Reste vrai en revanche, et c'est ce qui compte : **seules les `FS` déplacent quelque chose**.
+  La cascade du planning ne suit qu'elles (`fsEdgesFromDeps`) — une `SS` ou une `FF` est dessinée
+  et inerte. Changer le type d'une dépendance change donc son effet, ce n'est pas un libellé.
 - Filtres : catégorie, responsable, statut, plage de dates. 🟡 — le filtre livré est **par équipe**,
   arrivé avec les Équipes ; les quatre filtres prévus ne le sont pas.
 - Zoom : jour / semaine / mois / trimestre. 🟡 — jour / semaine / mois ; **pas de trimestre**.
