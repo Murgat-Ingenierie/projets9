@@ -1,6 +1,7 @@
 import type { ITask } from "@svar-ui/react-gantt";
 import type { Epic, Milestone, Project, Task } from "../types";
 import { toDate } from "./dates";
+import { calculerDepassement, echeanceLaPlusProche } from "./echeances";
 import { DEFAULT_EPIC_COLOR, adjustBrightness } from "./ganttStyles";
 
 // État du planning → arbre de tâches SVAR (ITask[]), via la hiérarchie NATIVE de
@@ -75,9 +76,16 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
       const pTasks = (tasksByProject.get(p.id) ?? []).filter(
         (t) => !teamFilterTaskIds || teamFilterTaskIds.has(t.id),
       );
+      // Échéance portée par les jalons du projet : on ne pose rien quand elle est
+      // RESPECTÉE. Ne montrer que les dépassements est ce qui rend le signal
+      // lisible — du rouge n'apparaît que là où il y a un problème.
+      const depassement = calculerDepassement(
+        p.date_debut, p.date_fin, echeanceLaPlusProche(p.id, milestones),
+      );
       out.push({
         id: `proj:${p.id}`,
         text: p.nom,
+        depassement: depassement ?? undefined,
         // Summary seulement s'il a des sous-tâches ; sinon feuille (SVAR refuse
         // un summary sans sous-tâches). Le projet garde ses dates propres.
         type: pTasks.length > 0 ? "summary" : "task",
