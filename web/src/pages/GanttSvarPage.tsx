@@ -20,6 +20,7 @@ import { buildSvarLinks, svarLinkToDependency } from "../planning/buildSvarLinks
 import { parseSvarId } from "../planning/svarAdapter";
 import { isoDate, toDate, daysBetweenIso, fmtDate } from "../planning/dates";
 import { planBlockShift, planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
+import { celluleCouvre, type Depassement } from "../planning/echeances";
 import { couleurTexteSur } from "../planning/ganttStyles";
 import { deriveTeamFilter } from "../planning/teamFilter";
 import { useUndo } from "../planning/useUndo";
@@ -58,16 +59,27 @@ const ZOOMS: Record<ZoomLevel, { label: string; cellWidth: number; scales: Scale
     cellWidth: 8,
     scales: [MONTH_TOP, { unit: "day", step: 7, format: (d) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) }],
   },
+  // Trois échelles, dont une au JOUR sans libellé — et c'est délibéré. Elle n'est
+  // pas là pour être lue (sa ligne d'en-tête est masquée en CSS) mais pour donner
+  // à `highlightTime` sa granularité : SVAR surligne une CELLULE, donc sans cette
+  // échelle le repère d'un jalon se posait au 1er du mois, décalé de trois
+  // semaines. `cellWidth: 3` garde un mois à ~91 px, comme avant.
   month: {
     label: "Mois",
-    cellWidth: 90,
+    cellWidth: 3,
     scales: [
       { unit: "year", step: 1, format: (d) => String(d.getFullYear()) },
       { unit: "month", step: 1, format: (d) => d.toLocaleDateString("fr-FR", { month: "short" }) },
+      { unit: "day", step: 1, format: () => "" },
     ],
   },
 };
 const ZOOM_ORDER: ZoomLevel[] = ["day", "week", "month"];
+
+// Largeur d'une cellule de l'échelle, en jours — sert à savoir quelle cellule
+// contient une date de jalon. La vue Mois vaut 1 depuis qu'elle déclare une
+// échelle au jour : c'est ce qui rend le repère précis à la date.
+const PAS_JOURS: Record<ZoomLevel, number | null> = { day: 1, week: 7, month: 1 };
 
 function startOfToday(): Date {
   const d = new Date();
@@ -122,7 +134,7 @@ function beforeState(
 // tâches archivées (hachure + coche « fait »). Le template REMPLACE le contenu natif
 // de la barre → on re-rend le libellé nous-mêmes. Champs custom posés par buildSvarTasks.
 function TaskBar({ data }: { data: ITask }) {
-  const d = data as ITask & { barColor?: string; archived?: boolean };
+  const d = data as ITask & { barColor?: string; archived?: boolean; depassement?: Depassement };
   if (d.type === "milestone") {
     return <span className="wx-text-out">{d.text}</span>;
   }
@@ -134,6 +146,16 @@ function TaskBar({ data }: { data: ITask }) {
     <>
       {d.barColor && <span className="deco-bar" style={{ background: d.barColor }} aria-hidden />}
       {d.archived && <span className="deco-archive-hatch" aria-hidden />}
+      {/* Dépassement d'échéance : la portion de barre POSTÉRIEURE au jalon. Sa
+          position se déduit des dates (ratio), donc rien n'est mesuré dans le
+          DOM — ce qui la rend insensible au zoom et à la largeur de la fenêtre. */}
+      {d.depassement && (
+        <span
+          className="deco-depassement"
+          style={{ left: `${d.depassement.ratio * 100}%` }}
+          title={`Dépasse « ${d.depassement.jalon} » (${d.depassement.date}) de ${d.depassement.jours} jours`}
+        />
+      )}
       <span className="wx-content deco-label" style={{ color: couleurTexte }}>{d.text}</span>
       {d.archived && (
         <span className="material-symbols-outlined deco-done" aria-hidden>
@@ -143,6 +165,23 @@ function TaskBar({ data }: { data: ITask }) {
     </>
   );
 }
+
+// Colonnes de la grille. « Start date » et « Duration » retirées : la date de
+// début se lit sur la barre, et la durée en jours d'un projet qui court sur trois
+// ans (1126 !) n'apprend rien — deux colonnes qui prenaient 220 px sans les
+// rendre, au point de tronquer les libellés.
+//
+// Identité STABLE (constante de module) : SVAR ré-initialise tout son store dès
+// qu'une de ses props change de référence — c'est la cause du clignotement
+// corrigé en #52. Un tableau reconstruit à chaque rendu le rejouerait.
+//
+// Les colonnes par défaut sont redéclarées plutôt qu'importées de
+// `@svar-ui/gantt-store` : ce paquet n'est qu'une dépendance TRANSITIVE de
+// react-gantt, et rien ne garantit sa résolution. Valeurs relevées sur la 2.7.1.
+const COLONNES = [
+  { id: "text", header: "Nom", flexgrow: 1, width: 260, sort: true },
+  { id: "add-task", header: "", width: 37, align: "center" as const, sort: false, resize: false },
+];
 
 export default function GanttSvarPage() {
   const [err, setErr] = useState<unknown>(null);
@@ -194,9 +233,32 @@ export default function GanttSvarPage() {
     [allocations, tasks, selectedTeamIds],
   );
 
-  // Colonne « aujourd'hui » surlignée (parité todayColor de l'ancien Gantt).
+  // Colonnes surlignées : « aujourd'hui » (parité todayColor de l'ancien Gantt)
+  // et les dates de JALON — un repère vertical traversant tout le graphe, sans
+  // distinction de projet, qui complète le hachurage porté par chaque barre.
+  //
+  // La comparaison se fait sur la PORTÉE de la cellule, pas sur une date exacte :
+  // en vue Mois une cellule vaut un mois, et une égalité stricte n'y trouvait
+  // jamais rien — c'est pourquoi la colonne « aujourd'hui » y était invisible.
   const todayIso = useMemo(() => isoDate(startOfToday()), []);
-  const highlightToday = useMemo(() => (d: Date) => (isoDate(d) === todayIso ? "wx-today-col" : ""), [todayIso]);
+  const datesJalons = useMemo(() => new Set(milestones.map((m) => m.date)), [milestones]);
+  const pasJours = PAS_JOURS[zoom];
+  const moisEnCours = zoom === "month";
+  const highlightToday = useMemo(
+    () => (d: Date) => {
+      const classes: string[] = [];
+      if (celluleCouvre(d, pasJours, datesJalons)) classes.push("col-jalon");
+      if (celluleCouvre(d, pasJours, new Set([todayIso]))) classes.push("wx-today-col");
+      // Limite de mois : en vue Mois, les cellules valent un JOUR (échelle
+      // ajoutée pour la précision des jalons) et le fond quadrillé est retiré —
+      // sans ceci, plus aucune séparation verticale. Marquer le 1er de chaque
+      // mois rend des limites EXACTES là où un motif à période fixe dériverait,
+      // les mois comptant de 28 à 31 jours.
+      if (moisEnCours && d.getDate() === 1) classes.push("col-mois");
+      return classes.join(" ");
+    },
+    [todayIso, datesJalons, pasJours, moisEnCours],
+  );
 
   const tasksByProject = useMemo(() => {
     const m = new Map<number, Task[]>();
@@ -637,9 +699,10 @@ export default function GanttSvarPage() {
         </div>
       )}
       <ErrorBanner error={err} />
-      <div className="svar-planning">
+      <div className={`svar-planning${zoom === "month" ? " zoom-mois" : ""}`}>
         <Willow>
           <Gantt
+            columns={COLONNES}
             tasks={svarTasks}
             links={svarLinks}
             scales={ZOOMS[zoom].scales}

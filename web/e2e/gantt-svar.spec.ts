@@ -238,6 +238,75 @@ test.describe("Planning SVAR — parité 2b", () => {
   // et le Gantt. Sans `height:100%`, la chaîne casse, SVAR se dimensionne au
   // CONTENU et déborde — sa barre de défilement horizontale recouvre alors la
   // dernière ligne. On vérifie la propriété structurelle : le conteneur ne déborde pas.
+  test("un projet qui dépasse son jalon est signalé ; un projet conforme ne l'est pas", async ({
+    page,
+  }) => {
+    // « Un projet ne peut pas finir APRÈS son jalon. » La règle n'est PAS un
+    // invariant — l'API ne l'impose pas, et les données réelles la violent. Le
+    // planning la signale donc, et c'est le VERSANT NÉGATIF qui compte : une
+    // barre hachurée à tort ferait douter de tout l'écran.
+    await page.clock.setFixedTime(new Date("2026-07-20T08:00:00"));
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await mockApi(page);
+    await page.route((u) => u.pathname.endsWith("/api/milestones"), (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          // Projet 1 finit le 15/09 : jalon le MÊME JOUR → conforme (« après »,
+          // pas « le jour de »). Frontière volontairement éprouvée ici.
+          { id: 21, project_ids: [1], nom: "Jalon respecte", date: "2026-09-15",
+            atteint: false, created_at: "", updated_at: "" },
+          // Projet 2 finit le 30/10 : jalon au 20/09 → 40 jours de dépassement.
+          { id: 22, project_ids: [2], nom: "Jalon depasse", date: "2026-09-20",
+            atteint: false, created_at: "", updated_at: "" },
+        ]),
+      }));
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
+
+    const depassements = page.locator(".deco-depassement");
+    await expect(depassements).toHaveCount(1); // le conforme ne dessine RIEN
+    await expect(depassements.first()).toHaveAttribute("title", /Jalon depasse.*40 jours/);
+
+    // Sur la barre du projet 2, et nulle part ailleurs.
+    await expect(page.locator('[data-task-id=":proj:2"] .deco-depassement')).toHaveCount(1);
+    await expect(page.locator('[data-task-id=":proj:1"] .deco-depassement')).toHaveCount(0);
+
+    // Repère vertical à la date du jalon, TRAVERSANT le graphe — il complète le
+    // hachurage : celui-ci dit qui dépasse, celui-là dit quand tombe l'échéance.
+    //
+    // On mesure sa HAUTEUR et son ALIGNEMENT, pas sa seule présence : SVAR pose
+    // `left`/`width` en style inline mais laisse la classe fournir `position` et
+    // `height`. Sans elles la bande existe, se colle au bord gauche du graphe et
+    // reste plate — présente dans le DOM, invisible et fausse à l'écran. Un test
+    // d'existence serait passé au vert sur ce défaut, rencontré deux fois.
+    const bande = page.locator(".wx-gantt-holidays .col-jalon").first();
+    const zone = page.locator(".wx-gantt-holidays").first();
+    const [boite, boiteZone] = await Promise.all([bande.boundingBox(), zone.boundingBox()]);
+
+    // Pleine hauteur : sans `height` en CSS, la bande existe et reste plate.
+    expect(boite!.height).toBeGreaterThan(100);
+    // Largeur d'UN JOUR : c'est ce qui prouve que l'échelle « jour » de la vue
+    // Mois fait son office. Sans elle la cellule vaut un mois (~91 px) et le
+    // repère se pose au 1er, décalé de trois semaines de la vraie échéance.
+    expect(boite!.width).toBeLessThan(8);
+    // Décalée du bord : sans `position: absolute`, la bande retombe au flux et se
+    // colle à l'origine du graphe, quelle que soit la date.
+    expect(boite!.x - boiteZone!.x).toBeGreaterThan(20);
+
+    // Limites de mois présentes. L'échelle au jour, ajoutée pour la précision du
+    // repère, force à retirer le quadrillage natif — devenu une rayure tous les
+    // 3 px. Ces limites le remplacent : sans elles le corps du graphe est NU, et
+    // on ne sait plus lire une date. Régression déjà survenue.
+    await expect(page.locator(".col-mois").first()).toBeVisible();
+    expect(await page.locator(".col-mois").count()).toBeGreaterThan(6);
+
+    // En vue Jour, le quadrillage natif suffit : pas de limites ajoutées.
+    await page.getByRole("button", { name: "Jour", exact: true }).click();
+    await expect(page.locator(".col-mois")).toHaveCount(0);
+  });
+
   test("le planning ne déborde pas de son conteneur (barre de défilement)", async ({ page }) => {
     await gotoSvar(page);
     const m = await page.evaluate(() => {

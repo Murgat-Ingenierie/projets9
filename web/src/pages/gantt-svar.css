@@ -256,3 +256,133 @@
 .svar-planning .wx-theme {
   height: 100%;
 }
+
+
+/* — Dépassement d'échéance : la part de barre postérieure au jalon — */
+/*
+ * « Un projet ne peut pas finir après son jalon. » La règle n'est pas imposée
+ * par l'API (4 rattachements sur 13 la violent dans les données réelles) : on la
+ * SIGNALE. Le repère marque la date du jalon, le voile rouge ce qui la dépasse.
+ *
+ * Positionné en POURCENTAGE de la barre, calculé depuis les dates : aucun calcul
+ * de géométrie, donc rien qui dépende du zoom ni de la largeur de la fenêtre.
+ */
+.wx-bar .deco-depassement {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  /* Hachures rouges plutôt qu'un aplat translucide : un voile rouge sur le bleu
+     d'un epic donne un VIOLET qui se lit comme « une autre couleur », pas comme
+     une alerte. La hachure dit « anomalie » quelle que soit la teinte dessous, et
+     laisse passer le libellé — même langage visuel que la tâche archivée, dont
+     elle se distingue par la couleur et par le trait de frontière. */
+  background:
+    repeating-linear-gradient(45deg,
+      rgba(198, 40, 40, 0.55) 0 5px,
+      rgba(198, 40, 40, 0.18) 5px 10px);
+  /* Trait plein au départ = la date du jalon. C'est la frontière, elle mérite
+     d'être nette là où la hachure, elle, est une zone. */
+  border-left: 2px solid #b71c1c;
+}
+
+/* — Colonne d'un jalon : repère vertical traversant tout le graphe — */
+/*
+ * Complète le hachurage porté par les barres : celui-ci dit QUI dépasse, celle-ci
+ * dit QUAND tombe l'échéance, sans distinction de projet.
+ *
+ * ⚠️ La précision dépend du zoom : SVAR surligne une CELLULE, qui vaut un jour en
+ * vue Jour mais un mois entier en vue Mois. Le repère y devient donc une bande
+ * mensuelle, pas un trait. C'est une limite de `highlightTime`, seul mécanisme
+ * disponible — la prop `markers`, qui poserait un trait à la date exacte, existe
+ * dans le modèle de données mais n'est pas rendue par cette édition (vérifié).
+ */
+/*
+ * SVAR pose la classe sur DEUX éléments : la cellule d'en-tête (qui porte le
+ * libellé du mois ou du jour) et une bande du calque `wx-gantt-holidays`, placée
+ * et dimensionnée en largeur mais SANS HAUTEUR — c'est la classe qui doit la
+ * fournir. Sans le `height: 100%` ci-dessous, le repère n'apparaît que dans
+ * l'en-tête, ce qui n'est pas le repère demandé.
+ */
+.wx-gantt-holidays .col-jalon {
+  /* SVAR pose `left` et `width` en style INLINE mais laisse la classe fournir le
+     positionnement : sans `position: absolute`, la bande retombe au flux et se
+     colle au bord gauche du graphe, quelle que soit la date. C'est le même
+     manque qui rendait la colonne « aujourd'hui » invisible en vue Mois. */
+  position: absolute;
+  top: 0;
+  height: 100%;
+  /*
+   * UN TRAIT, PAS UNE BANDE — et c'est la distinction qui compte ici.
+   *
+   * « Aujourd'hui » est déjà rendu par un aplat orange (.wx-today-col). Teinter
+   * aussi la colonne d'un jalon donnait deux repères de SENS DIFFÉRENT peints à
+   * l'identique : le mois courant paraissait porter une échéance. On les sépare
+   * par la FORME — aplat pour le temps qui passe, trait pour une date qui
+   * contraint — plutôt que par une nuance d'orange que personne ne distingue.
+   */
+  border-left: 2px solid #e65100;
+}
+
+/* — Vue Mois : échelle « jour » masquée, mais présente — */
+/*
+ * La vue Mois déclare une troisième échelle au JOUR, sans libellé. Elle n'est pas
+ * là pour être lue : c'est elle qui donne à `highlightTime` sa granularité. Sans
+ * elle, une cellule vaut un mois entier et le repère d'un jalon se pose au 1er du
+ * mois — décalé de trois semaines, au point qu'on ne sait plus quelle date il
+ * marque. Avec elle, la cellule vaut un jour et le trait tombe juste.
+ *
+ * On masque donc sa ligne d'en-tête (176 cellules vides) sans la retirer.
+ *
+ * ⚠️ Scopé à `.zoom-mois`. Sans cette condition, la règle masque la DERNIÈRE
+ * ligne d'échelle à tous les zooms — donc celle des jours en vue Jour, qui porte
+ * les numéros et le repère « aujourd'hui ». C'est ce qui est arrivé.
+ *
+ * `visibility` et NON `display: none` : retirer la ligne du flux raccourcit
+ * l'en-tête du graphe de 36 px sans que celui de la grille suive — les deux se
+ * désalignent alors d'une ligne entière, et les jalons paraissent posés sur la
+ * mauvaise rangée. Mesuré : bas d'en-tête à 242 côté graphe contre 278 côté
+ * grille. On garde donc la place, on n'en cache que le contenu.
+ */
+.svar-planning.zoom-mois .wx-scale > .wx-row:last-child {
+  visibility: hidden;
+}
+
+/* — Vue Mois : quadrillage quotidien retiré du corps du graphe — */
+/*
+ * L'échelle au jour qui rend le repère précis a un effet de bord : SVAR dessine
+ * les traits verticaux du corps à partir de `cellWidth`, tombé à 3 px. Le fond
+ * devenait une rayure serrée, illisible.
+ *
+ * Ce fond est posé en style INLINE sur un div SANS CLASSE, deuxième enfant de
+ * `.wx-area` — d'où le sélecteur positionnel et le `!important`, tous deux
+ * regrettables mais sans alternative : la bibliothèque n'expose aucune prise.
+ * Si une mise à jour de SVAR réordonne cet élément, la règle cessera d'agir et
+ * le quadrillage reviendra — visible immédiatement, donc sans risque silencieux.
+ *
+ * ⚠️ Ce fond ne dessinait pas QUE le quadrillage quotidien : il portait aussi les
+ * séparateurs de lignes et les limites de mois. Les retirer sans rien remettre
+ * laissait un corps entièrement nu. On les restitue donc ici :
+ *  - les horizontales par un dégradé répété (hauteur de ligne CONSTANTE, 38 px) ;
+ *  - les mois par `highlightTime` (cf. `col-mois`), parce qu'ils sont de longueurs
+ *    INÉGALES : un dégradé à période fixe dériverait de plusieurs jours sur trois
+ *    ans, là où le mécanisme de cellule tombe juste par construction.
+ */
+.svar-planning.zoom-mois .wx-area > div:nth-child(2) {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 37px,
+    var(--wx-border-color, #e6e6e6) 37px 38px
+  ) !important;
+}
+
+/* Limite de mois (vue Mois) — trait discret, à ne pas confondre avec un jalon. */
+.svar-planning.zoom-mois .wx-gantt-holidays .col-mois {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-left: 1px solid var(--wx-border-color, #e6e6e6);
+}
