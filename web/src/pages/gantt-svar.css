@@ -400,3 +400,18 @@
 .cellule-ajout:hover {
   color: #1976d2;
 }
+
+/* — Suppression d'un lien : réservée aux administrateurs (C7) — */
+/*
+ * Le geste est déjà BLOQUÉ côté code (`intercept("delete-link")`). On retire
+ * aussi le bouton : proposer une corbeille qui ne supprime rien serait le même
+ * défaut que les boutons « Supprimer » offerts aux membres — une action promise
+ * puis refusée.
+ *
+ * Les deux se complètent et ne se remplacent pas : la règle de style évite le
+ * clic, l'interception garantit le refus même si la règle ne s'applique pas.
+ * Et ce qui protège réellement les données reste le `require_admin` de l'API.
+ */
+.svar-planning.sans-suppression .wx-delete-button {
+  display: none;
+}

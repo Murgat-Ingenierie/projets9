@@ -23,6 +23,7 @@ import { planBlockShift, planCascadeShifts, planGroupShifts, type FsEdge, type T
 import { celluleCouvre, type Depassement } from "../planning/echeances";
 import { couleurTexteSur } from "../planning/ganttStyles";
 import { deriveTeamFilter } from "../planning/teamFilter";
+import { useEstAdmin } from "../hooks/useEstAdmin";
 import { useUndo } from "../planning/useUndo";
 import { useStableList } from "../planning/useStableList";
 import {
@@ -243,6 +244,11 @@ export default function GanttSvarPage() {
   // (créer une tâche exige un projet parent).
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const apiRef = useRef<IApi | null>(null);
+  // Le rôle vit dans une ref parce que `onInit` doit rester STABLE en identité :
+  // une nouvelle fonction à chaque rendu ré-initialiserait tout le store de SVAR
+  // (clignotement, #52). La ref est lue au moment du geste, donc toujours à jour.
+  const estAdmin = useEstAdmin();
+  const estAdminRef = useRef(estAdmin);
   // Branche le « + » des lignes de projet sur le panneau de création. Dans un
   // effet, pas pendant le rendu (cf. `creationTache`). `setPanelTarget` est
   // stable, d'où des dépendances vides.
@@ -265,6 +271,7 @@ export default function GanttSvarPage() {
     tasksRef.current = tasks;
     depsRef.current = dependencies;
     projectsRef.current = projects;
+    estAdminRef.current = estAdmin;
   });
 
   // Pile d'annulation (Ctrl+Z) : chaque mutation empile son inverse (persisté). Le
@@ -579,6 +586,12 @@ export default function GanttSvarPage() {
     // — Liens (dépendances) —
     // Avant suppression : mémoriser le lien pour pouvoir le rétablir (rollback).
     api.intercept("delete-link", (ev) => {
+      // Supprimer une dépendance est réservé aux administrateurs (C7). On BLOQUE
+      // le geste plutôt que de le laisser aboutir puis rattraper : sans ceci le
+      // lien disparaissait de l'écran, l'API répondait 403, et le rollback le
+      // faisait réapparaître — un clignotement doublé d'un message d'erreur pour
+      // une action qui n'était pas la sienne.
+      if (!estAdminRef.current) return false;
       const link = api.getState().links.byId(ev.id);
       if (link) {
         deletedLinkRef.current.set(ev.id, { source: link.source, target: link.target, type: link.type });
@@ -755,7 +768,7 @@ export default function GanttSvarPage() {
         </div>
       )}
       <ErrorBanner error={err} />
-      <div className={`svar-planning${zoom === "month" ? " zoom-mois" : ""}`}>
+      <div className={`svar-planning${zoom === "month" ? " zoom-mois" : ""}${estAdmin ? "" : " sans-suppression"}`}>
         <Willow>
           <Gantt
             columns={COLONNES}
