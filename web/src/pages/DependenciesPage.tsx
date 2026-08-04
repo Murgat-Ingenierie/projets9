@@ -35,6 +35,17 @@ export default function DependenciesPage() {
   }
   useEffect(load, []);
 
+  async function changerType(id: number, type: DependencyType) {
+    setErr(null);
+    try {
+      await dependencies.update(id, type);
+      load();
+    } catch (e) {
+      setErr(e);
+    }
+  }
+
+
   const taskName = useMemo(() => {
     const m = new Map<number, string>();
     allTasks.forEach((t) => m.set(t.id, t.nom));
@@ -67,7 +78,13 @@ export default function DependenciesPage() {
       </div>
       <ErrorBanner error={err} />
       <p className="muted">
-        {filteredCount} sur {totalCount} — non éditables, supprimer puis recréer pour modifier.
+        {filteredCount} sur {totalCount}. Le <strong>type</strong> se change directement ;
+        déplacer une extrémité demande toujours de supprimer puis recréer.
+      </p>
+      <p className="muted">
+        Seules les dépendances <strong>Fin → Début</strong> décalent les tâches en cascade sur le
+        planning. Une <em>Début → Début</em> ou une <em>Fin → Fin</em> est dessinée, mais ne
+        déplace rien — changer le type change donc le comportement, pas seulement le libellé.
       </p>
 
       <table>
@@ -84,7 +101,23 @@ export default function DependenciesPage() {
             <tr key={d.id}>
               <td>{taskName.get(d.tache_amont_id) ?? `tâche #${d.tache_amont_id}`}</td>
               <td>{taskName.get(d.tache_aval_id) ?? `tâche #${d.tache_aval_id}`}</td>
-              <td>{TYPE_LABELS[d.type]}</td>
+              <td>
+                {/* Un seul champ modifiable : on enregistre au changement plutôt
+                    que d'ouvrir un mode édition, qui coûterait deux clics de plus
+                    pour choisir dans une liste de trois. */}
+                {estAdmin ? (
+                  <select
+                    value={d.type}
+                    onChange={(ev) => changerType(d.id, ev.target.value as DependencyType)}
+                  >
+                    {(Object.keys(TYPE_LABELS) as DependencyType[]).map((t) => (
+                      <option key={t} value={t}>{TYPE_LABELS[t]}</option>
+                    ))}
+                  </select>
+                ) : (
+                  TYPE_LABELS[d.type]
+                )}
+              </td>
               <td><BoutonSupprimer onClick={() => remove(d.id)} /></td>
             </tr>
           ))}

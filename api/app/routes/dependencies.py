@@ -13,7 +13,7 @@ from app.models.dependency import Dependency
 from app.models.task import Task
 from app.models.user import User
 from app.routes.errors import http_from_invariant
-from app.schemas.dependency import DependencyCreate, DependencyRead
+from app.schemas.dependency import DependencyCreate, DependencyRead, DependencyUpdate
 
 router = APIRouter(prefix="/api/dependencies", tags=["dependencies"])
 
@@ -62,6 +62,37 @@ def create_dep(
     db.commit()
     db.refresh(new)
     return new
+
+
+@router.put("/{dep_id}", response_model=DependencyRead)
+def update_dep(
+    dep_id: int,
+    payload: DependencyUpdate,
+    db: Session = Depends(get_db),
+    me: User = Depends(require_admin),
+) -> Dependency:
+    """Changer le type d'une dépendance — réservé aux administrateurs.
+
+    Comblait un manque qui obligeait à SUPPRIMER puis RECRÉER pour passer une
+    `FS` en `SS` : deux opérations, dont une destructive, là où il s'agit de
+    corriger un libellé de liaison.
+
+    Aucun invariant n'est rejoué, et c'est délibéré : INV-14 et INV-15 ne
+    dépendent que des extrémités, que `DependencyUpdate` ne permet pas de
+    toucher. Voir sa docstring — ouvrir ce schéma imposerait de les remettre.
+
+    Le changement n'est pas cosmétique pour autant : seules les `FS` propagent la
+    cascade du planning. Passer une dépendance en `SS` retire sa tâche aval des
+    décalages automatiques.
+    """
+    dep = db.get(Dependency, dep_id)
+    if dep is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Dépendance introuvable")
+    dep.type = payload.type
+    dep.updated_by_id = me.id
+    db.commit()
+    db.refresh(dep)
+    return dep
 
 
 @router.delete("/{dep_id}", status_code=status.HTTP_204_NO_CONTENT)
