@@ -10,6 +10,7 @@ import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import { fmtDate } from "../labels";
 import type { Project, Task } from "../types";
+import { BoutonSupprimer } from "../components/BoutonSupprimer";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Tâches", to: "/tasks" };
@@ -142,7 +143,7 @@ export default function TasksPage() {
                 <td className="row-actions">
                   <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancel}>Annuler</button>
-                  <button className="btn danger" onClick={() => removeRow(t.id)}>Supprimer</button>
+                  <BoutonSupprimer onClick={() => removeRow(t.id)}>Supprimer</BoutonSupprimer>
                 </td>
               </tr>
             ) : (

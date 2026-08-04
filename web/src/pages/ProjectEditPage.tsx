@@ -9,6 +9,7 @@ import { Switch } from "../components/Switch";
 import { navState, useParentCrumbs } from "../hooks/useBreadcrumbState";
 import { fmtDate } from "../labels";
 import type { Project, Task } from "../types";
+import { BoutonSupprimer } from "../components/BoutonSupprimer";
 
 const DEFAULT_PARENT: Crumb[] = [
   { label: "Planning", to: "/" },
@@ -209,7 +210,7 @@ export default function ProjectEditPage() {
                       />
                     </td>
                     <td>
-                      <button className="btn danger" onClick={() => removeTask(t.id)}>Supprimer</button>
+                      <BoutonSupprimer onClick={() => removeTask(t.id)}>Supprimer</BoutonSupprimer>
                     </td>
                   </tr>
                 );

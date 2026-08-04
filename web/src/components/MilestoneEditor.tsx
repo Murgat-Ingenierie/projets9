@@ -3,6 +3,7 @@ import { milestones as milestonesApi } from "../api/endpoints";
 import type { Milestone } from "../types";
 import { ErrorBanner } from "./ErrorBanner";
 import { MilestoneFormFields } from "./MilestoneFormFields";
+import { BoutonSupprimer } from "./BoutonSupprimer";
 
 interface Props {
   milestoneId?: number;
@@ -95,7 +96,7 @@ export function MilestoneEditor({
           <button className="btn" type="submit">{isEdit ? "Enregistrer" : "Créer"}</button>
           <button type="button" className="btn secondary" onClick={onCancel}>Annuler</button>
           {isEdit && showDelete && (
-            <button type="button" className="btn danger" onClick={remove}>Supprimer</button>
+            <BoutonSupprimer onClick={remove} />
           )}
         </div>
       </form>

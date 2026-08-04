@@ -3,6 +3,7 @@ import { epics } from "../api/endpoints";
 import type { Epic } from "../types";
 import { EpicFormFields } from "./EpicFormFields";
 import { ErrorBanner } from "./ErrorBanner";
+import { BoutonSupprimer } from "./BoutonSupprimer";
 
 interface Props {
   /** Trigramme défini → édition. Sinon → création (le trigramme est saisi). */
@@ -92,7 +93,7 @@ export function EpicEditor({
           <button className="btn" type="submit">{isEdit ? "Enregistrer" : "Créer"}</button>
           <button type="button" className="btn secondary" onClick={onCancel}>Annuler</button>
           {isEdit && showDelete && (
-            <button type="button" className="btn danger" onClick={remove}>Supprimer</button>
+            <BoutonSupprimer onClick={remove} />
           )}
         </div>
       </form>

@@ -6,6 +6,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import type { Dependency, DependencyType, Task } from "../types";
+import { BoutonSupprimer } from "../components/BoutonSupprimer";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Dépendances", to: "/dependencies" };
@@ -77,7 +78,7 @@ export default function DependenciesPage() {
               <td>{taskName.get(d.tache_amont_id) ?? `tâche #${d.tache_amont_id}`}</td>
               <td>{taskName.get(d.tache_aval_id) ?? `tâche #${d.tache_aval_id}`}</td>
               <td>{TYPE_LABELS[d.type]}</td>
-              <td><button className="btn danger" onClick={() => remove(d.id)}>Supprimer</button></td>
+              <td><BoutonSupprimer onClick={() => remove(d.id)} /></td>
             </tr>
           ))}
         </tbody>

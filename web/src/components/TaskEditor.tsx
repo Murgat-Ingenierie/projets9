@@ -3,6 +3,7 @@ import { tasks } from "../api/endpoints";
 import type { Task } from "../types";
 import { ErrorBanner } from "./ErrorBanner";
 import { TaskFormFields } from "./TaskFormFields";
+import { BoutonSupprimer } from "./BoutonSupprimer";
 
 interface Props {
   /** Si défini → mode édition. Sinon → mode création. */
@@ -98,7 +99,7 @@ export function TaskEditor({
           <button className="btn" type="submit">{isEdit ? "Enregistrer" : "Créer"}</button>
           <button type="button" className="btn secondary" onClick={onCancel}>Annuler</button>
           {isEdit && showDelete && (
-            <button type="button" className="btn danger" onClick={remove}>Supprimer</button>
+            <BoutonSupprimer onClick={remove} />
           )}
         </div>
       </form>

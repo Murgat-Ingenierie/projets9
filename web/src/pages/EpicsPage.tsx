@@ -7,6 +7,7 @@ import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import { EPIC_CATEGORY_LABELS, EPIC_STATUS_LABELS } from "../labels";
 import type { Epic, EpicCategory, EpicStatus } from "../types";
+import { BoutonSupprimer } from "../components/BoutonSupprimer";
 
 const STATUTS: EpicStatus[] = ["idee", "actif", "realise", "abandonne"];
 const CATEGORIES: EpicCategory[] = ["operationnel", "strategique", "long_terme"];
@@ -115,7 +116,7 @@ export default function EpicsPage() {
                 <td className="row-actions">
                   <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancelEdit}>Annuler</button>
-                  <button className="btn danger" onClick={() => removeRow(e.trigramme)}>Supprimer</button>
+                  <BoutonSupprimer onClick={() => removeRow(e.trigramme)}>Supprimer</BoutonSupprimer>
                 </td>
               </tr>
             ) : (

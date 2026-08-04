@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { equipes as equipesApi, tacheEquipe } from "../api/endpoints";
 import type { Equipe, TacheEquipe } from "../types";
 import { ErrorBanner } from "./ErrorBanner";
+import { BoutonSupprimer } from "./BoutonSupprimer";
 
 interface Props {
   taskId: number;
@@ -125,7 +126,7 @@ export function TaskAllocationsSection({ taskId, dateDebut, dateFin }: Props) {
                   </td>
                   <td className="muted">{hoursPerWeek(a.heures_allouees)}</td>
                   <td>
-                    <button className="btn danger" onClick={() => removeAllocation(a.id)}>×</button>
+                    <BoutonSupprimer onClick={() => removeAllocation(a.id)}>×</BoutonSupprimer>
                   </td>
                 </tr>
               );
