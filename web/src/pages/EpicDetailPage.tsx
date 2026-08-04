@@ -21,6 +21,7 @@ import type {
   Project,
   ProjectStatus,
 } from "../types";
+import { BoutonSupprimer } from "../components/BoutonSupprimer";
 
 const DEFAULT_PARENT: Crumb[] = [
   { label: "Planning", to: "/" },
@@ -333,7 +334,7 @@ export default function EpicDetailPage() {
                 <td className="row-actions">
                   <button className="btn" onClick={saveProject}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancelEditProject}>Annuler</button>
-                  <button className="btn danger" onClick={() => removeProject(p.id)}>Supprimer</button>
+                  <BoutonSupprimer onClick={() => removeProject(p.id)}>Supprimer</BoutonSupprimer>
                 </td>
               </tr>
             ) : (
@@ -471,7 +472,7 @@ export default function EpicDetailPage() {
                 <td className="row-actions">
                   <button className="btn" onClick={saveMeasure}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancelEditMeasure}>Annuler</button>
-                  <button className="btn danger" onClick={() => removeMeasure(m.id)}>Supprimer</button>
+                  <BoutonSupprimer onClick={() => removeMeasure(m.id)}>Supprimer</BoutonSupprimer>
                 </td>
               </tr>
             ) : (

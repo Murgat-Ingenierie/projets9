@@ -7,6 +7,7 @@ import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import { fmtDate } from "../labels";
 import type { Milestone, Project } from "../types";
+import { BoutonSupprimer } from "../components/BoutonSupprimer";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Jalons", to: "/milestones" };
@@ -125,7 +126,7 @@ export default function MilestonesPage() {
                 <td className="row-actions">
                   <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancelEdit}>Annuler</button>
-                  <button className="btn danger" onClick={() => removeRow(m.id)}>Supprimer</button>
+                  <BoutonSupprimer onClick={() => removeRow(m.id)}>Supprimer</BoutonSupprimer>
                 </td>
               </tr>
             ) : (

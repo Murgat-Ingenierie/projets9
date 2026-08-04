@@ -8,6 +8,7 @@ import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import { USER_ROLE_LABELS, USER_ROLES } from "../labels";
 import type { User, UserRole } from "../types";
+import { BoutonSupprimer } from "../components/BoutonSupprimer";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Utilisateurs", to: "/users" };
@@ -119,7 +120,7 @@ export default function UsersPage() {
                 <td className="row-actions">
                   <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancel}>Annuler</button>
-                  <button className="btn danger" onClick={() => removeRow(u.id)}>Supprimer</button>
+                  <BoutonSupprimer onClick={() => removeRow(u.id)}>Supprimer</BoutonSupprimer>
                 </td>
               </tr>
             ) : (

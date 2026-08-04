@@ -7,6 +7,7 @@ import { useInlineEdit } from "../hooks/useInlineEdit";
 import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import type { Equipe } from "../types";
+import { BoutonSupprimer } from "../components/BoutonSupprimer";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Équipes", to: "/equipes" };
@@ -95,7 +96,7 @@ export default function EquipesPage() {
                 <td className="row-actions">
                   <button className="btn" onClick={saveEdit}>Enregistrer</button>
                   <button className="btn secondary" onClick={cancel}>Annuler</button>
-                  <button className="btn danger" onClick={() => removeRow(e.id)}>Supprimer</button>
+                  <BoutonSupprimer onClick={() => removeRow(e.id)}>Supprimer</BoutonSupprimer>
                 </td>
               </tr>
             ) : (

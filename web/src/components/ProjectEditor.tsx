@@ -3,6 +3,7 @@ import { projects } from "../api/endpoints";
 import type { Project } from "../types";
 import { ErrorBanner } from "./ErrorBanner";
 import { ProjectFormFields } from "./ProjectFormFields";
+import { BoutonSupprimer } from "./BoutonSupprimer";
 
 interface Props {
   projectId?: number;
@@ -86,7 +87,7 @@ export function ProjectEditor({
           <button className="btn" type="submit">{isEdit ? "Enregistrer" : "Créer"}</button>
           <button type="button" className="btn secondary" onClick={onCancel}>Annuler</button>
           {isEdit && showDelete && (
-            <button type="button" className="btn danger" onClick={remove}>Supprimer</button>
+            <BoutonSupprimer onClick={remove} />
           )}
         </div>
       </form>
