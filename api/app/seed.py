@@ -17,7 +17,6 @@ import csv
 import logging
 import os
 import re
-import unicodedata
 from pathlib import Path
 
 from sqlalchemy import select
@@ -28,11 +27,6 @@ from app.models.epic import Epic, EpicCategory, EpicStatus
 
 log = logging.getLogger("seed")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [seed] %(message)s")
-
-
-def _slug(s: str) -> str:
-    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
-    return re.sub(r"[^a-z0-9]+", "_", s).strip("_")
 
 
 # Catégorisation des epics issus du CSV initial (best effort).
