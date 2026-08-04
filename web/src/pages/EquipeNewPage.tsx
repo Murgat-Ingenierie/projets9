@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { equipes as equipesApi } from "../api/endpoints";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
@@ -11,6 +11,7 @@ const DEFAULT_PARENT: Crumb[] = [
 ];
 
 export default function EquipeNewPage() {
+  const id = useId();
   const nav = useNavigate();
   const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
@@ -33,14 +34,16 @@ export default function EquipeNewPage() {
       <h2>Nouvelle équipe</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>
-        <label>Nom</label>
+        <label htmlFor={`${id}-nom`}>Nom</label>
         <input
+          id={`${id}-nom`}
           value={draft.nom}
           onChange={(e) => setDraft({ ...draft, nom: e.target.value })}
           required
         />
-        <label>Temps dispo / semaine (h)</label>
+        <label htmlFor={`${id}-temps`}>Temps dispo / semaine (h)</label>
         <input
+          id={`${id}-temps`}
           type="number"
           min={0}
           step={0.5}

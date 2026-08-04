@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 interface Props {
   dateDebut: string;
   dateFin: string;
@@ -17,19 +19,25 @@ export function DateRangeInput({
   labelDebut = "Date de début",
   labelFin = "Date de fin",
 }: Props) {
+  // Ce composant porte À LA FOIS ses libellés et ses champs : il fabrique donc
+  // lui-même les identifiants qui les relient. `useId` garantit leur unicité
+  // même quand plusieurs plages de dates coexistent sur un écran.
+  const id = useId();
   const invalid =
     dateDebut !== "" && dateFin !== "" && dateFin < dateDebut;
   return (
     <>
-      <label>{labelDebut}</label>
+      <label htmlFor={`${id}-debut`}>{labelDebut}</label>
       <input
+        id={`${id}-debut`}
         type="date"
         value={dateDebut ?? ""}
         onChange={(e) => onChangeDebut(e.target.value)}
         required={required}
       />
-      <label>{labelFin}</label>
+      <label htmlFor={`${id}-fin`}>{labelFin}</label>
       <input
+        id={`${id}-fin`}
         type="date"
         value={dateFin ?? ""}
         onChange={(e) => onChangeFin(e.target.value)}

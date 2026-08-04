@@ -21,12 +21,16 @@ interface UserSelectProps {
   value: number | null;
   onChange: (id: number | null) => void;
   required?: boolean;
+  /** Relie le champ à son `<label htmlFor>`. Les libellés sont des FRÈRES du
+   *  contrôle dans la grille du formulaire, jamais des parents : sans cet
+   *  identifiant, rien ne les associe — ni pour un lecteur d'écran, ni au clic. */
+  id?: string;
   /** Forme minimale : `id` + `nom` suffisent à peupler le sélecteur. Accepte
    *  aussi bien un `User` complet que l'annuaire réduit (cf. C7). */
   users?: { id: number; nom: string }[];
 }
 
-export function UserSelect({ value, onChange, required, users: provided }: UserSelectProps) {
+export function UserSelect({ value, onChange, required, id, users: provided }: UserSelectProps) {
   const [users, setUsers] = useState<{ id: number; nom: string }[]>(provided ?? []);
   useEffect(() => {
     if (provided) {
@@ -37,6 +41,7 @@ export function UserSelect({ value, onChange, required, users: provided }: UserS
   }, [provided]);
   return (
     <select
+      id={id}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       required={required}
@@ -53,10 +58,12 @@ interface EpicSelectProps {
   value: string;
   onChange: (trigramme: string) => void;
   required?: boolean;
+  /** Relie le champ à son `<label htmlFor>` (cf. UserSelectProps). */
+  id?: string;
   epics?: Epic[];
 }
 
-export function EpicSelect({ value, onChange, required, epics: provided }: EpicSelectProps) {
+export function EpicSelect({ value, onChange, required, id, epics: provided }: EpicSelectProps) {
   const [epics, setEpics] = useState<Epic[]>(provided ?? []);
   useEffect(() => {
     if (provided) {
@@ -67,6 +74,7 @@ export function EpicSelect({ value, onChange, required, epics: provided }: EpicS
   }, [provided]);
   return (
     <select
+      id={id}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
       required={required}
@@ -83,6 +91,8 @@ interface ProjectSelectProps {
   value: number | null;
   onChange: (id: number | null) => void;
   required?: boolean;
+  /** Relie le champ à son `<label htmlFor>` (cf. UserSelectProps). */
+  id?: string;
   projects?: Project[];
   epicTrigramme?: string; // si défini, filtre les projets de cet epic
 }
@@ -91,6 +101,7 @@ export function ProjectSelect({
   value,
   onChange,
   required,
+  id,
   projects: provided,
   epicTrigramme,
 }: ProjectSelectProps) {
@@ -107,6 +118,7 @@ export function ProjectSelect({
     : projects;
   return (
     <select
+      id={id}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       required={required}

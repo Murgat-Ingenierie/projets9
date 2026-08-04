@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 import type { Project, ProjectStatus } from "../types";
 import { PROJECT_STATUS_LABELS, PROJECT_STATUTS } from "../labels";
 import { DateRangeInput } from "./DateRangeInput";
@@ -9,22 +11,28 @@ interface Props {
 }
 
 export function ProjectFormFields({ draft, setDraft }: Props) {
+  // Les libellés sont des frères du contrôle dans la grille : seul `htmlFor`
+  // les relie. `useId` évite les collisions si deux formulaires cohabitent.
+  const id = useId();
   return (
     <>
-      <label>Epic</label>
+      <label htmlFor={`${id}-epic`}>Epic</label>
       <EpicSelect
+        id={`${id}-epic`}
         value={draft.epic_trigramme ?? ""}
         onChange={(t) => setDraft({ ...draft, epic_trigramme: t })}
         required
       />
-      <label>Nom</label>
+      <label htmlFor={`${id}-nom`}>Nom</label>
       <input
+        id={`${id}-nom`}
         value={draft.nom ?? ""}
         onChange={(e) => setDraft({ ...draft, nom: e.target.value })}
         required
       />
-      <label>Description</label>
+      <label htmlFor={`${id}-description`}>Description</label>
       <textarea
+        id={`${id}-description`}
         rows={2}
         value={draft.description ?? ""}
         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
@@ -35,13 +43,15 @@ export function ProjectFormFields({ draft, setDraft }: Props) {
         onChangeDebut={(v) => setDraft({ ...draft, date_debut: v })}
         onChangeFin={(v) => setDraft({ ...draft, date_fin: v })}
       />
-      <label>Responsable</label>
+      <label htmlFor={`${id}-responsable`}>Responsable</label>
       <UserSelect
+        id={`${id}-responsable`}
         value={draft.responsable_id ?? null}
         onChange={(id) => setDraft({ ...draft, responsable_id: id })}
       />
-      <label>Statut</label>
+      <label htmlFor={`${id}-statut`}>Statut</label>
       <select
+        id={`${id}-statut`}
         value={draft.statut ?? "prevu"}
         onChange={(e) => setDraft({ ...draft, statut: e.target.value as ProjectStatus })}
       >

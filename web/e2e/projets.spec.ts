@@ -59,18 +59,16 @@ test("créer un projet sans choisir d'epic : rien n'est envoyé, le champ est si
   await page.goto("/projects/new");
   await expect(page.getByRole("heading", { name: "Nouveau projet" })).toBeVisible();
 
-  const epic = page.locator("select").first();
+  const epic = page.getByLabel("Epic");
   // Ce que l'écran montre correspond à l'état : rien de choisi.
   await expect(epic).toHaveValue("");
 
-  // Position et non libellé : les `<label>` du formulaire ne portent pas de
-  // `htmlFor`, donc `getByLabel` ne les relie pas à leur champ.
-  await page.locator("form.form input").first().fill("Reussir a mettre des alevins en RAS");
+  await page.getByLabel("Nom").fill("Reussir a mettre des alevins en RAS");
   // TOUT le reste est rempli : l'epic doit être le SEUL champ invalide, sans quoi
   // l'absence de POST ne prouverait rien (des dates vides suffiraient à retenir le
   // formulaire, et le test passerait même avec le défaut).
-  await page.locator('form.form input[type="date"]').first().fill("2026-08-04");
-  await page.locator('form.form input[type="date"]').last().fill("2026-12-12");
+  await page.getByLabel("Date de début").fill("2026-08-04");
+  await page.getByLabel("Date de fin").fill("2026-12-12");
   await page.getByRole("button", { name: "Créer" }).click();
 
   // La validation native retient la soumission : aucun POST, donc aucun 422.
@@ -86,14 +84,12 @@ test("créer un projet avec un epic choisi : le trigramme part bien", async ({ p
   await page.goto("/projects/new");
   await expect(page.getByRole("heading", { name: "Nouveau projet" })).toBeVisible();
 
-  await page.locator("select").first().selectOption("O50");
-  // Position et non libellé : les `<label>` du formulaire ne portent pas de
-  // `htmlFor`, donc `getByLabel` ne les relie pas à leur champ.
-  await page.locator("form.form input").first().fill("Reussir a mettre des alevins en RAS");
+  await page.getByLabel("Epic").selectOption("O50");
+  await page.getByLabel("Nom").fill("Reussir a mettre des alevins en RAS");
   // Les dates sont requises elles aussi : sans elles, le formulaire ne partirait
   // pas, et le test dirait « pas de POST » pour la mauvaise raison.
-  await page.locator('form.form input[type="date"]').first().fill("2026-08-04");
-  await page.locator('form.form input[type="date"]').last().fill("2026-12-12");
+  await page.getByLabel("Date de début").fill("2026-08-04");
+  await page.getByLabel("Date de fin").fill("2026-12-12");
   await page.getByRole("button", { name: "Créer" }).click();
 
   await expect

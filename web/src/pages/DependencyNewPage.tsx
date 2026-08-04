@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dependencies, tasks } from "../api/endpoints";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
@@ -19,6 +19,7 @@ const DEFAULT_PARENT: Crumb[] = [
 ];
 
 export default function DependencyNewPage() {
+  const id = useId();
   const nav = useNavigate();
   const parentCrumbs = useParentCrumbs(DEFAULT_PARENT);
   const [err, setErr] = useState<unknown>(null);
@@ -46,8 +47,9 @@ export default function DependencyNewPage() {
       <h2>Nouvelle dépendance</h2>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={submit}>
-        <label>Tâche amont</label>
+        <label htmlFor={`${id}-amont`}>Tâche amont</label>
         <select
+          id={`${id}-amont`}
           value={draft.tache_amont_id ?? ""}
           onChange={(e) => setDraft({ ...draft, tache_amont_id: e.target.value ? Number(e.target.value) : undefined })}
           required
@@ -55,8 +57,9 @@ export default function DependencyNewPage() {
           <option value="">—</option>
           {allTasks.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
         </select>
-        <label>Tâche aval</label>
+        <label htmlFor={`${id}-aval`}>Tâche aval</label>
         <select
+          id={`${id}-aval`}
           value={draft.tache_aval_id ?? ""}
           onChange={(e) => setDraft({ ...draft, tache_aval_id: e.target.value ? Number(e.target.value) : undefined })}
           required
@@ -64,8 +67,8 @@ export default function DependencyNewPage() {
           <option value="">—</option>
           {allTasks.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
         </select>
-        <label>Type</label>
-        <select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value as DependencyType })}>
+        <label htmlFor={`${id}-type`}>Type</label>
+        <select id={`${id}-type`} value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value as DependencyType })}>
           {TYPES.map((s) => <option key={s} value={s}>{TYPE_LABELS[s]}</option>)}
         </select>
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
