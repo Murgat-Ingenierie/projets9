@@ -401,7 +401,7 @@
   color: #1976d2;
 }
 
-/* — Suppression d'un lien : réservée aux administrateurs (C7) — */
+/* — Dépendances : création ET suppression réservées aux administrateurs — */
 /*
  * Le geste est déjà BLOQUÉ côté code (`intercept("delete-link")`). On retire
  * aussi le bouton : proposer une corbeille qui ne supprime rien serait le même
@@ -412,6 +412,11 @@
  * clic, l'interception garantit le refus même si la règle ne s'applique pas.
  * Et ce qui protège réellement les données reste le `require_admin` de l'API.
  */
-.svar-planning.sans-suppression .wx-delete-button {
+.svar-planning.liens-verrouilles .wx-delete-button {
+  display: none;
+}
+/* Poignées de connexion : elles ne servent qu'à TRACER un lien, désormais
+   réservé aux administrateurs. Les laisser inviterait à un geste sans effet. */
+.svar-planning.liens-verrouilles .wx-bar .wx-link {
   display: none;
 }

@@ -602,6 +602,11 @@ export default function GanttSvarPage() {
     // Dessin d'un lien : créer la dépendance. Au succès, réaffecter l'id temporaire
     // à l'id réel (pour une suppression ultérieure). Au refus — ou si le lien n'est
     // pas représentable (extrémité non-tâche, type SF) — retirer le lien.
+    // Tracer une dépendance est réservé aux administrateurs (2026-08-04), comme
+    // sa suppression. On BLOQUE le geste ici plutôt que de laisser l'API refuser :
+    // le lien serait apparu à l'écran, puis retiré par le rollback.
+    api.intercept("add-link", () => estAdminRef.current);
+
     api.on("add-link", async (ev) => {
       if (ev.eventSource === "rollback") return; // notre propre rétablissement
       const id = ev.id;
@@ -768,7 +773,7 @@ export default function GanttSvarPage() {
         </div>
       )}
       <ErrorBanner error={err} />
-      <div className={`svar-planning${zoom === "month" ? " zoom-mois" : ""}${estAdmin ? "" : " sans-suppression"}`}>
+      <div className={`svar-planning${zoom === "month" ? " zoom-mois" : ""}${estAdmin ? "" : " liens-verrouilles"}`}>
         <Willow>
           <Gantt
             columns={COLONNES}

@@ -127,3 +127,39 @@ def test_l_annuaire_ignore_les_comptes_desactives(client, auth, auth_membre, ses
 
     noms = [e["nom"] for e in client.get("/api/users/annuaire", headers=auth_membre).json()]
     assert "Parti" not in noms
+
+
+# --- dépendances : la CRÉATION rejoint la suppression (2026-08-04) ------------
+#
+# La suppression était réservée aux admins depuis C7, la création restait
+# ouverte. L'asymétrie piégeait les membres : ils pouvaient tracer un lien sans
+# pouvoir le retirer, et le bouton « Annuler » du planning échouait lui aussi,
+# puisqu'il passe par un DELETE. Fermer la création plutôt qu'ouvrir la
+# suppression est une décision de besoin, prise avec le porteur du produit.
+
+
+def test_membre_ne_peut_plus_creer_de_dependance(client, auth, auth_membre, fabrique):
+    fabrique.epic()
+    projet = fabrique.projet()
+    t1 = fabrique.tache(projet["id"], nom="Amont")
+    t2 = fabrique.tache(projet["id"], nom="Aval")
+    r = client.post(
+        "/api/dependencies",
+        json={"tache_amont_id": t1["id"], "tache_aval_id": t2["id"], "type": "FS"},
+        headers=auth_membre,
+    )
+    assert r.status_code == 403
+
+
+def test_admin_cree_toujours_une_dependance(client, auth, fabrique):
+    """Versant nécessaire : fermer aux membres ne doit pas fermer à tous."""
+    fabrique.epic()
+    projet = fabrique.projet()
+    t1 = fabrique.tache(projet["id"], nom="Amont")
+    t2 = fabrique.tache(projet["id"], nom="Aval")
+    r = client.post(
+        "/api/dependencies",
+        json={"tache_amont_id": t1["id"], "tache_aval_id": t2["id"], "type": "FS"},
+        headers=auth,
+    )
+    assert r.status_code == 201, r.text
