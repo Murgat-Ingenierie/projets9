@@ -228,6 +228,39 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expect(panel).toHaveCount(0);
   });
 
+  test("« + » d'une ligne de projet ouvre la création d'une tâche, sans ligne fantôme", async ({
+    page,
+  }) => {
+    // Ce bouton était la colonne `add-task` native de SVAR, et son défaut valait
+    // pire que l'inaction : un clic AJOUTAIT une ligne à l'écran sans requête ni
+    // panneau. La tâche n'existait nulle part et disparaissait au rechargement —
+    // l'utilisateur croyait avoir enregistré. Le test compte donc les lignes ET
+    // les requêtes, pas seulement l'ouverture du panneau.
+    const calls = await gotoSvar(page);
+    const lignesAvant = await page.locator("[data-task-id]").count();
+
+    await page.locator('.wx-grid [class*="wx-row"]').filter({ hasText: "Capteurs O2" })
+      .locator("button.cellule-ajout").click();
+
+    await expect(page.locator("aside.panel")).toBeVisible();
+    expect(await page.locator("[data-task-id]").count()).toBe(lignesAvant); // rien d'ajouté
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(0); // rien d'envoyé
+  });
+
+  test("le « + » n'est proposé que là où il mène quelque part", async ({ page }) => {
+    // Un bouton inerte sur une ligne de jalon ou de tâche reproduirait le défaut
+    // qu'on corrige : une tâche n'a pas de sous-tâche dans ce modèle, un jalon
+    // n'en porte pas, et créer un projet depuis un epic n'a pas de panneau.
+    await gotoSvar(page);
+    const ligne = (nom: string) =>
+      page.locator('.wx-grid [class*="wx-row"]').filter({ hasText: nom });
+    await expect(ligne("Capteurs O2").locator("button.cellule-ajout")).toHaveCount(1);
+    await expect(ligne("Bassin pilote equipe").locator("button.cellule-ajout")).toHaveCount(0);
+
+    await expandRow(page, "Capteurs O2");
+    await expect(ligne("Choix capteurs").locator("button.cellule-ajout")).toHaveCount(0);
+  });
+
   test("« + Jalon » ouvre le panneau de création", async ({ page }) => {
     await gotoSvar(page);
     await page.getByRole("button", { name: "Jalon", exact: true }).click();

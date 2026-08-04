@@ -166,6 +166,45 @@ function TaskBar({ data }: { data: ITask }) {
   );
 }
 
+//: Ouvre la création d'une tâche pour un projet donné.
+//:
+//: Porteur de module parce que `COLONNES` doit rester une CONSTANTE — SVAR
+//: ré-initialise son store dès qu'une prop change de référence (clignotement,
+//: #52) — alors que le gestionnaire, lui, vient d'un état React.
+//:
+//: Objet jamais réassigné, seul `.current` est renseigné, et depuis un EFFET :
+//: écrire pendant le rendu est un effet de bord, que React signale à juste titre.
+const creationTache: { current: (projetId: number) => void } = { current: () => {} };
+
+/** Cellule « + » : créer une tâche dans CE projet.
+ *
+ *  Remplace la colonne `add-task` native de SVAR, qui était pire que muette :
+ *  elle ajoutait bien une ligne dans le store — donc à l'écran — mais sans
+ *  requête ni panneau. La tâche n'existait nulle part et disparaissait au
+ *  rechargement ; l'utilisateur croyait avoir enregistré. Changer l'`id` de la
+ *  colonne suffit à ce que SVAR ne reconnaisse plus son action et ne la déclenche
+ *  plus.
+ *
+ *  Rendue sur les lignes de PROJET seulement : une tâche n'a pas de sous-tâche
+ *  dans ce modèle, un jalon n'en porte pas, et créer un projet depuis un epic
+ *  demanderait un mode de panneau qui n'existe pas. Proposer un bouton inerte
+ *  ailleurs reproduirait le défaut qu'on corrige.
+ */
+function CelluleAjout({ row }: { row: ITask }) {
+  const parsed = parseSvarId(String(row.id));
+  if (parsed?.kind !== "proj") return null;
+  return (
+    <button
+      type="button"
+      className="cellule-ajout material-symbols-outlined"
+      title="Nouvelle tâche dans ce projet"
+      onClick={() => creationTache.current(Number(parsed.ref))}
+    >
+      add
+    </button>
+  );
+}
+
 // Colonnes de la grille. « Start date » et « Duration » retirées : la date de
 // début se lit sur la barre, et la durée en jours d'un projet qui court sur trois
 // ans (1126 !) n'apprend rien — deux colonnes qui prenaient 220 px sans les
@@ -180,7 +219,10 @@ function TaskBar({ data }: { data: ITask }) {
 // react-gantt, et rien ne garantit sa résolution. Valeurs relevées sur la 2.7.1.
 const COLONNES = [
   { id: "text", header: "Nom", flexgrow: 1, width: 260, sort: true },
-  { id: "add-task", header: "", width: 37, align: "center" as const, sort: false, resize: false },
+  // `id` volontairement DIFFÉRENT de « add-task » : c'est ce nom que SVAR
+  // reconnaît pour brancher son ajout natif, celui qui créait une ligne fantôme.
+  { id: "creer-tache", header: "", width: 37, align: "center" as const, sort: false,
+    resize: false, cell: CelluleAjout },
 ];
 
 export default function GanttSvarPage() {
@@ -201,6 +243,12 @@ export default function GanttSvarPage() {
   // (créer une tâche exige un projet parent).
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const apiRef = useRef<IApi | null>(null);
+  // Branche le « + » des lignes de projet sur le panneau de création. Dans un
+  // effet, pas pendant le rendu (cf. `creationTache`). `setPanelTarget` est
+  // stable, d'où des dépendances vides.
+  useEffect(() => {
+    creationTache.current = (projetId) => setPanelTarget({ type: "task-new", projet_id: projetId });
+  }, []);
   // État déplié (id de ligne → ouvert), suivi HORS React (ref) : survit aux
   // reconstructions de l'arbre (filtre/groupe) sans re-render à chaque expand/repli.
   const openStateRef = useRef<Map<string, boolean>>(new Map());

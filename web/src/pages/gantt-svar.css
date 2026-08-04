@@ -386,3 +386,17 @@
   height: 100%;
   border-left: 1px solid var(--wx-border-color, #e6e6e6);
 }
+
+/* Bouton « + » d'une ligne de projet (colonne `creer-tache`). */
+.cellule-ajout {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: #5f6368;
+}
+.cellule-ajout:hover {
+  color: #1976d2;
+}
