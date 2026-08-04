@@ -21,6 +21,7 @@ import { parseSvarId } from "../planning/svarAdapter";
 import { isoDate, toDate, daysBetweenIso, fmtDate } from "../planning/dates";
 import { planBlockShift, planCascadeShifts, planGroupShifts, type FsEdge, type TaskDates } from "../planning/cascadeShifts";
 import { celluleCouvre, type Depassement } from "../planning/echeances";
+import type { HorsFenetre } from "../planning/horsFenetre";
 import { couleurTexteSur } from "../planning/ganttStyles";
 import { deriveTeamFilter } from "../planning/teamFilter";
 import { useEstAdmin } from "../hooks/useEstAdmin";
@@ -143,6 +144,8 @@ function TaskBar({ data }: { data: ITask }) {
     liensMasques?: string;
     masqueAmont?: boolean;
     masqueAval?: boolean;
+    horsFenetre?: HorsFenetre;
+    horsFenetreTitre?: string;
   };
   if (d.type === "milestone") {
     return <span className="wx-text-out">{d.text}</span>;
@@ -163,6 +166,25 @@ function TaskBar({ data }: { data: ITask }) {
           className="deco-depassement"
           style={{ left: `${d.depassement.ratio * 100}%` }}
           title={`Dépasse « ${d.depassement.jalon} » (${d.depassement.date}) de ${d.depassement.jours} jours`}
+        />
+      )}
+      {/* Débordement sur la fenêtre du projet : les portions FAUTIVES sont
+          hachurées, pas la barre entière — hachurer tout dirait « quelque chose
+          ne va pas » sans dire de quel côté ni de combien. Le trait plein marque
+          la BORNE du projet : c'est la date qu'on dépasse. Comme le dépassement
+          d'échéance, les largeurs se déduisent des dates, jamais du DOM. */}
+      {d.horsFenetre && d.horsFenetre.avant > 0 && (
+        <span
+          className="deco-hors-fenetre avant"
+          style={{ width: `${d.horsFenetre.avant * 100}%` }}
+          title={d.horsFenetreTitre}
+        />
+      )}
+      {d.horsFenetre && d.horsFenetre.apres > 0 && (
+        <span
+          className="deco-hors-fenetre apres"
+          style={{ width: `${d.horsFenetre.apres * 100}%` }}
+          title={d.horsFenetreTitre}
         />
       )}
       <span className="wx-content deco-label" style={{ color: couleurTexte }}>{d.text}</span>

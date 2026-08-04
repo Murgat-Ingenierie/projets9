@@ -205,6 +205,41 @@ test.describe("Planning SVAR — parité 2b", () => {
     expect(await barre("Etude debit")).toContain("line-through");
   });
 
+  // Ex-INV-9 : une tâche PEUT sortir de la fenêtre de son projet, l'API l'accepte.
+  // Le signal visuel avait disparu avec la bascule SVAR — la situation n'était donc
+  // ni refusée ni signalée. Le cas existe en base : une tâche de mai 2026 dans un
+  // projet placé en décembre 2028.
+  test("tâche hors de la fenêtre de son projet : la portion fautive est hachurée", async ({ page }) => {
+    await gotoSvar(page, "Jour", {
+      // Projet 1 : 06/07 → 15/09. La tâche 12 finit un mois trop tard, la 11 tient.
+      tasks: TASKS.map((t) => (t.id === 12 ? { ...t, date_fin: "2026-10-15" } : t)),
+    });
+    await expandRow(page, "Capteurs O2");
+    await expect(page.getByText("Pose et calibration").first()).toBeVisible();
+
+    const debordante = page.locator('[data-task-id=":task:12"] .deco-hors-fenetre');
+    await expect(debordante).toHaveCount(1);
+    await expect(debordante).toHaveClass(/apres/); // elle finit trop tard, pas trop tôt
+    await expect(debordante).toHaveAttribute(
+      "title",
+      /Sort de la fenêtre du projet « Capteurs O2 » \(2026-07-06 → 2026-09-15\) : finit après, 30 jours/,
+    );
+    // La tâche 11 tient dans la fenêtre : sans ce contrôle, une hachure posée sur
+    // toutes les barres passerait l'assertion précédente.
+    await expect(page.locator('[data-task-id=":task:11"] .deco-hors-fenetre')).toHaveCount(0);
+
+    // La hachure couvre une PORTION, pas la barre : c'est ce qui distingue « ça
+    // déborde de tant » de « quelque chose ne va pas ». Le débordement fait 30 j
+    // sur 111 de durée, soit environ un quart — la borne large tolère l'arrondi
+    // de SVAR sans laisser passer une barre entièrement hachurée.
+    const part = await debordante.evaluate((el) => {
+      const h = el.getBoundingClientRect();
+      return h.width / el.closest(".wx-bar")!.getBoundingClientRect().width;
+    });
+    expect(part).toBeGreaterThan(0.15);
+    expect(part).toBeLessThan(0.45);
+  });
+
   test("contrôles : zoom Jour/Semaine/Mois + colonne aujourd'hui", async ({ page }) => {
     await gotoSvar(page);
     const jour = page.getByRole("button", { name: "Jour", exact: true });

@@ -231,6 +231,37 @@
   pointer-events: none;
 }
 
+/* Tâche débordant la fenêtre de son projet (ex-INV-9).
+ *
+ * Même langage visuel que le dépassement d'échéance — hachures rouges, pas un
+ * voile : un aplat rouge sur le bleu d'un epic donne un violet qui se lit comme
+ * une autre couleur, pas comme une alerte. Les deux ne peuvent pas coexister sur
+ * une même barre (l'un vise les tâches, l'autre les projets).
+ *
+ * Le trait plein est du côté INTÉRIEUR : il marque la borne du projet, donc la
+ * date franchie. Le distinguer du dépassement, dont le trait est toujours à
+ * gauche, tient à ce que la portion fautive peut ici être des deux côtés. */
+.wx-bar .deco-hors-fenetre {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(45deg,
+      rgba(198, 40, 40, 0.55) 0 5px,
+      rgba(198, 40, 40, 0.18) 5px 10px);
+}
+.wx-bar .deco-hors-fenetre.avant {
+  left: 0;
+  border-right: 2px solid #b71c1c;
+}
+.wx-bar .deco-hors-fenetre.apres {
+  right: 0;
+  border-left: 2px solid #b71c1c;
+}
+
 /* Flèche fantôme : moignon de dépendance que le filtre équipe empêche de tracer.
  *
  * Posée HORS de la barre (`.wx-bar` est en `overflow: visible`), et non dedans :
