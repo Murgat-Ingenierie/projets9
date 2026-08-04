@@ -1,4 +1,5 @@
 import { jetonAcces, seConnecter } from "../auth/oidc";
+import { messageValidations } from "./validationMessage";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string | null, message: string) {
@@ -54,11 +55,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       throw new ApiError(res.status, detail.code, detail.message);
     }
     if (Array.isArray(detail)) {
-      // FastAPI Pydantic validation errors : [{loc, msg, type}, ...]
-      const msg = detail
-        .map((d: any) => `${(d.loc ?? []).join(".")} : ${d.msg}`)
-        .join(" ; ");
-      throw new ApiError(res.status, "VALIDATION", msg);
+      // FastAPI Pydantic : [{loc, msg, type, ctx}, ...] — traduit en français.
+      throw new ApiError(res.status, "VALIDATION", messageValidations(detail));
     }
     throw new ApiError(res.status, null, typeof detail === "string" ? detail : res.statusText);
   }

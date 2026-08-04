@@ -2,6 +2,21 @@ import { useEffect, useState } from "react";
 import { epics as epicsApi, projects as projectsApi, users as usersApi } from "../api/endpoints";
 import type { Epic, Project } from "../types";
 
+// Option vide, TOUJOURS rendue — y compris quand le champ est requis.
+//
+// Sans elle, un état vide ne correspond à aucune option : le navigateur affiche
+// alors la PREMIÈRE de la liste, pendant que React garde `""`. L'utilisateur voit
+// un epic sélectionné qu'il n'a pas choisi, et l'envoi part sans epic — l'API le
+// refuse (`String should have at least 3 characters`), ce qui n'a aucun sens vu
+// de l'écran. Le `required` HTML ne rattrapait rien non plus : une option à valeur
+// non vide passe pour choisie, donc la validation native laissait soumettre.
+//
+// La rendre restaure les deux : ce qui est affiché correspond à l'état, et le
+// navigateur bloque la soumission tant que rien n'est choisi.
+function OptionVide({ required }: { required?: boolean }) {
+  return <option value="">{required ? "— Choisir —" : "—"}</option>;
+}
+
 interface UserSelectProps {
   value: number | null;
   onChange: (id: number | null) => void;
@@ -26,7 +41,7 @@ export function UserSelect({ value, onChange, required, users: provided }: UserS
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       required={required}
     >
-      <option value="">—</option>
+      <OptionVide required={required} />
       {users.map((u) => (
         <option key={u.id} value={u.id}>{u.nom}</option>
       ))}
@@ -56,7 +71,7 @@ export function EpicSelect({ value, onChange, required, epics: provided }: EpicS
       onChange={(e) => onChange(e.target.value)}
       required={required}
     >
-      {!required && <option value="">—</option>}
+      <OptionVide required={required} />
       {epics.map((e) => (
         <option key={e.trigramme} value={e.trigramme}>{e.nom}</option>
       ))}
@@ -96,7 +111,7 @@ export function ProjectSelect({
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       required={required}
     >
-      {!required && <option value="">—</option>}
+      <OptionVide required={required} />
       {filtered.map((p) => (
         <option key={p.id} value={p.id}>{p.nom}</option>
       ))}

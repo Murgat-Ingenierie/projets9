@@ -93,7 +93,7 @@ describe("api() — erreurs", () => {
     });
   });
 
-  it("mappe une liste d'erreurs Pydantic vers le code VALIDATION", async () => {
+  it("mappe une liste d'erreurs Pydantic vers le code VALIDATION, en français", async () => {
     const body = JSON.stringify({ detail: [{ loc: ["body", "email"], msg: "invalide" }] });
     fetchMock.mockResolvedValue(fakeResponse(422, body));
     const err = (await api("/api/users", { method: "POST", body: "{}" }).catch(
@@ -101,7 +101,8 @@ describe("api() — erreurs", () => {
     )) as ApiError;
     expect(err).toBeInstanceOf(ApiError);
     expect(err.code).toBe("VALIDATION");
-    expect(err.message).toContain("body.email : invalide");
+    // Ni le préfixe `body`, ni le nom de colonne : l'utilisateur lit un intitulé.
+    expect(err.message).toBe("Adresse e-mail : invalide");
   });
 
   it("mappe {detail:'texte'} vers le message brut", async () => {
