@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { infobulleLiensMasques, liensMasquesParTache } from "./liensMasques";
+import { infobulleLiensMasques, liensMasquesParTache, sensMasques } from "./liensMasques";
 import type { Dependency } from "../types";
 
 const dep = (id: number, amont: number, aval: number, type = "FS"): Dependency =>
@@ -73,5 +73,15 @@ describe("infobulleLiensMasques", () => {
   it("accorde le singulier", () => {
     expect(infobulleLiensMasques([{ sens: "amont", nomAutre: "X", type: "FS" }]))
       .toContain("1 dépendance masquée");
+  });
+});
+
+describe("sensMasques", () => {
+  it("distingue les deux côtés, et les cumule", () => {
+    const amont = { sens: "amont", nomAutre: "A", type: "FS" } as const;
+    const aval = { sens: "aval", nomAutre: "B", type: "FS" } as const;
+    expect(sensMasques([amont])).toEqual({ amont: true, aval: false });
+    expect(sensMasques([aval])).toEqual({ amont: false, aval: true });
+    expect(sensMasques([amont, aval])).toEqual({ amont: true, aval: true });
   });
 });

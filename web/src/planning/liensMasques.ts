@@ -71,6 +71,14 @@ export function liensMasquesParTache(
   return out;
 }
 
+/** Quels bouts manquent, pour savoir de quel côté poser la flèche fantôme. */
+export function sensMasques(liens: readonly LienMasque[]): { amont: boolean; aval: boolean } {
+  return {
+    amont: liens.some((l) => l.sens === "amont"),
+    aval: liens.some((l) => l.sens === "aval"),
+  };
+}
+
 /**
  * Infobulle de la marque. Nomme chaque lien caché : savoir qu'il en existe ne
  * sert à rien si l'on ne peut pas dire lesquels sans retirer le filtre.
