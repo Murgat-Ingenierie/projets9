@@ -145,6 +145,35 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expect(page.locator('[data-task-id=":proj:1"] .deco-termine-hatch')).toHaveCount(0);
   });
 
+  // Le filtre équipe n'affiche une flèche que si ses DEUX extrémités sont dans le
+  // périmètre. La dépendance 101 va de la tâche 12 (équipe A, via son projet) à la
+  // tâche 13 (équipe B) : sous le seul filtre B, elle disparaît, et « Etude debit »
+  // paraissait indépendante. C'est ce que remonte l'utilisateur test.
+  test("filtre équipe : une dépendance rendue invisible est signalée sur la tâche", async ({ page }) => {
+    await gotoSvar(page);
+    // Déplié UNE fois : l'état survit au changement de filtre (openStateRef), donc
+    // un second appel refermerait la ligne au lieu de la rouvrir.
+    await expandRow(page, "Regulation flux");
+    await expect(page.getByText("Etude debit").first()).toBeVisible();
+    // Sans filtre, la flèche est dessinée : aucune marque ne doit apparaître.
+    await expect(page.locator(".deco-liens-masques")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Equipe B", exact: true }).click();
+    await expect(page.getByText("Etude debit").first()).toBeVisible();
+
+    const marque = page.locator('[data-task-id=":task:13"] .deco-liens-masques');
+    await expect(marque).toBeVisible();
+    // L'infobulle NOMME le lien caché : le compte seul n'aiderait pas à décider.
+    await expect(marque).toHaveAttribute(
+      "title",
+      ["1 dépendance masquée par le filtre équipe :", "• Dépend de « Pose et calibration » (FS)"].join("\n"),
+    );
+
+    // Filtre retiré : la flèche revient, la marque doit disparaître.
+    await page.getByRole("button", { name: /Réinitialiser/ }).click();
+    await expect(page.locator(".deco-liens-masques")).toHaveCount(0);
+  });
+
   test("contrôles : zoom Jour/Semaine/Mois + colonne aujourd'hui", async ({ page }) => {
     await gotoSvar(page);
     const jour = page.getByRole("button", { name: "Jour", exact: true });
