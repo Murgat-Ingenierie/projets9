@@ -56,7 +56,7 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
     if (epicProjects.length === 0) continue;
 
     // Ligne d'en-tête epic seulement en mode groupé ; sinon projets à la racine.
-    // barColor / archived : champs custom lus par le taskTemplate pour la déco.
+    // barColor / termine : champs custom lus par le taskTemplate pour la déco.
     if (groupByEpic) {
       out.push({
         id: `epic:${tri}`,
@@ -86,6 +86,11 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
         id: `proj:${p.id}`,
         text: p.nom,
         depassement: depassement ?? undefined,
+        // Un projet RÉALISÉ porte la même marque qu'une tâche archivée : le
+        // planning sert à voir ce qu'il reste à faire, et une barre terminée qui
+        // ressemble à une barre en cours oblige à ouvrir la ligne pour le savoir.
+        // `abandonne` n'en reçoit PAS : ne pas confondre « fait » et « renoncé ».
+        termine: p.statut === "realise",
         // Summary seulement s'il a des sous-tâches ; sinon feuille (SVAR refuse
         // un summary sans sous-tâches). Le projet garde ses dates propres.
         type: pTasks.length > 0 ? "summary" : "task",
@@ -96,7 +101,7 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
         barColor: epicColor, // projet = couleur de l'epic
       });
       for (const t of pTasks) {
-        const archived = t.statut === "archive";
+        const termine = t.statut === "archive";
         out.push({
           id: `task:${t.id}`,
           text: t.nom,
@@ -105,7 +110,7 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
           start: toDate(t.date_debut),
           end: toDate(t.date_fin),
           barColor: adjustBrightness(epicColor, 1.6), // tâche = couleur epic éclaircie
-          archived, // tâche terminée → hachure + coche « fait » dans le template
+          termine, // tâche terminée → hachure + coche « fait » dans le template
         });
       }
     }

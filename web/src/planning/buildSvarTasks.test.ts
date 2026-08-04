@@ -4,8 +4,8 @@ import { adjustBrightness } from "./ganttStyles";
 import type { Epic, Milestone, Project, Task } from "../types";
 
 const epic = (trigramme: string, nom: string): Epic => ({ trigramme, nom }) as unknown as Epic;
-const proj = (id: number, tri: string, nom: string): Project =>
-  ({ id, epic_trigramme: tri, nom, date_debut: "2026-01-01", date_fin: "2026-02-01" }) as unknown as Project;
+const proj = (id: number, tri: string, nom: string, statut = "en_cours"): Project =>
+  ({ id, epic_trigramme: tri, nom, statut, date_debut: "2026-01-01", date_fin: "2026-02-01" }) as unknown as Project;
 const task = (id: number, projet_id: number, nom: string, statut = "ouvert"): Task =>
   ({ id, projet_id, nom, date_debut: "2026-01-05", date_fin: "2026-01-20", statut }) as unknown as Task;
 const ms = (id: number, date: string): Milestone => ({ id, date, nom: `J${id}` }) as unknown as Milestone;
@@ -41,12 +41,29 @@ describe("buildSvarTasks", () => {
     expect(out[0]).toMatchObject({ type: "milestone", start: new Date("2026-02-01T00:00:00") });
   });
 
-  it("tâche archivée marquée archived (hachure + coche dans le template)", () => {
+  it("tâche archivée marquée termine (hachure + coche dans le template)", () => {
     const out = buildSvarTasks(base({
       epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")],
       tasksByProject: new Map([[1, [task(11, 1, "T", "archive")]]]),
     }));
-    expect(byId(out).get("task:11")).toMatchObject({ archived: true });
+    expect(byId(out).get("task:11")).toMatchObject({ termine: true });
+  });
+
+  it("projet réalisé marqué termine, comme une tâche archivée", () => {
+    const out = buildSvarTasks(base({
+      epics: [epic("O50", "A")], projects: [proj(1, "O50", "P", "realise")],
+    }));
+    expect(byId(out).get("proj:1")).toMatchObject({ termine: true });
+  });
+
+  // « Abandonné » n'est pas « terminé » : un projet auquel on a renoncé ne doit
+  // pas porter la coche « fait », sans quoi le planning affirme un aboutissement
+  // qui n'a pas eu lieu. Les deux autres statuts sont en cours par nature.
+  it.each(["prevu", "en_cours", "abandonne"])("projet %s : pas de marque terminé", (statut) => {
+    const out = buildSvarTasks(base({
+      epics: [epic("O50", "A")], projects: [proj(1, "O50", "P", statut)],
+    }));
+    expect(byId(out).get("proj:1")).toMatchObject({ termine: false });
   });
 
   it("barColor : projet = couleur epic ; tâche = éclaircie", () => {

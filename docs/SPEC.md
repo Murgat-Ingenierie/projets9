@@ -205,7 +205,7 @@ Unité : **jour calendaire**. Toutes les comparaisons sont inclusives.
 |---|---|
 | INV-7 | `Tâche.date_début ≤ Tâche.date_fin`. |
 | INV-8 | `Projet.date_début ≤ Projet.date_fin`. |
-| INV-9 | ~~Supprimé.~~ Une tâche peut désormais sortir de la fenêtre de son projet. Le planning Gantt affiche une hachure rouge sur la barre concernée pour signaler la situation, mais l'API ne refuse plus la mutation. *Retiré du code le 2026-07-17 : `check_task_dates_within_project` était resté défini et exporté, sans aucun appelant.* |
+| INV-9 | ~~Supprimé.~~ Une tâche peut désormais sortir de la fenêtre de son projet, et l'API ne refuse plus la mutation. *Retiré du code le 2026-07-17 : `check_task_dates_within_project` était resté défini et exporté, sans aucun appelant.* **Le signal visuel, lui, n'existe plus non plus** : la hachure rouge du Gantt maison n'a pas été reprise lors de la bascule SVAR (C9) — aucune règle ne la dessine aujourd'hui (vérifié le 2026-08-04). La situation n'est donc ni refusée ni signalée. |
 | INV-10 | Si `Epic.date_fin_prévue` est définie : pour tout `Projet` de cet Epic, `Projet.date_fin ≤ Epic.date_fin_prévue`. |
 | INV-11 | Si `Epic.jalon_fin_max` est défini : pour tout `Jalon` rattaché à cet Epic, `Jalon.date ≤ Epic.jalon_fin_max`. |
 | INV-12 | Si `Epic.date_fin_prévue` ET `Epic.jalon_fin_max` sont définies : `date_fin_prévue ≤ jalon_fin_max`. |
@@ -274,10 +274,11 @@ absence de test ne passe pas pour un trou de couverture.
 | Sujet | Parti pris |
 |---|---|
 | Surcharge d'une équipe | La somme des heures allouées à une équipe sur une semaine **peut** dépasser `temps_dispo_hebdo`. L'écran *Charge équipes* la signale en rouge ; l'API ne refuse pas. |
-| Tâche hors fenêtre de son projet | Voir INV-9 : hachure rouge sur le Gantt, mutation acceptée. |
+| Tâche hors fenêtre de son projet | Voir INV-9 : mutation acceptée. ⚠️ Seul cas de cette table à n'être **pas** signalé — la hachure a disparu avec la bascule SVAR et n'a pas été réimplémentée. Le parti pris tient toujours, la moitié « le planning signale » est à refaire. |
 | Dates des tâches dépendantes | Voir INV-13 : aucune contrainte chronologique, seul le graphe est contraint (INV-14, INV-15). |
+| Projet finissant après son jalon | Un jalon fixe une **date limite** aux projets qui lui sont rattachés, mais le dépassement **n'est pas refusé** : le planning hachure la portion en retard (en rouge, avec un liseré à la date du jalon) et laisse l'arbitrage au responsable. Tranché par le PO le 2026-08-04, après constat de 4 dépassements sur 13 rattachements dans les données réelles — dont un de 579 jours : en faire un invariant aurait rendu la base existante inmodifiable. |
 
-Ces trois cas relèvent du même principe, qui mérite d'être nommé : **le planning signale, l'API
+Ces quatre cas relèvent du même principe, qui mérite d'être nommé : **le planning signale, l'API
 ne bloque que l'incohérence structurelle.** Une surcharge ou un chevauchement sont des faits de
 gestion que l'utilisateur doit voir et arbitrer ; un cycle de dépendances ou un jalon orphelin
 sont des états que la base ne doit pas pouvoir atteindre.

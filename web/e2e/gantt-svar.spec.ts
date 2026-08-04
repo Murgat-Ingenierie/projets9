@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { mockApi, type ApiCall } from "./mockApi";
-import { ADMIN } from "./fixtures";
+import { mockApi, type ApiCall, type Surcharges } from "./mockApi";
+import { ADMIN, PROJECTS, TASKS } from "./fixtures";
 
 // Parité SVAR — planning principal (route `/`) depuis la bascule C9. Pilote le Gantt avec l'API
 // mockée ; on assère sur du visible/comportement (portable entre implémentations),
@@ -31,13 +31,17 @@ import { ADMIN } from "./fixtures";
  *  Sans `vue`, on garde le défaut de l'application : c'est ce que vérifie le test
  *  des contrôles de zoom.
  */
-async function gotoSvar(page: Page, vue?: "Jour" | "Semaine" | "Mois"): Promise<ApiCall[]> {
+async function gotoSvar(
+  page: Page,
+  vue?: "Jour" | "Semaine" | "Mois",
+  over: Surcharges = {}
+): Promise<ApiCall[]> {
   // Date figée dans la fenêtre des fixtures (tâches jul.–sep. 2026) + fenêtre large :
   // défilement par défaut de SVAR et géométrie déterministes, indépendants de la date
   // réelle d'exécution (les poignées des tâches 12/13 restent à l'écran).
   await page.clock.setFixedTime(new Date("2026-07-20T08:00:00"));
   await page.setViewportSize({ width: 1600, height: 900 });
-  const calls = await mockApi(page);
+  const calls = await mockApi(page, over);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
   // Le titre s'affiche avant que SVAR ait dessiné quoi que ce soit. Attendre une
@@ -120,6 +124,25 @@ test.describe("Planning SVAR — parité 2b", () => {
     await clickHandle(page, "13", "left");
     await expect.poll(() => postDep(calls), { timeout: 5000 }).toBeTruthy();
     expect(postDep(calls)!.body).toMatchObject({ tache_amont_id: 12, tache_aval_id: 13, type: "SS" });
+  });
+
+  // Le projet 2 « Regulation flux » porte la tâche 13 : sa ligne est donc de type
+  // `summary`, dont SVAR dessine la barre autrement (plus fine, chevrons aux
+  // extrémités). Le vérifier sur CE projet plutôt que sur un projet sans tâche est
+  // délibéré : c'est le cas où une décoration peut être rognée ou masquée.
+  test("projet réalisé : hachure + coche, y compris sur une barre summary", async ({ page }) => {
+    await gotoSvar(page, undefined, {
+      projects: PROJECTS.map((p) => (p.id === 2 ? { ...p, statut: "realise" } : p)),
+      // INV-18 : un projet réalisé a toutes ses tâches archivées. La surcharge
+      // respecte l'invariant — un état que l'API refuserait ferait douter du test.
+      tasks: TASKS.map((t) => (t.projet_id === 2 ? { ...t, statut: "archive" } : t)),
+    });
+    const realise = page.locator('[data-task-id=":proj:2"]');
+    await expect(realise.locator(".deco-termine-hatch")).toBeVisible();
+    await expect(realise.locator(".deco-done")).toBeVisible();
+    // Le projet 1 reste « en cours » : sans ce contrôle, une décoration posée sur
+    // toutes les barres passerait le test précédent.
+    await expect(page.locator('[data-task-id=":proj:1"] .deco-termine-hatch')).toHaveCount(0);
   });
 
   test("contrôles : zoom Jour/Semaine/Mois + colonne aujourd'hui", async ({ page }) => {
