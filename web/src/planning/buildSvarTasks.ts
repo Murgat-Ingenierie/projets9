@@ -3,6 +3,7 @@ import type { Dependency, Epic, Milestone, Project, Task } from "../types";
 import { toDate } from "./dates";
 import { calculerDepassement, echeanceLaPlusProche } from "./echeances";
 import { DEFAULT_EPIC_COLOR, adjustBrightness } from "./ganttStyles";
+import { calculerHorsFenetre, infobulleHorsFenetre } from "./horsFenetre";
 import { infobulleLiensMasques, liensMasquesParTache, sensMasques } from "./liensMasques";
 
 // État du planning → arbre de tâches SVAR (ITask[]), via la hiérarchie NATIVE de
@@ -114,6 +115,8 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
       });
       for (const t of pTasks) {
         const termine = t.statut === "archive";
+        // Débordement sur la fenêtre du projet (ex-INV-9) : signalé, jamais refusé.
+        const horsFenetre = calculerHorsFenetre(t.date_debut, t.date_fin, p.date_debut, p.date_fin);
         out.push({
           id: `task:${t.id}`,
           text: t.nom,
@@ -126,6 +129,9 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
           // Infobulle prête à l'emploi plutôt qu'une liste : `useStableList`
           // compare les lignes par leur sérialisation, et une chaîne se compare
           // sans surprise. Le template n'a rien à mettre en forme.
+          ...(horsFenetre
+            ? { horsFenetre, horsFenetreTitre: infobulleHorsFenetre(horsFenetre, p.nom) }
+            : {}),
           ...(masquesParTache.has(t.id)
             ? {
                 liensMasques: infobulleLiensMasques(masquesParTache.get(t.id)!),
