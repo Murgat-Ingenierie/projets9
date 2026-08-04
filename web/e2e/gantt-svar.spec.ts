@@ -373,7 +373,7 @@ test.describe("Planning SVAR — parité 2b", () => {
     expect(m!.scrollH).toBeLessThanOrEqual(m!.clientH + 2);
   });
 
-  test("un membre ne se voit pas proposer la suppression d'un lien", async ({ page }) => {
+  test("un membre ne se voit proposer ni de tracer ni de supprimer un lien", async ({ page }) => {
     // Supprimer une dépendance exige `require_admin` (C7). Sans garde, la
     // corbeille de SVAR restait offerte : le lien disparaissait de l'écran, l'API
     // répondait 403, et le rollback le faisait réapparaître — un clignotement
@@ -393,15 +393,23 @@ test.describe("Planning SVAR — parité 2b", () => {
     await page.goto("/");
     await expect(page.locator('[data-task-id^=":proj:"]').first()).toBeVisible();
 
-    await expect(page.locator(".svar-planning.sans-suppression")).toHaveCount(1);
+    await expect(page.locator(".svar-planning.liens-verrouilles")).toHaveCount(1);
     await expect(page.locator(".wx-delete-button")).toHaveCount(0);
+    // Poignées de connexion masquées : elles ne servent qu'à TRACER un lien,
+    // réservé aux administrateurs depuis le 2026-08-04. Les laisser inviterait à
+    // un geste que l'interception refuse.
+    //
+    // `toBeHidden` et non `toHaveCount(0)` : la règle de style les masque, elle
+    // ne les retire pas du document — un comptage les trouverait quand même.
+    await expect(page.locator(".wx-bar .wx-link").first()).toBeHidden();
   });
 
-  test("un administrateur, lui, garde la suppression d'un lien", async ({ page }) => {
-    // Versant nécessaire : sans lui, masquer la corbeille pour TOUT LE MONDE
-    // satisferait le test précédent.
+  test("un administrateur, lui, garde le tracé et la suppression", async ({ page }) => {
+    // Versant nécessaire : sans lui, verrouiller pour TOUT LE MONDE satisferait
+    // le test précédent — et le planning perdrait sa fonction première.
     await gotoSvar(page);
-    await expect(page.locator(".svar-planning.sans-suppression")).toHaveCount(0);
+    await expect(page.locator(".svar-planning.liens-verrouilles")).toHaveCount(0);
+    await expect(page.locator(".wx-bar .wx-link").first()).toBeAttached(); // rendues, donc traçables
   });
 
   test("undo : annuler une création de lien (bouton + DELETE)", async ({ page }) => {

@@ -7,6 +7,7 @@ import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
 import type { Dependency, DependencyType, Task } from "../types";
 import { BoutonSupprimer } from "../components/BoutonSupprimer";
+import { useEstAdmin } from "../hooks/useEstAdmin";
 
 const PARENT: Crumb[] = [{ label: "Planning", to: "/" }];
 const SELF: Crumb = { label: "Dépendances", to: "/dependencies" };
@@ -19,6 +20,7 @@ const TYPE_LABELS: Record<DependencyType, string> = {
 
 export default function DependenciesPage() {
   const nav = useNavigate();
+  const estAdmin = useEstAdmin();
   const [items, setItems] = useState<Dependency[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [err, setErr] = useState<unknown>(null);
@@ -56,7 +58,12 @@ export default function DependenciesPage() {
       <Breadcrumb items={[...PARENT, { label: SELF.label }]} />
       <div className="page-header">
         <h2>Dépendances</h2>
-        <button className="btn" onClick={() => nav("/dependencies/new", navState(PARENT, SELF))}>+ Ajouter</button>
+        {/* Créer une dépendance est réservé aux administrateurs depuis le
+            2026-08-04 : la suppression l'était déjà, et l'asymétrie piégeait les
+            membres — ils traçaient un lien sans pouvoir le retirer. */}
+        {estAdmin && (
+          <button className="btn" onClick={() => nav("/dependencies/new", navState(PARENT, SELF))}>+ Ajouter</button>
+        )}
       </div>
       <ErrorBanner error={err} />
       <p className="muted">

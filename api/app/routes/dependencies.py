@@ -29,8 +29,16 @@ def list_deps(
 def create_dep(
     payload: DependencyCreate,
     db: Session = Depends(get_db),
-    me: User = Depends(get_current_user),
+    me: User = Depends(require_admin),
 ) -> Dependency:
+    """Créer une dépendance — réservé aux administrateurs.
+
+    La suppression l'était déjà (C7). L'asymétrie qui subsistait piégeait les
+    membres : ils pouvaient tracer un lien sans pouvoir le retirer, et même le
+    bouton « Annuler » du planning échouait, puisqu'il passe par un DELETE. On
+    ferme donc la création plutôt que d'ouvrir la suppression — décision prise le
+    2026-08-04, cf. INVENTAIRE R4.
+    """
     amont = db.get(Task, payload.tache_amont_id)
     aval = db.get(Task, payload.tache_aval_id)
     if amont is None or aval is None:
