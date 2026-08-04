@@ -174,6 +174,28 @@ test.describe("Planning SVAR — parité 2b", () => {
     await expect(page.locator(".deco-liens-masques")).toHaveCount(0);
   });
 
+  // Le barré vit dans la colonne de gauche, rendue par SVAR : on ne peut donc pas
+  // l'assérer sur un template maison, seulement sur le style CALCULÉ du texte.
+  test("terminé : le nom est barré dans la colonne de gauche", async ({ page }) => {
+    await gotoSvar(page, undefined, {
+      projects: PROJECTS.map((p) => (p.id === 2 ? { ...p, statut: "realise" } : p)),
+      tasks: TASKS.map((t) => (t.projet_id === 2 ? { ...t, statut: "archive" } : t)),
+    });
+    const barre = (nom: string) =>
+      page.locator('[class*="wx-row"]', { hasText: nom }).first().locator(".wx-text").first()
+        .evaluate((el) => getComputedStyle(el).textDecorationLine);
+
+    expect(await barre("Regulation flux")).toContain("line-through");
+    // Le projet « Capteurs O2 » reste en cours : sans ce contrôle, une règle
+    // appliquée à toutes les lignes passerait l'assertion précédente.
+    expect(await barre("Capteurs O2")).not.toContain("line-through");
+
+    // La tâche archivée aussi, une fois la ligne dépliée.
+    await expandRow(page, "Regulation flux");
+    await expect(page.getByText("Etude debit").first()).toBeVisible();
+    expect(await barre("Etude debit")).toContain("line-through");
+  });
+
   test("contrôles : zoom Jour/Semaine/Mois + colonne aujourd'hui", async ({ page }) => {
     await gotoSvar(page);
     const jour = page.getByRole("button", { name: "Jour", exact: true });

@@ -398,6 +398,27 @@ export default function GanttSvarPage() {
   const svarTasks = useStableList(svarTasksRaw);
   const svarLinks = useStableList(svarLinksRaw);
 
+  // Nom barré dans la colonne de gauche pour les lignes terminées.
+  //
+  // Par une règle CSS engendrée depuis les données, et non par un rendu de
+  // cellule personnalisé : la cellule « Nom » est rendue par SVAR, qui y place le
+  // chevron de l'arbre et l'indentation par niveau (un `padding-left` calculé).
+  // La remplacer pour barrer un texte coûterait ces deux-là — alors que la barre,
+  // elle, a déjà son template maison.
+  //
+  // Le « : » de tête est celui que SVAR ajoute au `data-id` de la ligne ; les
+  // identifiants du store n'en portent pas. Le filtre sur la forme attendue
+  // garantit qu'aucun caractère venu des données ne se retrouve dans un sélecteur.
+  const styleTermines = useMemo(() => {
+    const ids = svarTasks
+      .filter((t) => (t as ITask & { termine?: boolean }).termine)
+      .map((t) => String(t.id))
+      .filter((id) => /^(task|proj):\d+$/.test(id));
+    if (ids.length === 0) return null;
+    const selecteurs = ids.map((id) => `.svar-planning [data-id=":${id}"] .wx-text`).join(",");
+    return `${selecteurs}{text-decoration:line-through;opacity:.65}`;
+  }, [svarTasks]);
+
   // Rollback (SPEC §4) : dates d'origine capturées AVANT l'application du drag.
   const originalRef = useRef<Map<TID, { start: Date; end: Date }>>(new Map());
   // Lien capturé AVANT suppression, pour pouvoir le rétablir si l'API refuse.
@@ -792,6 +813,7 @@ export default function GanttSvarPage() {
         </div>
       )}
       <ErrorBanner error={err} />
+      {styleTermines && <style>{styleTermines}</style>}
       <div className={`svar-planning${zoom === "month" ? " zoom-mois" : ""}${estAdmin ? "" : " liens-verrouilles"}`}>
         <Willow>
           <Gantt
