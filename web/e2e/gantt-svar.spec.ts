@@ -260,6 +260,11 @@ test.describe("Planning SVAR — parité 2b", () => {
           // Projet 2 finit le 30/10 : jalon au 20/09 → 40 jours de dépassement.
           { id: 22, project_ids: [2], nom: "Jalon depasse", date: "2026-09-20",
             atteint: false, created_at: "", updated_at: "" },
+          // Un jalon le 1er d'un mois : sa cellule est AUSSI une limite de mois.
+          // Les deux marques s'y superposaient et la limite, plus pâle, effaçait
+          // le repère — trois des sept jalons réels sont dans ce cas.
+          { id: 23, project_ids: [1], nom: "Jalon premier du mois", date: "2026-11-01",
+            atteint: false, created_at: "", updated_at: "" },
         ]),
       }));
     await page.goto("/");
@@ -301,6 +306,14 @@ test.describe("Planning SVAR — parité 2b", () => {
     // on ne sait plus lire une date. Régression déjà survenue.
     await expect(page.locator(".col-mois").first()).toBeVisible();
     expect(await page.locator(".col-mois").count()).toBeGreaterThan(6);
+
+    // Le jalon du 1er novembre garde SON repère. On compte les BANDES dessinées,
+    // pas les cellules porteuses de la classe : SVAR l'applique aussi à
+    // l'en-tête, y compris dans la ligne masquée.
+    expect(await page.locator(".wx-gantt-holidays .col-jalon").count()).toBe(3);
+    // Aucune cellule ne porte les deux marques : la limite de mois, plus pâle et
+    // écrite après à spécificité égale, effacerait le repère du jalon.
+    expect(await page.locator(".col-jalon.col-mois").count()).toBe(0);
 
     // En vue Jour, le quadrillage natif suffit : pas de limites ajoutées.
     await page.getByRole("button", { name: "Jour", exact: true }).click();

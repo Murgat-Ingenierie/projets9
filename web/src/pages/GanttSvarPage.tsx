@@ -247,14 +247,22 @@ export default function GanttSvarPage() {
   const highlightToday = useMemo(
     () => (d: Date) => {
       const classes: string[] = [];
-      if (celluleCouvre(d, pasJours, datesJalons)) classes.push("col-jalon");
+      const jalon = celluleCouvre(d, pasJours, datesJalons);
+      if (jalon) classes.push("col-jalon");
       if (celluleCouvre(d, pasJours, new Set([todayIso]))) classes.push("wx-today-col");
       // Limite de mois : en vue Mois, les cellules valent un JOUR (échelle
       // ajoutée pour la précision des jalons) et le fond quadrillé est retiré —
       // sans ceci, plus aucune séparation verticale. Marquer le 1er de chaque
       // mois rend des limites EXACTES là où un motif à période fixe dériverait,
       // les mois comptant de 28 à 31 jours.
-      if (moisEnCours && d.getDate() === 1) classes.push("col-mois");
+      //
+      // `&& !jalon` : une échéance tombant un 1er recevrait les DEUX classes, et
+      // la limite de mois — écrite après, à spécificité égale — écrasait le trait
+      // du jalon par un gris pâle. Le jalon disparaissait purement et simplement.
+      // Trois des sept jalons réels sont sur un 1er. On l'exprime ici plutôt que
+      // par un jeu de spécificité, où la prochaine règle ajoutée reposerait le
+      // problème en silence.
+      if (moisEnCours && !jalon && d.getDate() === 1) classes.push("col-mois");
       return classes.join(" ");
     },
     [todayIso, datesJalons, pasJours, moisEnCours],
