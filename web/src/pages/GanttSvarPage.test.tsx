@@ -38,6 +38,13 @@ vi.mock("../api/endpoints", () => ({
 }));
 
 // Importé APRÈS les mocks (vi.mock est hoisté, mais on garde l'ordre explicite).
+// Ce test porte sur la STABILITÉ des props passées à SVAR, pas sur les droits.
+// La page lit le rôle (la corbeille de suppression d'un lien est réservée aux
+// administrateurs) ; sans provider d'authentification au-dessus, `useAuth`
+// renvoie null et le rendu casse. On simule le hook de rôle plutôt que toute
+// l'authentification : c'est la seule dépendance qui compte ici.
+vi.mock("../hooks/useEstAdmin", () => ({ useEstAdmin: () => true }));
+
 import GanttSvarPage from "./GanttSvarPage";
 
 describe("GanttSvarPage — pas de ré-initialisation parasite de SVAR", () => {

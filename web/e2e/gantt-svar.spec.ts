@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mockApi, type ApiCall } from "./mockApi";
+import { ADMIN } from "./fixtures";
 
 // Parité SVAR — planning principal (route `/`) depuis la bascule C9. Pilote le Gantt avec l'API
 // mockée ; on assère sur du visible/comportement (portable entre implémentations),
@@ -370,6 +371,37 @@ test.describe("Planning SVAR — parité 2b", () => {
     expect(m!.ganttH).toBeGreaterThanOrEqual(m!.clientH - 2);
     expect(m!.ganttH).toBeLessThanOrEqual(m!.clientH + 2);
     expect(m!.scrollH).toBeLessThanOrEqual(m!.clientH + 2);
+  });
+
+  test("un membre ne se voit pas proposer la suppression d'un lien", async ({ page }) => {
+    // Supprimer une dépendance exige `require_admin` (C7). Sans garde, la
+    // corbeille de SVAR restait offerte : le lien disparaissait de l'écran, l'API
+    // répondait 403, et le rollback le faisait réapparaître — un clignotement
+    // doublé d'un message, pour une action qui n'était pas la sienne.
+    //
+    // On éprouve le marqueur porté par le conteneur, et non un clic sur le lien :
+    // celui-ci est un <g> SVG dont la sélection n'est pas pilotable de façon
+    // stable en headless (même limite que les gestes de glisser, cf. en-tête).
+    // La corbeille elle-même est masquée par ce marqueur ; l'interception de
+    // `delete-link` reste la garantie de fond, et l'API le dernier mot.
+    await page.clock.setFixedTime(new Date("2026-07-20T08:00:00"));
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await mockApi(page);
+    await page.route((u) => u.pathname.endsWith("/api/users/me"), (r) =>
+      r.fulfill({ status: 200, contentType: "application/json",
+                  body: JSON.stringify({ ...ADMIN, role: "membre" }) }));
+    await page.goto("/");
+    await expect(page.locator('[data-task-id^=":proj:"]').first()).toBeVisible();
+
+    await expect(page.locator(".svar-planning.sans-suppression")).toHaveCount(1);
+    await expect(page.locator(".wx-delete-button")).toHaveCount(0);
+  });
+
+  test("un administrateur, lui, garde la suppression d'un lien", async ({ page }) => {
+    // Versant nécessaire : sans lui, masquer la corbeille pour TOUT LE MONDE
+    // satisferait le test précédent.
+    await gotoSvar(page);
+    await expect(page.locator(".svar-planning.sans-suppression")).toHaveCount(0);
   });
 
   test("undo : annuler une création de lien (bouton + DELETE)", async ({ page }) => {
