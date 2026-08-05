@@ -4,14 +4,38 @@ type SortDir = "asc" | "desc";
 type Getter<T> = (item: T) => unknown;
 type SortState<T> = { key: string; getter: Getter<T>; dir: SortDir };
 
+/** Minuscules SANS accents : « regulation » doit trouver « Régulation ».
+ *
+ *  Les filtres par colonne s'en passaient — on y tape le début d'une valeur
+ *  qu'on a sous les yeux. Une recherche libre, elle, se tape de mémoire et
+ *  souvent sans accents, a fortiori depuis un téléphone. */
+function pliable(v: unknown): string {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("fr");
+}
+
 export function useSortableList<T>(items: T[]) {
   const [sort, setSort] = useState<SortState<T> | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
+  // Recherche libre, sur TOUTES les colonnes à la fois. Elle se cumule avec les
+  // filtres par colonne plutôt que de les remplacer : sur écran étroit ces
+  // derniers disparaissent avec l'en-tête, et il fallait un moyen de chercher.
+  const [recherche, setRecherche] = useState("");
   const getters = useRef<Record<string, Getter<T>>>({});
 
   const sorted = useMemo(() => {
     const activeFilters = Object.entries(filters).filter(([, v]) => v && v.trim() !== "");
     let out: T[] = items;
+    const q = pliable(recherche.trim());
+    if (q !== "") {
+      // Une ligne est retenue si N'IMPORTE quelle colonne correspond — c'est ce
+      // qu'on attend d'une recherche, là où les filtres par colonne se cumulent.
+      out = out.filter((item) =>
+        Object.values(getters.current).some((g) => pliable(g(item)).includes(q)),
+      );
+    }
     if (activeFilters.length > 0) {
       out = out.filter((item) =>
         activeFilters.every(([key, val]) => {
@@ -39,7 +63,7 @@ export function useSortableList<T>(items: T[]) {
       });
     }
     return out;
-  }, [items, sort, filters]);
+  }, [items, sort, filters, recherche]);
 
   function sortHeader(
     label: ReactNode,
@@ -97,5 +121,5 @@ export function useSortableList<T>(items: T[]) {
   const filteredCount = sorted.length;
   const totalCount = items.length;
 
-  return { sorted, sortHeader, filteredCount, totalCount };
+  return { sorted, sortHeader, filteredCount, totalCount, recherche, setRecherche };
 }
