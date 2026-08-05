@@ -1,11 +1,3 @@
-upstream api_upstream {
-    server api:8000;
-}
-
-upstream web_upstream {
-    server web:80;
-}
-
 # CSP calculée selon l'URL : stricte partout (script-src 'self'), assouplie
 # uniquement pour Swagger UI / ReDoc, qui chargent leurs assets depuis jsdelivr
 # et exécutent un script d'init inline. On passe par une variable (map) pour
@@ -37,6 +29,32 @@ server {
     # Ne pas divulguer la version de nginx dans l'en-tête Server.
     server_tokens off;
 
+    # Résolution DNS des conteneurs, réévaluée en continu.
+    #
+    # Un bloc `upstream { server api:8000; }` — ce qu'il y avait ici — résout le
+    # nom UNE SEULE FOIS, au chargement de la configuration, et garde l'adresse
+    # indéfiniment. Or Docker en réattribue une autre à la recréation d'un
+    # conteneur : après un `--no-cache` ou un simple redéploiement de l'API, le
+    # proxy continuait de parler à une adresse qui n'était plus la sienne et
+    # répondait 502 jusqu'à ce qu'on le redémarre LUI. Reproduit avant d'écrire
+    # cette correction : api déplacée de .4 à .7, nginx toujours sur .4.
+    #
+    # 127.0.0.11 est le résolveur interne de Docker, présent dans tout conteneur
+    # d'un réseau utilisateur. `valid=10s` borne la mise en cache — dix secondes
+    # au pire, contre indéfiniment. `ipv6=off` parce que le résolveur peut
+    # renvoyer une AAAA que rien n'écoute, et nginx tenterait celle-là d'abord.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    # Les cibles passent par des VARIABLES : c'est la condition pour que nginx
+    # diffère la résolution au lieu de la figer au démarrage. Une cible écrite en
+    # dur serait de nouveau résolue une fois pour toutes.
+    #
+    # Aucune n'inclut de chemin, volontairement : nginx transmet alors l'URI
+    # d'origine telle quelle, comme le faisaient les blocs remplacés. En ajouter
+    # un REMPLACERAIT l'URI de la requête — `/api/health` deviendrait `/`.
+    set $cible_api http://api:8000;
+    set $cible_web http://web:80;
+
     # En-têtes de sécurité, définis UNE fois ici et hérités par les locations
     # (aucune n'a d'add_header propre). La CSP varie via $csp_policy ci-dessus.
     add_header X-Frame-Options "DENY" always;
@@ -46,7 +64,7 @@ server {
     add_header Content-Security-Policy $csp_policy always;
 
     location /api/ {
-        proxy_pass http://api_upstream;
+        proxy_pass $cible_api;
         # Host client transmis aux upstreams internes (api, web) qui ne s'en
         # servent pour aucune décision de sécurité (pas de génération d'URL
         # absolue, pas de cache par Host). Injection de Host non applicable ici.
@@ -58,7 +76,7 @@ server {
     }
 
     location / {
-        proxy_pass http://web_upstream;
+        proxy_pass $cible_web;
         # nosemgrep: generic.nginx.security.request-host-used.request-host-used
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
