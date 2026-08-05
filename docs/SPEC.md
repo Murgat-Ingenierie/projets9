@@ -152,6 +152,23 @@ sont étalées linéairement, par jour, sur la fenêtre `[date_début, date_fin]
 | `unité` | str | obligatoire (cohérente par Epic) |
 | `commentaire` | text | optionnel |
 
+#### Point de contrôle (todo)
+*Ajouté le 2026-08-05, sur retour d'usage.* Une liste à cocher **à l'intérieur**
+d'une tâche. Ce n'est **pas** une sous-tâche : la hiérarchie s'arrête à
+Epic → Projet → Tâche, et tout ce qui porte des dates, un responsable ou des
+dépendances est une tâche. Un todo n'a rien de cela et ne pèse sur aucun
+invariant, aucun planning, aucune charge.
+
+| Champ | Type | Notes |
+|---|---|---|
+| `id` | int | PK |
+| `tache_id` | int | FK → Tâche (CASCADE) |
+| `libellé` | str(200) | obligatoire, non vide |
+| `fait` | bool | défaut `false` |
+
+Pas de rang : la liste suit l'ordre de création. La **suppression est ouverte aux
+membres** — seule de l'API dans ce cas, cf. §6.
+
 ### Audit (sur toutes les entités mutables)
 `created_at`, `updated_at`, `updated_by` (FK User). S'applique aussi à `Équipe` et `TâcheÉquipe`.
 
