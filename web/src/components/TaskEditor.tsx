@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { tacheEquipe, tasks } from "../api/endpoints";
 import type { Task } from "../types";
 import { ErrorBanner } from "./ErrorBanner";
+import { ListeTodos } from "./ListeTodos";
 import { TaskFormFields } from "./TaskFormFields";
 import { BoutonSupprimer } from "./BoutonSupprimer";
 
@@ -139,6 +140,12 @@ export function TaskEditor({
           )}
         </div>
       </form>
+      {/* HORS du formulaire, et seulement en édition. Hors, parce que la liste
+          écrit immédiatement quand le formulaire attend « Enregistrer », et que
+          son champ d'ajout a besoin de sa propre soumission — dedans, Entrée
+          aurait enregistré la tâche. En édition seulement, parce qu'un todo
+          référence sa tâche : à la création, elle n'a pas encore d'identifiant. */}
+      {isEdit && <ListeTodos tacheId={taskId!} />}
     </>
   );
 }

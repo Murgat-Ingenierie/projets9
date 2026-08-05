@@ -71,6 +71,17 @@ export interface Dependency {
   type: DependencyType;
 }
 
+/** Point de contrôle dans une tâche. PAS une sous-tâche : ni dates, ni
+ *  responsable, ni dépendances — rien qui pèse sur le planning ou la charge. */
+export interface TaskTodo {
+  id: number;
+  tache_id: number;
+  libelle: string;
+  fait: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Measure {
   id: number;
   epic_trigramme: string;

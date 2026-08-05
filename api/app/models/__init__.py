@@ -5,6 +5,7 @@ from app.models.measure import Measure
 from app.models.milestone import Milestone
 from app.models.project import Project, ProjectStatus
 from app.models.task import Task, TaskStatus
+from app.models.todo import TaskTodo
 from app.models.user import User, UserRole
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "TacheEquipe",
     "Task",
     "TaskStatus",
+    "TaskTodo",
     "User",
     "UserRole",
 ]

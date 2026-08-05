@@ -16,6 +16,7 @@ from app.routes import (
     projects,
     tache_equipe,
     tasks,
+    todos,
     users,
 )
 
@@ -67,6 +68,7 @@ app.include_router(dependencies.router)
 app.include_router(measures.router)
 app.include_router(equipes.router)
 app.include_router(tache_equipe.router)
+app.include_router(todos.router)
 
 
 @app.get("/api/health")

@@ -58,3 +58,50 @@ test("équipe choisie mais heures vides : rien n'est envoyé", async ({ page }) 
   expect(await page.getByLabel("Heures allouées")
     .evaluate((el: HTMLInputElement) => el.checkValidity())).toBe(false);
 });
+
+// Liste de contrôle d'une tâche. Elle vit HORS du formulaire : elle écrit
+// immédiatement, là où le formulaire attend « Enregistrer ». Ce que ces tests
+// protègent, c'est justement cette séparation — et le fait que la touche Entrée
+// dans le champ d'ajout n'enregistre PAS la tâche.
+test("la liste de contrôle écrit tout de suite, sans passer par « Enregistrer »", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const calls = await mockApi(page);
+  await page.goto("/tasks/11/edit");
+  await expect(page.getByRole("heading", { name: "À faire" })).toBeVisible();
+  // L'API simulée rend une liste vide pour les routes non déclarées.
+  await expect(page.getByText("Aucun point pour l'instant.")).toBeVisible();
+
+  await page.getByLabel("Ajouter un point").fill("Visser les boulons");
+  await page.getByRole("button", { name: "Ajouter", exact: true }).click();
+
+  const post = () => calls.find((c) => c.method === "POST" && c.path.endsWith("/api/todos"));
+  await expect.poll(post, { timeout: 5000 }).toBeTruthy();
+  expect(post()!.body).toMatchObject({ tache_id: 11, libelle: "Visser les boulons" });
+  // La TÂCHE n'a pas été enregistrée au passage : personne n'a cliqué dessus.
+  expect(calls.filter((c) => c.method === "PUT" && c.path.includes("/api/tasks/"))).toHaveLength(0);
+});
+
+test("Entrée dans le champ d'ajout n'enregistre pas la tâche", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const calls = await mockApi(page);
+  await page.goto("/tasks/11/edit");
+  await expect(page.getByRole("heading", { name: "À faire" })).toBeVisible();
+
+  await page.getByLabel("Ajouter un point").fill("Purger le circuit");
+  await page.getByLabel("Ajouter un point").press("Enter");
+
+  await expect
+    .poll(() => calls.find((c) => c.method === "POST" && c.path.endsWith("/api/todos")))
+    .toBeTruthy();
+  // Le piège que la séparation des deux formulaires évite : à l'intérieur de
+  // celui de la tâche, cette touche aurait déclenché son enregistrement.
+  expect(calls.filter((c) => c.method === "PUT" && c.path.includes("/api/tasks/"))).toHaveLength(0);
+});
+
+test("la création d'une tâche ne montre pas de liste : elle n'a pas encore d'identifiant", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await mockApi(page);
+  await page.goto("/tasks/new");
+  await expect(page.getByRole("heading", { name: "Nouvelle tâche" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "À faire" })).toHaveCount(0);
+});

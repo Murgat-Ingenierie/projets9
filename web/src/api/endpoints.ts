@@ -8,6 +8,7 @@ import type {
   Project,
   TacheEquipe,
   Task,
+  TaskTodo,
   User,
 } from "../types";
 import { api } from "./client";
@@ -131,6 +132,16 @@ export const equipes = {
       body: JSON.stringify(data),
     }),
   remove: (id: number) => api<void>(`/api/equipes/${id}`, { method: "DELETE" }),
+};
+
+export const todos = {
+  list: (tacheId: number) => api<TaskTodo[]>(`/api/todos?tache_id=${tacheId}`),
+  create: (data: { tache_id: number; libelle: string }) =>
+    api<TaskTodo>("/api/todos", { method: "POST", body: JSON.stringify(data) }),
+  /** Partiel : cocher n'envoie que `fait`, renommer que `libelle`. */
+  update: (id: number, data: Partial<{ libelle: string; fait: boolean }>) =>
+    api<TaskTodo>(`/api/todos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  remove: (id: number) => api<void>(`/api/todos/${id}`, { method: "DELETE" }),
 };
 
 export const tacheEquipe = {
