@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { tasks } from "../api/endpoints";
+import { tacheEquipe, tasks } from "../api/endpoints";
 import type { Task } from "../types";
 import { ErrorBanner } from "./ErrorBanner";
 import { TaskFormFields } from "./TaskFormFields";
@@ -51,6 +51,11 @@ export function TaskEditor({
   });
   const [err, setErr] = useState<unknown>(null);
   const [loaded, setLoaded] = useState(!isEdit);
+  // Rattachement d'une équipe, à la création seulement. Tenu HORS du brouillon :
+  // c'est une autre entité (`tache_equipe`), créée par un second appel une fois
+  // la tâche connue — elle a besoin de son identifiant.
+  const [equipeId, setEquipeId] = useState<number | null>(null);
+  const [heures, setHeures] = useState("");
 
   useEffect(() => {
     if (!isEdit) return;
@@ -69,8 +74,35 @@ export function TaskEditor({
     e.preventDefault();
     setErr(null);
     try {
-      if (isEdit) await tasks.update(taskId!, draft);
-      else await tasks.create(draft);
+      if (isEdit) {
+        await tasks.update(taskId!, draft);
+        onSaved();
+        return;
+      }
+      const creee = await tasks.create(draft);
+      if (equipeId !== null && creee?.id != null) {
+        // DEUX écritures, et la seconde peut échouer seule. On ne tente pas de
+        // défaire la première : la suppression d'une tâche est réservée aux
+        // administrateurs, donc un membre resterait bloqué au milieu du gué. On
+        // dit alors exactement ce qui a été fait — taire l'échec laisserait
+        // croire l'équipe rattachée, et l'écran Charge équipes démentirait plus tard.
+        try {
+          await tacheEquipe.create({
+            tache_id: creee.id,
+            equipe_id: equipeId,
+            heures_allouees: Number(heures),
+          });
+        } catch (e) {
+          setErr(
+            new Error(
+              `La tâche a bien été créée, mais l'équipe n'a pas pu lui être rattachée : ` +
+                `${e instanceof Error ? e.message : String(e)}. ` +
+                `Le rattachement se fait depuis l'écran Charge équipes.`,
+            ),
+          );
+          return;
+        }
+      }
       onSaved();
     } catch (e) {
       setErr(e);
@@ -94,7 +126,11 @@ export function TaskEditor({
     <>
       <ErrorBanner error={err} />
       <form className="form" onSubmit={save} style={formStyle}>
-        <TaskFormFields draft={draft} setDraft={setDraft} />
+        <TaskFormFields
+          draft={draft}
+          setDraft={setDraft}
+          allocation={isEdit ? undefined : { equipeId, setEquipeId, heures, setHeures }}
+        />
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <button className="btn" type="submit">{isEdit ? "Enregistrer" : "Créer"}</button>
           <button type="button" className="btn secondary" onClick={onCancel}>Annuler</button>

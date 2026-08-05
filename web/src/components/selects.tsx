@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
-import { epics as epicsApi, projects as projectsApi, users as usersApi } from "../api/endpoints";
-import type { Epic, Project } from "../types";
+import {
+  epics as epicsApi,
+  equipes as equipesApi,
+  projects as projectsApi,
+  users as usersApi,
+} from "../api/endpoints";
+import type { Epic, Equipe, Project } from "../types";
 
 // Option vide, TOUJOURS rendue — y compris quand le champ est requis.
 //
@@ -126,6 +131,39 @@ export function ProjectSelect({
       <OptionVide required={required} />
       {filtered.map((p) => (
         <option key={p.id} value={p.id}>{p.nom}</option>
+      ))}
+    </select>
+  );
+}
+
+interface EquipeSelectProps {
+  value: number | null;
+  onChange: (id: number | null) => void;
+  required?: boolean;
+  /** Relie le champ à son `<label htmlFor>` (cf. UserSelectProps). */
+  id?: string;
+  equipes?: Equipe[];
+}
+
+export function EquipeSelect({ value, onChange, required, id, equipes: provided }: EquipeSelectProps) {
+  const [equipes, setEquipes] = useState<Equipe[]>(provided ?? []);
+  useEffect(() => {
+    if (provided) {
+      setEquipes(provided);
+      return;
+    }
+    equipesApi.list().then(setEquipes).catch(() => {});
+  }, [provided]);
+  return (
+    <select
+      id={id}
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      required={required}
+    >
+      <OptionVide required={required} />
+      {equipes.map((eq) => (
+        <option key={eq.id} value={eq.id}>{eq.nom}</option>
       ))}
     </select>
   );
