@@ -104,9 +104,21 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
         // ressemble à une barre en cours oblige à ouvrir la ligne pour le savoir.
         // `abandonne` n'en reçoit PAS : ne pas confondre « fait » et « renoncé ».
         termine: p.statut === "realise",
-        // Summary seulement s'il a des sous-tâches ; sinon feuille (SVAR refuse
-        // un summary sans sous-tâches). Le projet garde ses dates propres.
-        type: pTasks.length > 0 ? "summary" : "task",
+        // TOUJOURS `task`, jamais `summary` — y compris avec des sous-tâches.
+        //
+        // SVAR refuse le redimensionnement au glissé sur les types `summary` et
+        // `milestone` : il n'y a aucune poignée dans le DOM, le geste se déclenche
+        // sur les 20 % extérieurs de la barre, et cette détection retourne « rien »
+        // pour ces deux types (react-gantt, fonction de mode de glissé). Le type
+        // était donc le seul verrou, et un projet était le seul niveau qu'on ne
+        // pouvait pas allonger à la souris.
+        //
+        // Contrepartie assumée : SVAR ne décale plus le sous-arbre d'un projet
+        // glissé (`moveSummaryKids`), ce que le planning fait désormais lui-même —
+        // même geste que la cascade, cf. `deplacerEnfants` dans GanttSvarPage.
+        // Les epics, eux, restent `summary` : ils n'ont pas de dates propres et
+        // rien à redimensionner.
+        type: "task",
         parent: groupByEpic ? `epic:${tri}` : undefined,
         start: toDate(p.date_debut),
         end: toDate(p.date_fin),

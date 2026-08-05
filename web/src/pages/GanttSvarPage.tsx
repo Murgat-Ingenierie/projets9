@@ -590,10 +590,35 @@ export default function GanttSvarPage() {
         return;
       }
 
-      // Projet / epic (summary) : SVAR a déjà déplacé tout le sous-arbre (dates dérivées
-      // des enfants). On persiste le BLOC entier — le(s) projet(s) + toutes leurs tâches,
-      // masquées comprises — décalé du même delta, et on empile UN SEUL undo (parité :
-      // le bloc suit ; pas de cascade FS externe pour un déplacement de bloc).
+      // Projet REDIMENSIONNÉ : une seule borne a bougé. Seules ses dates propres
+      // changent — décaler ses tâches n'aurait aucun sens, on allonge le contenant,
+      // pas son contenu. Une tâche qui se retrouve hors de la nouvelle fenêtre est
+      // signalée par la hachure rouge, pas corrigée d'office : c'est un arbitrage.
+      //
+      // Ce cas n'existait pas tant que les projets étaient des `summary` — SVAR
+      // refusait le geste. Sans cette branche, un redimensionnement tomberait dans
+      // le code de déplacement ci-dessous, dont le delta de début vaut zéro : il
+      // serait silencieusement abandonné.
+      if (parsed.kind === "proj" && orig && t.end) {
+        const deltaDebut = daysBetweenIso(isoDate(orig.start), date_debut);
+        const deltaFin = daysBetweenIso(isoDate(orig.end), date_fin);
+        if (deltaDebut !== deltaFin) {
+          const id = Number(parsed.ref);
+          const avant = { date_debut: isoDate(orig.start), date_fin: isoDate(orig.end) };
+          try {
+            await projectsApi.update(id, { date_debut, date_fin });
+            pushUndo("Redimensionnement projet", () => projectsApi.update(id, avant).then(() => {}));
+          } catch (e) {
+            setErr(e);
+          }
+          reload();
+          return;
+        }
+      }
+
+      // Projet / epic DÉPLACÉ : on persiste le BLOC entier — le(s) projet(s) + toutes
+      // leurs tâches, masquées comprises — décalé du même delta, et on empile UN SEUL
+      // undo (parité : le bloc suit ; pas de cascade FS externe pour un bloc).
       if (parsed.kind === "proj" || parsed.kind === "epic") {
         if (!orig) return;
         const deltaDays = daysBetweenIso(isoDate(orig.start), date_debut);
@@ -609,6 +634,22 @@ export default function GanttSvarPage() {
           parsed.kind === "proj"
             ? `Déplacement projet${taskShifts.length ? ` + ${taskShifts.length} tâche${taskShifts.length > 1 ? "s" : ""}` : ""}`
             : `Déplacement epic (${projShifts.length} projet${projShifts.length > 1 ? "s" : ""})`;
+        // Un epic est resté `summary` : SVAR a déjà bougé ses enfants. Un projet,
+        // devenu `task` pour être redimensionnable, ne les entraîne plus — on le
+        // fait ici, du même geste que la cascade (exec sur les lignes VISIBLES,
+        // les masquées étant rapatriées par le reload).
+        if (parsed.kind === "proj") {
+          for (const sh of taskShifts) {
+            if (api.getTask(`task:${sh.id}`)) {
+              api.exec("update-task", {
+                id: `task:${sh.id}`,
+                task: { start: toDate(sh.after.date_debut), end: toDate(sh.after.date_fin) },
+                skipUndo: true,
+                eventSource: "cascade",
+              });
+            }
+          }
+        }
         try {
           await Promise.all([
             ...projShifts.map((s) => projectsApi.update(s.id, s.after)),
