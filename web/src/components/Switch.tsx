@@ -19,6 +19,12 @@ export function Switch({ checked, onChange, label, disabled, id }: Props) {
   return (
     <label
       style={{
+        // `relative` : la case ci-dessous est en `position: absolute`, et sans
+        // ancêtre positionné son bloc conteneur est la fenêtre. Or la règle
+        // `.form input { width: 100% }` s'applique aussi à elle — elle prenait
+        // donc TOUTE la largeur de l'écran et débordait de la page. Invisible
+        // sur grand écran, franchement gênant sur téléphone.
+        position: "relative",
         display: "inline-flex",
         alignItems: "center",
         gap: 10,

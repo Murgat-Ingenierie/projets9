@@ -918,3 +918,209 @@ dl.kv dd textarea {
 .measure-chart-dot {
   fill: #1976d2;
 }
+
+/* Bascule de dépliage d'une carte : n'existe que sur écran étroit (cf. plus bas). */
+.carte-bascule {
+  display: none;
+}
+
+/* Recherche libre au-dessus des listes. Sur écran large elle double les filtres
+   par colonne ; sur écran étroit elle les REMPLACE, ceux-ci vivant dans un
+   en-tête qu'on masque. */
+.barre-recherche {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+.barre-recherche input {
+  flex: 1;
+  min-width: 0;
+  max-width: 340px;
+  padding: 8px 12px;
+  border: 1px solid var(--md-divider);
+  border-radius: var(--md-radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--md-surface);
+}
+.barre-recherche input:focus {
+  outline: none;
+  border-color: var(--md-primary);
+}
+
+/* =============================================================
+   Écrans étroits — Projets et Tâches seulement
+   =============================================================
+
+   Le planning n'est PAS concerné : un Gantt sur 375 px n'a pas de sens, et
+   c'est assumé. Ce qu'on veut consulter et corriger depuis un téléphone, ce
+   sont les deux listes et leurs formulaires.
+
+   Deux problèmes distincts, mesurés avant d'écrire une ligne :
+     - les formulaires débordaient (499 px de document pour 375 de fenêtre) ;
+     - les tables se coupaient : elles défilaient latéralement, donc on ne
+       pouvait jamais lire une ligne entière.
+
+   Seuil à 720 px : au-delà, une table à sept colonnes tient sans être serrée ;
+   en dessous, elle ne tient plus quel que soit l'effort. Ce n'est pas la
+   largeur d'un appareil en particulier, c'est celle à partir de laquelle CETTE
+   table cesse d'être lisible. */
+
+@media (max-width: 720px) {
+  /* Le contenu récupère la place que prenaient les marges d'écran large. */
+  .main {
+    padding: 16px 12px;
+  }
+
+  /* --- Formulaires -------------------------------------------------------
+     Règles GLOBALES, et non réservées aux deux écrans : elles ne s'appliquent
+     que sous le seuil, où un champ plus large que la fenêtre n'est jamais
+     voulu. Les restreindre demanderait de marquer chaque formulaire d'une
+     classe pour un gain nul. */
+  /* `minmax(0, 1fr)` et non `1fr` : une piste de grille a un minimum implicite
+     égal à son contenu, et un champ `date` réclame une largeur intrinsèque
+     supérieure à l'écran. La colonne mesurait donc 353 px dans un formulaire de
+     287 — et un `width: 100%` posé dessus reprenait ces 353. C'est la piste
+     qu'il faut autoriser à rétrécir, pas seulement le champ. */
+  .form,
+  .form.compact {
+    max-width: none;
+    padding: 16px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Les cases à cocher sont EXCLUES : celle du composant `Switch` est masquée en
+     `position: absolute`, et l'étirer à 100 % la faisait déborder de 96 px hors
+     de l'écran — un défaut introduit par cette règle même, pas par le composant. */
+  .form input:not([type="checkbox"]):not([type="radio"]),
+  .form select,
+  .form textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* La rangée d'actions d'un formulaire (Enregistrer / Annuler / Supprimer) est
+     posée en `flex` par un style en ligne, mais SANS `flex-wrap` — d'où un
+     bouton Supprimer hors d'atteinte à 375 px. On complète depuis ici plutôt que
+     de retoucher chaque formulaire : le style en ligne ne porte pas cette
+     propriété, la règle s'applique donc sans conflit. */
+  .form > div {
+    flex-wrap: wrap;
+  }
+
+  /* --- Tables en cartes --------------------------------------------------
+     Réservé aux tables marquées `responsive` — Projets et Tâches. Les autres
+     écrans ne sont pas destinés au mobile et gardent leur rendu.
+
+     Chaque ligne devient un bloc, chaque cellule une paire intitulé/valeur.
+     L'intitulé vient de `data-label` : l'en-tête de colonne disparaît, il faut
+     bien que la valeur dise de quoi elle parle. */
+  table.responsive,
+  table.responsive tbody,
+  table.responsive tr,
+  table.responsive td {
+    display: block;
+    width: auto;
+  }
+  /* Avec l'en-tête partent le tri et les filtres par colonne : ils vivent dans
+     le `<th>`. Assumé pour cette passe — voir la note de la PR. */
+  table.responsive thead {
+    display: none;
+  }
+  table.responsive {
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  table.responsive tr {
+    background: var(--md-surface);
+    border-radius: var(--md-radius);
+    box-shadow: var(--md-elev-1);
+    padding: 10px 14px;
+    margin-bottom: 10px;
+  }
+  table.responsive td {
+    border-bottom: none;
+    padding: 5px 0;
+    /* Intitulé à largeur fixe : les valeurs s'alignent d'une ligne à l'autre,
+       ce qui rend la carte lisible en diagonale. */
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 10px;
+    align-items: center;
+    font-size: 14px;
+  }
+  table.responsive td::before {
+    content: attr(data-label);
+    color: var(--md-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  /* --- Cartes repliées ---------------------------------------------------
+     Par défaut on ne montre que le NOM : une liste de trente projets déroulés
+     sur six lignes chacun ne se parcourt pas au pouce. Le reste s'ouvre au
+     besoin, carte par carte.
+
+     La ligne en cours d'ÉDITION est exclue : on ne peut pas remplir un
+     formulaire dont on cache les champs. */
+  table.responsive tr:not(.carte-ouverte):not(.editing) td:not(.carte-titre) {
+    display: none;
+  }
+  /* Le titre n'a pas besoin de son intitulé : « Nom » au-dessus d'un nom de
+     projet n'apprend rien, et c'est la ligne qu'on lit le plus. */
+  table.responsive td.carte-titre {
+    /* En TÊTE de la carte, quelle que soit sa position dans la table : le nom
+       est ce qu'on cherche, et c'est la seule cellule visible une fois repliée.
+       Le laisser en deuxième ligne mettrait l'epic au-dessus du titre. */
+    order: -1;
+    grid-template-columns: 1fr auto;
+    font-weight: 500;
+    font-size: 15px;
+  }
+  /* Sélecteur aligné sur celui qui pose `attr(data-label)` : moins spécifique,
+     il serait ignoré et l'intitulé occuperait la première colonne — renvoyant le
+     chevron à la ligne suivante. */
+  table.responsive td.carte-titre::before {
+    content: none;
+  }
+  .carte-bascule {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* 40 px : cible tactile confortable, sans dépasser la hauteur de la ligne. */
+    width: 40px;
+    height: 40px;
+    margin: -8px -6px -8px 0;
+    border: none;
+    background: none;
+    color: var(--md-text-secondary);
+    cursor: pointer;
+  }
+  .barre-recherche input {
+    max-width: none;
+  }
+
+  /* Une pastille de statut se dimensionne sur son texte : dans une cellule en
+     grille elle s'étirerait sur toute la colonne, et « En cours » occuperait la
+     largeur de l'écran — on ne lirait plus une étiquette mais une bannière. */
+  table.responsive td .tag {
+    justify-self: start;
+  }
+  /* La colonne d'actions n'a pas d'intitulé : elle occupe toute la largeur, et
+     ses boutons passent à la ligne plutôt que de déborder. */
+  table.responsive td.row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    white-space: normal;
+    padding-top: 10px;
+  }
+  /* Une ligne en cours d'édition : les champs occupent la colonne de droite. */
+  table.responsive tr.editing input,
+  table.responsive tr.editing select {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}

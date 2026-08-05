@@ -45,7 +45,18 @@ export default function TasksPage() {
     return m;
   }, [allUsers]);
 
-  const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
+  const { sorted, sortHeader, filteredCount, totalCount, recherche, setRecherche } =
+    useSortableList(items);
+  // Cartes DÉPLIÉES sur écran étroit : identifiants des lignes ouvertes.
+  // Sans effet au-delà du seuil, où la table reste une table — la classe
+  // posée plus bas n'y est lue par aucune règle.
+  const [ouvertes, setOuvertes] = useState<Set<number>>(new Set());
+  const basculer = (id: number) =>
+    setOuvertes((s) => {
+      const n = new Set(s);
+      if (!n.delete(id)) n.add(id);
+      return n;
+    });
 
   function startEdit(t: Task) {
     start(t);
@@ -81,9 +92,18 @@ export default function TasksPage() {
         <button className="btn" onClick={() => nav("/tasks/new", navState(PARENT, SELF))}>+ Ajouter</button>
       </div>
       <ErrorBanner error={err} />
-      <p className="muted">{filteredCount} sur {totalCount}</p>
+      <div className="barre-recherche">
+        <input
+          type="search"
+          placeholder="Rechercher une tâche…"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          aria-label="Rechercher une tâche"
+        />
+        <span className="muted">{filteredCount} sur {totalCount}</span>
+      </div>
 
-      <table>
+      <table className="responsive">
         <thead>
           <tr>
             {sortHeader("Projet", "projet", (t: Task) => projNameById.get(t.projet_id) ?? "")}
@@ -99,7 +119,7 @@ export default function TasksPage() {
           {sorted.map((t) =>
             isEditing(t.id) ? (
               <tr key={t.id} className="editing">
-                <td>
+                <td data-label="Projet">
                   <ProjectSelect
                     value={editDraft.projet_id ?? null}
                     onChange={(id) => patch({projet_id: id ?? undefined })}
@@ -107,34 +127,34 @@ export default function TasksPage() {
                     required
                   />
                 </td>
-                <td>
+                <td data-label="Nom">
                   <input
                     value={editDraft.nom ?? ""}
                     onChange={(ev) => patch({nom: ev.target.value })}
                   />
                 </td>
-                <td>
+                <td data-label="Début">
                   <input
                     type="date"
                     value={editDraft.date_debut ?? ""}
                     onChange={(ev) => patch({date_debut: ev.target.value })}
                   />
                 </td>
-                <td>
+                <td data-label="Fin">
                   <input
                     type="date"
                     value={editDraft.date_fin ?? ""}
                     onChange={(ev) => patch({date_fin: ev.target.value })}
                   />
                 </td>
-                <td>
+                <td data-label="Responsable">
                   <UserSelect
                     value={editDraft.responsable_id ?? null}
                     onChange={(id) => patch({responsable_id: id })}
                     users={allUsers}
                   />
                 </td>
-                <td>
+                <td data-label="Fini">
                   <Switch
                     checked={editDraft.statut === "archive"}
                     onChange={(c) => patch({ statut: c ? "archive" : "ouvert" })}
@@ -147,13 +167,28 @@ export default function TasksPage() {
                 </td>
               </tr>
             ) : (
-              <tr key={t.id}>
-                <td>{projNameById.get(t.projet_id) ?? t.projet_id}</td>
-                <td>{t.nom}</td>
-                <td>{fmtDate(t.date_debut)}</td>
-                <td>{fmtDate(t.date_fin)}</td>
-                <td>{t.responsable_id ? userNameById.get(t.responsable_id) ?? "—" : "—"}</td>
-                <td>
+              <tr key={t.id} className={ouvertes.has(t.id) ? "carte-ouverte" : ""}>
+                <td data-label="Projet">{projNameById.get(t.projet_id) ?? t.projet_id}</td>
+                <td data-label="Nom" className="carte-titre">
+                  {t.nom}
+                  {/* Replier une carte n'a de sens que sur écran étroit : ce bouton
+                      est masqué au-delà du seuil, où la table reste une table. */}
+                  <button
+                    type="button"
+                    className="carte-bascule"
+                    onClick={() => basculer(t.id)}
+                    aria-expanded={ouvertes.has(t.id)}
+                    aria-label={ouvertes.has(t.id) ? `Replier ${t.nom}` : `Déplier ${t.nom}`}
+                  >
+                    <span className="material-symbols-outlined">
+                      {ouvertes.has(t.id) ? "expand_less" : "expand_more"}
+                    </span>
+                  </button>
+                </td>
+                <td data-label="Début">{fmtDate(t.date_debut)}</td>
+                <td data-label="Fin">{fmtDate(t.date_fin)}</td>
+                <td data-label="Responsable">{t.responsable_id ? userNameById.get(t.responsable_id) ?? "—" : "—"}</td>
+                <td data-label="Fini">
                   {t.statut === "archive" ? (
                     <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#2e7d32" }}>check_circle</span>
                   ) : (

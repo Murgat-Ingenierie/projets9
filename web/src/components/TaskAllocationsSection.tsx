@@ -95,7 +95,7 @@ export function TaskAllocationsSection({ taskId, dateDebut, dateFin }: Props) {
         <p className="muted">Aucune équipe allouée sur cette tâche.</p>
       )}
       {allocations.length > 0 && (
-        <table style={{ marginTop: 4 }}>
+        <table className="responsive" style={{ marginTop: 4 }}>
           <thead>
             <tr>
               <th>Équipe</th>
@@ -109,8 +109,8 @@ export function TaskAllocationsSection({ taskId, dateDebut, dateFin }: Props) {
               const eq = allEquipes.find((e) => e.id === a.equipe_id);
               return (
                 <tr key={a.id}>
-                  <td>{eq?.nom ?? `#${a.equipe_id}`}</td>
-                  <td>
+                  <td data-label="Équipe">{eq?.nom ?? `#${a.equipe_id}`}</td>
+                  <td data-label="Heures totales">
                     <input
                       type="number"
                       min={0.5}
@@ -124,8 +124,8 @@ export function TaskAllocationsSection({ taskId, dateDebut, dateFin }: Props) {
                       style={{ width: 80 }}
                     /> h
                   </td>
-                  <td className="muted">{hoursPerWeek(a.heures_allouees)}</td>
-                  <td>
+                  <td className="muted" data-label="Étalé">{hoursPerWeek(a.heures_allouees)}</td>
+                  <td className="row-actions">
                     <BoutonSupprimer onClick={() => removeAllocation(a.id)}>×</BoutonSupprimer>
                   </td>
                 </tr>
