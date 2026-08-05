@@ -8,6 +8,7 @@ import type {
   Project,
   TacheEquipe,
   Task,
+  TaskActivite,
   TaskTodo,
   User,
 } from "../types";
@@ -142,6 +143,15 @@ export const todos = {
   update: (id: number, data: Partial<{ libelle: string; fait: boolean }>) =>
     api<TaskTodo>(`/api/todos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   remove: (id: number) => api<void>(`/api/todos/${id}`, { method: "DELETE" }),
+};
+
+export const activites = {
+  list: (tacheId: number) => api<TaskActivite[]>(`/api/activites?tache_id=${tacheId}`),
+  create: (data: { tache_id: number; texte: string }) =>
+    api<TaskActivite>("/api/activites", { method: "POST", body: JSON.stringify(data) }),
+  /** Pas de `update` : une entrée de journal ne se modifie pas. La suppression
+   *  existe mais l'API la réserve aux administrateurs. */
+  remove: (id: number) => api<void>(`/api/activites/${id}`, { method: "DELETE" }),
 };
 
 export const tacheEquipe = {

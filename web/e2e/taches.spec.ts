@@ -105,3 +105,28 @@ test("la création d'une tâche ne montre pas de liste : elle n'a pas encore d'i
   await expect(page.getByRole("heading", { name: "Nouvelle tâche" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "À faire" })).toHaveCount(0);
 });
+
+// Journal d'activité. Comme la liste de contrôle, il écrit tout de suite et vit
+// hors du formulaire. Ce qu'il faut protéger en plus, c'est l'IMMUABILITÉ : rien
+// ne doit permettre de rouvrir une entrée publiée.
+test("le journal publie tout de suite, et n'offre aucun moyen de modifier", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const calls = await mockApi(page);
+  await page.goto("/tasks/11/edit");
+  await expect(page.getByRole("heading", { name: "Activité" })).toBeVisible();
+  await expect(page.getByText("Rien n'a encore été consigné.")).toBeVisible();
+  // Prévenu AVANT d'écrire, pas en cherchant un bouton « modifier » inexistant.
+  await expect(page.getByText(/ne peut plus être modifiée/)).toBeVisible();
+
+  await page.getByLabel("Nouvelle entrée d'activité").fill("J'ai vissé les boulons");
+  await page.getByRole("button", { name: "Publier" }).click();
+
+  const post = () => calls.find((c) => c.method === "POST" && c.path.endsWith("/api/activites"));
+  await expect.poll(post, { timeout: 5000 }).toBeTruthy();
+  expect(post()!.body).toMatchObject({ tache_id: 11, texte: "J'ai vissé les boulons" });
+  // La signature n'est PAS envoyée par le client : l'API la prend du jeton.
+  expect(Object.keys(post()!.body as object)).not.toContain("auteur_nom");
+  expect(Object.keys(post()!.body as object)).not.toContain("auteur_id");
+  // Et la tâche n'a pas été enregistrée au passage.
+  expect(calls.filter((c) => c.method === "PUT" && c.path.includes("/api/tasks/"))).toHaveLength(0);
+});

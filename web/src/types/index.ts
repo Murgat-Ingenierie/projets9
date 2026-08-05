@@ -82,6 +82,19 @@ export interface TaskTodo {
   updated_at: string;
 }
 
+/** Entrée de journal sur une tâche. IMMUABLE : aucune route ne la modifie —
+ *  c'est ce qui en fait une trace plutôt qu'une note. `auteur_nom` est une copie
+ *  du nom au moment de l'écriture : un journal dit qui a écrit, à cette date-là. */
+export interface TaskActivite {
+  id: number;
+  tache_id: number;
+  texte: string;
+  auteur_id: number | null;
+  auteur_nom: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Measure {
   id: number;
   epic_trigramme: string;

@@ -1,3 +1,4 @@
+from app.models.activite import TaskActivite
 from app.models.dependency import Dependency, DependencyType
 from app.models.epic import Epic, EpicCategory, EpicStatus
 from app.models.equipe import Equipe, TacheEquipe
@@ -21,6 +22,7 @@ __all__ = [
     "ProjectStatus",
     "TacheEquipe",
     "Task",
+    "TaskActivite",
     "TaskStatus",
     "TaskTodo",
     "User",
