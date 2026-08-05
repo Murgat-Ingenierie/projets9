@@ -11,13 +11,16 @@ import { ADMIN, PROJECTS, TASKS } from "./fixtures";
 // le type se déduit des côtés (droite→gauche = FS, gauche→gauche = SS, …). Ce geste
 // EST pilotable en headless et couvert ci-dessous.
 //
-// Restent vérifiés en aperçu live (DnD `mousedown` natif, non pilotable de façon
-// stable en headless — géométrie dépendante de la date/largeur des barres) : le
-// DÉPLACEMENT d'une barre (incr. 2), le DÉPLACEMENT d'un PROJET (summary → décalage
-// en bloc du projet + ses tâches, UN seul undo, cf. planBlockShift) et la SUPPRESSION
-// d'un lien (sélection de la ligne puis bouton corbeille). La logique reste couverte
-// en unitaire (buildSvarLinks/svarLinkToDependency/parseSvarId/planBlockShift,
-// src/planning/*.test.ts).
+// Le GLISSÉ d'une barre était réputé non pilotable en headless. C'était trop large :
+// avec l'horloge figée et la vue Jour, la géométrie est déterministe, et le
+// déplacement comme le redimensionnement d'un PROJET sont couverts ci-dessous —
+// `mouse.down/move/up` sur la barre, assertions sur les requêtes émises. Ce sont les
+// deux gestes qui comptent le plus ici : ils décident du bloc décalé.
+//
+// Restent vérifiés en aperçu live : le déplacement d'une barre de TÂCHE (incr. 2,
+// jamais retenté depuis) et la SUPPRESSION d'un lien (sélection de la ligne puis
+// bouton corbeille). La logique reste couverte en unitaire
+// (buildSvarLinks/svarLinkToDependency/parseSvarId/planBlockShift, src/planning/*.test.ts).
 
 /** Ouvre le planning.
  *
@@ -126,11 +129,10 @@ test.describe("Planning SVAR — parité 2b", () => {
     expect(postDep(calls)!.body).toMatchObject({ tache_amont_id: 12, tache_aval_id: 13, type: "SS" });
   });
 
-  // Le projet 2 « Regulation flux » porte la tâche 13 : sa ligne est donc de type
-  // `summary`, dont SVAR dessine la barre autrement (plus fine, chevrons aux
-  // extrémités). Le vérifier sur CE projet plutôt que sur un projet sans tâche est
-  // délibéré : c'est le cas où une décoration peut être rognée ou masquée.
-  test("projet réalisé : hachure + coche, y compris sur une barre summary", async ({ page }) => {
+  // Le projet 2 « Regulation flux » porte la tâche 13 : on vérifie donc la décoration
+  // sur un projet PARENT, dont la barre est la plus chargée (libellé, hachure, coche).
+  // (Ce test visait à l'origine le type `summary`, que les projets ne portent plus.)
+  test("projet réalisé : hachure + coche, y compris sur un projet parent", async ({ page }) => {
     await gotoSvar(page, undefined, {
       projects: PROJECTS.map((p) => (p.id === 2 ? { ...p, statut: "realise" } : p)),
       // INV-18 : un projet réalisé a toutes ses tâches archivées. La surcharge
@@ -238,6 +240,68 @@ test.describe("Planning SVAR — parité 2b", () => {
     });
     expect(part).toBeGreaterThan(0.15);
     expect(part).toBeLessThan(0.45);
+  });
+
+  // Redimensionner un PROJET au glissé. Longtemps impossible : SVAR refuse le geste
+  // sur les types `summary` et `milestone`, et un projet portant des tâches en était
+  // un. Il n'y a aucune poignée dans le DOM — le geste se déclenche sur les 20 %
+  // extérieurs de la barre — donc le type était l'unique verrou.
+  //
+  // On tire le bord GAUCHE : celui de droite est hors écran (la barre du projet 1
+  // fait plus de 2500 px en vue Jour), et la branche exercée est la même.
+  test("redimensionner un projet au glissé n'affecte que ses dates", async ({ page }) => {
+    const calls = await gotoSvar(page, "Jour");
+    const barre = page.locator('[data-task-id=":proj:1"]');
+    await expect(barre).toBeVisible();
+    const b = (await barre.boundingBox())!;
+    const x = b.x + 3, y = b.y + b.height / 2;
+
+    await page.mouse.move(x, y);
+    // Le curseur EST le signal que SVAR a reconnu la zone : avec un `summary` il
+    // resterait au défaut, et le glissé déplacerait la barre au lieu de l'étirer.
+    await expect.poll(() => barre.evaluate((e) => getComputedStyle(e).cursor)).toBe("col-resize");
+    await page.mouse.down();
+    await page.mouse.move(x + 144, y, { steps: 12 }); // 4 jours à cellWidth 36
+    await page.mouse.up();
+
+    const put = () => calls.find((c) => c.method === "PUT" && c.path.endsWith("/api/projects/1"));
+    await expect.poll(put, { timeout: 5000 }).toBeTruthy();
+    // Le début recule de 4 jours, la fin ne bouge pas : c'est un étirement, pas un
+    // déplacement — la distinction que le code doit faire pour ne pas décaler le bloc.
+    expect(put()!.body).toMatchObject({ date_debut: "2026-07-10", date_fin: "2026-09-15" });
+    // Aucune tâche n'a bougé : on allonge le contenant, pas son contenu.
+    expect(calls.filter((c) => c.method === "PUT" && c.path.includes("/api/tasks/"))).toHaveLength(0);
+  });
+
+  // Le pendant du test précédent, et la vraie régression à craindre : tant que les
+  // projets étaient des `summary`, SVAR décalait lui-même leur sous-arbre au glissé
+  // (`moveSummaryKids`). Il ne le fait plus — le planning s'en charge. Si ce test
+  // tombe, un projet déplacé laisse ses tâches derrière lui.
+  test("déplacer un projet entraîne toujours ses tâches", async ({ page }) => {
+    const calls = await gotoSvar(page, "Jour");
+    const barre = page.locator('[data-task-id=":proj:1"]');
+    await expect(barre).toBeVisible();
+    const b = (await barre.boundingBox())!;
+    // Bien À L'INTÉRIEUR : au-delà des 40 px de la zone d'étirement, et dans l'écran
+    // (la barre déborde largement à droite).
+    const x = b.x + 220, y = b.y + b.height / 2;
+    await page.mouse.move(x, y);
+    await expect.poll(() => barre.evaluate((e) => getComputedStyle(e).cursor)).not.toBe("col-resize");
+    await page.mouse.down();
+    await page.mouse.move(x + 108, y, { steps: 10 }); // 3 jours
+    await page.mouse.up();
+
+    const puts = () => calls.filter((c) => c.method === "PUT");
+    await expect.poll(() => puts().length, { timeout: 5000 }).toBeGreaterThan(1);
+    const projet = puts().find((c) => c.path.endsWith("/api/projects/1"))!.body as Record<string, string>;
+    // Les DEUX bornes glissent du même delta : c'est ce qui distingue le déplacement
+    // de l'étirement, et ce qui déclenche le décalage du bloc.
+    expect(projet).toMatchObject({ date_debut: "2026-07-09", date_fin: "2026-09-18" });
+    // Et les tâches suivent — ce que SVAR faisait pour nous auparavant.
+    const taches = puts().filter((c) => c.path.includes("/api/tasks/"));
+    expect(taches.map((c) => c.path.split("/").pop()).sort()).toEqual(["11", "12"]);
+    expect(taches.find((c) => c.path.endsWith("/11"))!.body)
+      .toMatchObject({ date_debut: "2026-07-09", date_fin: "2026-07-27" });
   });
 
   test("contrôles : zoom Jour/Semaine/Mois + colonne aujourd'hui", async ({ page }) => {

@@ -23,7 +23,7 @@ describe("buildSvarTasks", () => {
     expect(buildSvarTasks(base())).toEqual([]);
   });
 
-  it("arbre epic (summary) → projet (summary) → tâche, relié par parent", () => {
+  it("arbre epic (summary) → projet → tâche, relié par parent", () => {
     const out = buildSvarTasks(base({
       epics: [epic("O50", "Optimisation")],
       projects: [proj(1, "O50", "Capteurs")],
@@ -31,7 +31,7 @@ describe("buildSvarTasks", () => {
     }));
     const m = byId(out);
     expect(m.get("epic:O50")).toMatchObject({ type: "summary", text: "Optimisation" });
-    expect(m.get("proj:1")).toMatchObject({ type: "summary", parent: "epic:O50", text: "Capteurs" });
+    expect(m.get("proj:1")).toMatchObject({ type: "task", parent: "epic:O50", text: "Capteurs" });
     expect(m.get("task:11")).toMatchObject({ type: "task", parent: "proj:1", text: "Choix" });
   });
 
@@ -118,12 +118,38 @@ describe("buildSvarTasks", () => {
     // Activer le groupement sert à reprendre de la hauteur : un epic ouvert
     // d'emblée redonnerait la liste à plat qu'on vient de quitter.
     expect(m.get("epic:O50")).toMatchObject({ open: false });
-    expect(m.get("proj:1")).toMatchObject({ type: "summary", open: false });
+    expect(m.get("proj:1")).toMatchObject({ open: false });
   });
 
-  it("un projet sans tâche est une feuille (type task), pas un summary vide", () => {
-    const out = buildSvarTasks(base({ epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")] }));
-    expect(byId(out).get("proj:1")).toMatchObject({ type: "task" });
+  // Le type d'un projet est ce qui décide s'il est redimensionnable : SVAR refuse
+  // le geste sur `summary` et `milestone`. Un projet fut longtemps `summary` dès
+  // qu'il portait des tâches, et c'était l'unique raison pour laquelle on ne
+  // pouvait pas l'allonger à la souris. Ce test verrouille la correction.
+  it("un projet est TOUJOURS de type task, avec ou sans tâches (redimensionnable)", () => {
+    const sansTaches = buildSvarTasks(base({ epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")] }));
+    expect(byId(sansTaches).get("proj:1")).toMatchObject({ type: "task" });
+
+    const avecTaches = buildSvarTasks(base({
+      epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")],
+      tasksByProject: new Map([[1, [task(11, 1, "T")]]]),
+    }));
+    expect(byId(avecTaches).get("proj:1")).toMatchObject({ type: "task" });
+    // L'epic, lui, reste summary : il n'a pas de dates propres, rien à redimensionner.
+    expect(byId(avecTaches).get("epic:O50")).toMatchObject({ type: "summary" });
+  });
+
+  // Le projet garde SES dates, il n'hérite pas de l'étendue de ses tâches : c'est
+  // ce qui rend un redimensionnement observable, et ce que la hachure « hors
+  // fenêtre » compare pour signaler une tâche débordante.
+  it("un projet conserve ses propres dates, distinctes de celles de ses tâches", () => {
+    const out = buildSvarTasks(base({
+      epics: [epic("O50", "A")], projects: [proj(1, "O50", "P")],
+      tasksByProject: new Map([[1, [task(11, 1, "T")]]]),
+    }));
+    expect(byId(out).get("proj:1")).toMatchObject({
+      start: new Date("2026-01-01T00:00:00"),
+      end: new Date("2026-02-01T00:00:00"),
+    });
   });
 
   it("groupByEpic:false → aucune ligne epic ; projets à la racine (parent absent)", () => {
@@ -134,7 +160,7 @@ describe("buildSvarTasks", () => {
       groupByEpic: false,
     }));
     expect(out.map((r) => r.id)).not.toContain("epic:O50");
-    expect(byId(out).get("proj:1")).toMatchObject({ type: "summary", parent: undefined });
+    expect(byId(out).get("proj:1")).toMatchObject({ type: "task", parent: undefined });
     expect(byId(out).get("task:11")).toMatchObject({ parent: "proj:1" });
   });
 
