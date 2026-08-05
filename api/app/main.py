@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth.oidc import issuer, keycloak_configure
 from app.config import settings
 from app.routes import (
+    activites,
     backups,
     dependencies,
     epics,
@@ -69,6 +70,7 @@ app.include_router(measures.router)
 app.include_router(equipes.router)
 app.include_router(tache_equipe.router)
 app.include_router(todos.router)
+app.include_router(activites.router)
 
 
 @app.get("/api/health")

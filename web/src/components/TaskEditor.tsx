@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { tacheEquipe, tasks } from "../api/endpoints";
 import type { Task } from "../types";
 import { ErrorBanner } from "./ErrorBanner";
+import { JournalActivite } from "./JournalActivite";
 import { ListeTodos } from "./ListeTodos";
 import { TaskFormFields } from "./TaskFormFields";
 import { BoutonSupprimer } from "./BoutonSupprimer";
@@ -146,6 +147,7 @@ export function TaskEditor({
           aurait enregistré la tâche. En édition seulement, parce qu'un todo
           référence sa tâche : à la création, elle n'a pas encore d'identifiant. */}
       {isEdit && <ListeTodos tacheId={taskId!} />}
+      {isEdit && <JournalActivite tacheId={taskId!} />}
     </>
   );
 }

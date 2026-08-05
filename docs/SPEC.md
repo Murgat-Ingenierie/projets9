@@ -169,6 +169,32 @@ invariant, aucun planning, aucune charge.
 Pas de rang : la liste suit l'ordre de création. La **suppression est ouverte aux
 membres** — seule de l'API dans ce cas, cf. §6.
 
+#### Entrée de journal (activité)
+*Ajoutée le 2026-08-05, sur retour d'usage.* Un compte rendu de ce qui a été fait
+sur une tâche — « j'ai vissé les boulons » — horodaté et signé.
+
+| Champ | Type | Notes |
+|---|---|---|
+| `id` | int | PK |
+| `tache_id` | int | FK → Tâche (CASCADE) |
+| `texte` | text | obligatoire, ≤ 2000 |
+| `auteur_id` | int | pris du JETON, jamais du corps de la requête |
+| `auteur_nom` | str(120) | **copie** du nom au moment de l'écriture |
+| `created_at` | datetime | l'horodatage |
+
+**IMMUABLE** : aucune route ne modifie une entrée — ni `PUT`, ni `PATCH`, et le
+schéma de mise à jour n'existe pas. C'est ce qui en fait une trace plutôt qu'une
+note. La suppression existe (une saisie sur la mauvaise tâche arrive) mais elle
+est **réservée aux administrateurs** : ouverte à tous, elle rendrait l'immuabilité
+illusoire — il suffirait de supprimer puis republier.
+
+`auteur_nom` est dupliqué à dessein. Un journal dit qui a écrit *à cette date-là* :
+renommer un compte ensuite ne doit pas réécrire l'histoire, ni le supprimer laisser
+des entrées anonymes (`auteur_id` n'est FK vers rien, comme `updated_by_id`).
+
+Ordre d'affichage : **plus récent d'abord**. On ouvre une tâche pour savoir où
+elle en est, pas pour relire son histoire depuis le début.
+
 ### Audit (sur toutes les entités mutables)
 `created_at`, `updated_at`, `updated_by` (FK User). S'applique aussi à `Équipe` et `TâcheÉquipe`.
 
