@@ -11,8 +11,21 @@ import {
 import type { Dependency, Epic, Equipe, Milestone, Project, TacheEquipe, Task } from "../types";
 
 // Charge les 7 collections du planning en une passe (Promise.all) au montage, et
-// expose `reload` — appelé après chaque mutation (pas de refetch ciblé, cf. R10).
-// Extrait de l'ancien GanttPage.tsx (C9, Phase 1 ; page retirée à la bascule SVAR).
+// expose `reload` — appelé après chaque mutation. Extrait de l'ancien
+// GanttPage.tsx (C9, Phase 1 ; page retirée à la bascule SVAR).
+//
+// R10 : le rechargement reste GLOBAL par défaut, et c'est délibéré. Chaque
+// mutation devrait sinon déclarer ce qu'elle invalide, or les cascades sont
+// larges ici — supprimer un epic emporte projets, tâches, dépendances, jalons et
+// allocations. Un oubli ne casserait rien bruyamment : il laisserait l'écran
+// afficher des données périmées. Sur les volumes réels (~42 ko, sept requêtes
+// parallèles, soit UN aller-retour) le coût ne se sent pas ; le seuil mesuré où
+// il commencerait à peser est vers dix fois ces volumes.
+//
+// `reloadDependances` est la seule exception, et elle est PROUVABLE : créer ou
+// supprimer un lien du planning n'écrit que dans `dependencies` — aucune tâche
+// n'est déplacée, aucune cascade n'est déclenchée. Ce sont aussi les gestes les
+// plus répétés. 3,8 ko au lieu de 42.
 
 export interface PlanningData {
   epics: Epic[];
@@ -23,6 +36,9 @@ export interface PlanningData {
   equipes: Equipe[];
   allocations: TacheEquipe[];
   reload: () => void;
+  /** Recharge les SEULES dépendances. À n'employer que là où l'on peut démontrer
+   *  qu'aucune autre collection n'a pu changer — sinon `reload`. */
+  reloadDependances: () => void;
 }
 
 export function usePlanningData(opts: { onError: (e: unknown) => void }): PlanningData {
@@ -62,9 +78,19 @@ export function usePlanningData(opts: { onError: (e: unknown) => void }): Planni
       .catch((err) => onErrorRef.current(err));
   }, []);
 
+  const reloadDependances = useCallback(() => {
+    depsApi
+      .list()
+      .then(setDependencies)
+      .catch((err) => onErrorRef.current(err));
+  }, []);
+
   useEffect(() => {
     reload();
   }, [reload]);
 
-  return { epics, projects, tasks, dependencies, milestones, equipes, allocations, reload };
+  return {
+    epics, projects, tasks, dependencies, milestones, equipes, allocations,
+    reload, reloadDependances,
+  };
 }
