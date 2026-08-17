@@ -129,6 +129,35 @@ test.describe("Planning SVAR — parité 2b", () => {
     expect(postDep(calls)!.body).toMatchObject({ tache_amont_id: 12, tache_aval_id: 13, type: "SS" });
   });
 
+  // R10, exception ciblée. Créer un lien n'écrit que dans `dependencies` : aucune
+  // tâche n'est déplacée, la cascade FS ne se déclenchant qu'au glissé d'une barre.
+  // On ne recharge donc que cette collection — 3,8 ko au lieu de 42, sur le geste
+  // le plus répété d'un planning.
+  //
+  // Ce test est le garde-fou de l'hypothèse : si un jour créer un lien venait à
+  // déplacer quelque chose, il faudrait revenir au rechargement complet, et c'est
+  // ici qu'on s'en apercevrait — en le voyant échouer volontairement.
+  test("créer un lien ne recharge QUE les dépendances", async ({ page }) => {
+    const calls = await gotoSvar(page);
+    await expandRow(page, "Capteurs O2");
+    await expandRow(page, "Regulation flux");
+    await expect(page.getByText("Etude debit").first()).toBeVisible();
+
+    // Repère : tout ce qui suit appartient au geste, pas au chargement initial.
+    const avant = calls.length;
+    await clickHandle(page, "12", "left");
+    await clickHandle(page, "13", "left");
+    await expect.poll(() => postDep(calls), { timeout: 5000 }).toBeTruthy();
+    await page.waitForTimeout(600); // laisse partir un éventuel rechargement complet
+
+    const lectures = calls.slice(avant).filter((c) => c.method === "GET").map((c) => c.path);
+    expect(lectures).toContain("/api/dependencies");
+    // Les six autres collections n'ont AUCUNE raison d'avoir changé.
+    for (const autre of ["/api/tasks", "/api/projects", "/api/epics", "/api/milestones", "/api/equipes", "/api/tache-equipe"]) {
+      expect(lectures).not.toContain(autre);
+    }
+  });
+
   // Le projet 2 « Regulation flux » porte la tâche 13 : on vérifie donc la décoration
   // sur un projet PARENT, dont la barre est la plus chargée (libellé, hachure, coche).
   // (Ce test visait à l'origine le type `summary`, que les projets ne portent plus.)
