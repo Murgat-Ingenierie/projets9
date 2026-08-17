@@ -108,9 +108,19 @@ jobs:
         working-directory: ./web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # On teste sur la version Node qu'on EXPÉDIE : `web/Dockerfile` construit le
+      # bundle avec `node:26-alpine`. La CI est restée en 20 pendant ce temps —
+      # on validait donc sur un moteur qu'aucun artefact n'utilise.
+      #
+      # Ce n'est pas théorique : la montée de jsdom 30 a échoué ici sur
+      # `webidl.util.markAsUncloneable is not a function`, une fonction absente de
+      # Node 20 (jsdom 30 exige ^22.22.2 || ^24.15.0 || >=26). Le paquet était
+      # sain, c'est le moteur de test qui était en retard sur l'image.
+      #
+      # À garder aligné avec le Dockerfile.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "20"
+          node-version: "26"
       # `npm ci` sans repli : le `|| npm install` d'avant masquait l'absence de
       # package-lock.json, et faisait flotter les versions à chaque exécution.
       - name: Install
@@ -130,9 +140,10 @@ jobs:
         working-directory: ./web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Même version que le job `web` et que l'image (cf. commentaire ci-dessus).
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "20"
+          node-version: "26"
       - name: Install
         run: npm ci
       # Chromium seul : les runners Linux n'ont pas Edge (le channel local). Le
