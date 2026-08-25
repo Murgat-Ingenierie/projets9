@@ -131,7 +131,7 @@ export default function ProjectsPage() {
         <span className="muted">{filteredCount} sur {totalCount}</span>
       </div>
 
-      <table className="responsive">
+      <table className="responsive repliable">
         <thead>
           <tr>
             {sortHeader("Epic", "epic", (p: Project) => epicNameByTri.get(p.epic_trigramme) ?? p.epic_trigramme)}
