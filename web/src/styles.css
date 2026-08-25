@@ -919,6 +919,11 @@ dl.kv dd textarea {
   fill: #1976d2;
 }
 
+/* Bouton d'ouverture du tiroir : n'existe que sous le seuil (cf. plus bas). */
+.ouvre-tiroir {
+  display: none;
+}
+
 /* Bascule de dépliage d'une carte : n'existe que sur écran étroit (cf. plus bas). */
 .carte-bascule {
   display: none;
@@ -1122,5 +1127,70 @@ dl.kv dd textarea {
   table.responsive tr.editing select {
     width: 100%;
     box-sizing: border-box;
+  }
+
+  /* --- Navigation en tiroir ----------------------------------------------
+     Le rail de 64 px prenait 17 % d'un écran de 375, en permanence, pour une
+     navigation qu'on utilise quelques secondes. Il sort donc entièrement du
+     champ et revient par-dessus la page, à la demande. */
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  /* Le mode « déplié » ne doit plus élargir une colonne : il n'y en a qu'une,
+     et c'est la barre elle-même qui se déplace. */
+  .layout.sidebar-expanded {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    width: 260px;
+    /* `translate` et non `left` : la transformation est composée par le
+       navigateur, sans recalcul de mise en page à chaque image. */
+    transform: translateX(-100%);
+    transition: transform var(--md-trans);
+  }
+  .layout.sidebar-expanded .sidebar {
+    transform: translateX(0);
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.28);
+  }
+  /* Le tiroir est toujours déplié quand il est là : un rail d'icônes seules
+     n'aurait pas de sens en surimpression. */
+  .sidebar .label,
+  .sidebar .brand {
+    display: inline;
+  }
+
+  .voile-tiroir {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .ouvre-tiroir {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 20;
+    /* 44 px : cible tactile recommandée, et de quoi ne pas rater le bouton au
+       pouce en tenant le téléphone d'une main. */
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--md-divider);
+    border-radius: var(--md-radius-sm);
+    background: var(--md-surface);
+    color: var(--md-text);
+    cursor: pointer;
+  }
+  /* La page démarre sous le bouton, qui flotte au-dessus d'elle. */
+  .main {
+    padding-top: 60px;
   }
 }
