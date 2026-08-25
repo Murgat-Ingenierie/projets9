@@ -12,7 +12,8 @@
 // Comme la liste de contrôle, ce bloc vit HORS du `<form>` de la tâche : il écrit
 // immédiatement, et sa zone de saisie a besoin de sa propre soumission.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 import { activites as activitesApi } from "../api/endpoints";
 import type { TaskActivite } from "../types";
@@ -36,16 +37,35 @@ function quand(iso: string): string {
   });
 }
 
+/** Ancre de la section, visée par le bouton « Activité » de la liste des tâches. */
+export const ANCRE_ACTIVITE = "activite";
+
 export function JournalActivite({ tacheId }: Props) {
   const [entrees, setEntrees] = useState<TaskActivite[]>([]);
   const [texte, setTexte] = useState("");
   const [err, setErr] = useState<unknown>(null);
+  const section = useRef<HTMLElement>(null);
+  const { hash } = useLocation();
+  // Une seule fois : sans ce garde, toute écriture rechargerait la liste et
+  // ramènerait l'écran ici, alors que l'utilisateur a pu défiler ailleurs entre-temps.
+  const dejaAmene = useRef(false);
 
   const recharger = useCallback(() => {
     activitesApi.list(tacheId).then(setEntrees).catch(setErr);
   }, [tacheId]);
 
   useEffect(recharger, [recharger]);
+
+  // Amener la section à l'écran quand on arrive par le bouton « Activité » de la
+  // liste des tâches. Déclenché à l'ARRIVÉE des entrées, pas au montage : la
+  // section est alors à sa hauteur définitive, sinon on viserait un bloc vide qui
+  // grandit ensuite sous le point d'arrivée.
+  useEffect(() => {
+    if (dejaAmene.current) return;
+    if (hash !== `#${ANCRE_ACTIVITE}`) return;
+    dejaAmene.current = true;
+    section.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [hash, entrees]);
 
   async function publier(e: React.FormEvent) {
     e.preventDefault();
@@ -75,7 +95,7 @@ export function JournalActivite({ tacheId }: Props) {
   }
 
   return (
-    <section style={{ marginTop: 20 }}>
+    <section id={ANCRE_ACTIVITE} ref={section} style={{ marginTop: 20, scrollMarginTop: 64 }}>
       <h3 style={{ fontSize: 15, margin: "0 0 8px" }}>Activité</h3>
       <ErrorBanner error={err} />
 

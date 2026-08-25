@@ -7,6 +7,7 @@ import { ProjectSelect, UserSelect } from "../components/selects";
 import { Switch } from "../components/Switch";
 import { useInlineEdit } from "../hooks/useInlineEdit";
 import { useSortableList } from "../hooks/useSort";
+import { ANCRE_ACTIVITE } from "../components/JournalActivite";
 import {
   FiltreResponsable,
   predicatResponsable,
@@ -216,6 +217,16 @@ export default function TasksPage() {
                     onClick={() => nav(`/tasks/${t.id}/edit`, navState(PARENT, SELF))}
                   >
                     Ouvrir
+                  </button>
+                  {/* Le journal vit en bas de la page de la tâche : « Ouvrir »
+                      y menait déjà, mais il fallait le savoir puis défiler.
+                      L'ancre amène directement dessus. */}
+                  <button
+                    className="btn secondary"
+                    onClick={() => nav(`/tasks/${t.id}/edit#${ANCRE_ACTIVITE}`, navState(PARENT, SELF))}
+                    title={`Activité de « ${t.nom} »`}
+                  >
+                    Activité
                   </button>
                 </td>
               </tr>

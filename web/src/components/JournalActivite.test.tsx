@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render as rendreBrut, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import { JournalActivite } from "./JournalActivite";
 import { useAuth } from "../auth";
@@ -20,6 +21,10 @@ vi.mock("../api/endpoints", () => ({
   },
 }));
 vi.mock("../auth", () => ({ useAuth: vi.fn() }));
+
+// Le journal lit le fragment d'URL pour savoir s'il doit s'amener à l'écran
+// (bouton « Activité » de la liste des tâches) : il lui faut donc un routeur.
+const render = (ui: React.ReactElement) => rendreBrut(<MemoryRouter>{ui}</MemoryRouter>);
 
 const entree = (id: number, texte: string, auteur = "Mathieu Pourbaix") => ({
   id, tache_id: 5, texte, auteur_id: 2, auteur_nom: auteur,

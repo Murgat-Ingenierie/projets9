@@ -228,7 +228,26 @@ export default function ProjectEditPage() {
                       <span style={{ color: "#bdbdbd" }}>—</span>
                     )}
                   </td>
-                  <td></td>
+                  {/* Les tâches du projet étaient listées mais sans issue : on
+                      lisait un nom sans pouvoir l'ouvrir. Le fil d'Ariane reprend
+                      le projet comme parent, pour que le retour ramène ici et non
+                      à la liste générale des tâches. */}
+                  <td className="row-actions">
+                    <button
+                      className="btn secondary"
+                      onClick={() =>
+                        nav(
+                          `/tasks/${t.id}/edit`,
+                          navState(parentCrumbs, {
+                            label: project?.nom ?? "Projet",
+                            to: `/projects/${projectId}/edit`,
+                          })
+                        )
+                      }
+                    >
+                      Ouvrir
+                    </button>
+                  </td>
                 </tr>
               );
             })}

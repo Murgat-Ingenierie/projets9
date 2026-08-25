@@ -130,3 +130,60 @@ test("le journal publie tout de suite, et n'offre aucun moyen de modifier", asyn
   // Et la tâche n'a pas été enregistrée au passage.
   expect(calls.filter((c) => c.method === "PUT" && c.path.includes("/api/tasks/"))).toHaveLength(0);
 });
+
+// Atteindre une tâche, et son journal, sans savoir où ils se trouvent.
+//
+// Le journal vit en bas de la page d'une tâche : « Ouvrir » y menait déjà, mais
+// il fallait le savoir puis défiler. Et les tâches d'un projet étaient listées
+// sur sa page sans aucune issue — on lisait un nom sans pouvoir l'ouvrir.
+
+test("« Activité » ouvre la tâche directement sur son journal", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 700 });
+  await mockApi(page);
+  await page.goto("/tasks");
+  await expect(page.getByText("Choix capteurs")).toBeVisible();
+
+  await page.locator("tr", { hasText: "Choix capteurs" })
+    .getByRole("button", { name: "Activité" }).click();
+
+  // L'ancre est dans l'URL : c'est elle qui distingue ce bouton d'« Ouvrir ».
+  await expect(page).toHaveURL(/\/tasks\/11\/edit#activite$/);
+  const journal = page.locator("#activite");
+  await expect(journal).toBeVisible();
+  // Et il est réellement amené à l'écran, pas seulement présent dans la page :
+  // sans le défilement, on retomberait en haut du formulaire.
+  await expect.poll(async () => journal.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return r.top >= -5 && r.top < window.innerHeight;
+  })).toBe(true);
+});
+
+test("« Ouvrir » sans ancre ne défile pas jusqu'au journal", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 700 });
+  await mockApi(page);
+  await page.goto("/tasks");
+  await expect(page.getByText("Choix capteurs")).toBeVisible();
+
+  await page.locator("tr", { hasText: "Choix capteurs" })
+    .getByRole("button", { name: "Ouvrir" }).click();
+  await expect(page).toHaveURL(/\/tasks\/11\/edit$/);
+  // Le contraire du test précédent : la page s'ouvre en haut, sur le formulaire.
+  await expect(page.getByRole("heading", { name: /Modifier la tâche/ })).toBeInViewport();
+});
+
+test("depuis un projet, on atteint ses tâches", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await mockApi(page);
+  await page.goto("/projects/1/edit");
+  await expect(page.getByRole("heading", { name: /Capteurs O2/ })).toBeVisible();
+
+  // Les tâches du projet sont listées ; c'est l'issue qui manquait.
+  const ligne = page.locator("tr", { hasText: "Pose et calibration" });
+  await expect(ligne).toBeVisible();
+  await ligne.getByRole("button", { name: "Ouvrir" }).click();
+
+  await expect(page).toHaveURL(/\/tasks\/12\/edit$/);
+  // Le retour ramène au PROJET, pas à la liste générale des tâches : c'est de là
+  // qu'on vient.
+  await expect(page.locator(".breadcrumb a", { hasText: "Capteurs O2" })).toHaveCount(1);
+});
