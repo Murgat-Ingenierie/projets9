@@ -151,3 +151,84 @@ test("la recherche sert aussi sur grand écran", async ({ page }) => {
   await page.getByLabel("Rechercher une tâche").fill("calibration");
   await expect(page.locator("tbody tr")).toHaveCount(1);
 });
+
+// --- Navigation mobile -------------------------------------------------------
+
+test("sur écran étroit, le planning n'est pas rendu : « / » mène à Projets", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await mockApi(page);
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page.getByRole("heading", { name: "Projets" })).toBeVisible();
+});
+
+test("sur grand écran, « / » reste le planning", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await mockApi(page);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
+});
+
+// Un lien qui renvoie systématiquement ailleurs est plus déroutant que son
+// absence : ni la navigation ni le fil d'Ariane ne doivent proposer le planning
+// là où il est inatteignable.
+test("aucun chemin ne propose le planning sur écran étroit", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await mockApi(page);
+  await page.goto("/projects");
+  await expect(page.getByText("Capteurs O2")).toBeVisible();
+
+  await expect(page.locator(".breadcrumb a", { hasText: "Planning" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Ouvrir le menu" }).click();
+  await expect(page.locator(".sidebar nav a", { hasText: "Planning" })).toHaveCount(0);
+  // Les autres entrées, elles, sont bien là — sinon ce test passerait sur une
+  // navigation vide.
+  await expect(page.locator(".sidebar nav a", { hasText: "Jalons" })).toHaveCount(1);
+});
+
+test("le menu est un tiroir : hors champ, ouvert à la demande, refermé après usage", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await mockApi(page);
+  await page.goto("/projects");
+  await expect(page.getByText("Capteurs O2")).toBeVisible();
+
+  const barre = page.locator(".sidebar");
+  // Le tiroir GLISSE : mesurer juste après le clic attraperait la transition en
+  // cours, pas son aboutissement. On sonde donc jusqu'à l'état final.
+  const horsChamp = async () => {
+    const b = await barre.boundingBox();
+    return b === null || b.x + b.width <= 1;
+  };
+  // Fermé : la barre est entièrement à gauche de l'écran. Le rail de 64 px
+  // prenait 17 % d'un écran de 375 en permanence, pour quelques secondes d'usage.
+  await expect.poll(horsChamp).toBe(true);
+
+  await page.getByRole("button", { name: "Ouvrir le menu" }).click();
+  await expect(page.locator(".voile-tiroir")).toBeVisible();
+  await expect.poll(horsChamp).toBe(false);
+
+  // Le voile referme : c'est le geste attendu d'un tiroir modal. On tape À DROITE
+  // du tiroir (260 px de large) : le voile couvre tout l'écran, mais son centre
+  // est sous le tiroir, qui intercepte le clic — comme pour un vrai doigt.
+  await page.mouse.click(MOBILE.width - 30, 400);
+  await expect(page.locator(".voile-tiroir")).toHaveCount(0);
+  await expect.poll(horsChamp).toBe(true);
+
+  // Et suivre un lien referme aussi — le tiroir recouvre la page, on ne verrait
+  // pas où l'on vient d'arriver.
+  await page.getByRole("button", { name: "Ouvrir le menu" }).click();
+  await page.getByRole("link", { name: "Jalons" }).click();
+  await expect(page.locator(".voile-tiroir")).toHaveCount(0);
+});
+
+test("sur grand écran, le rail reste en place et le bouton du tiroir n'existe pas", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await mockApi(page);
+  await page.goto("/projects");
+  await expect(page.getByText("Capteurs O2")).toBeVisible();
+
+  await expect(page.getByRole("button", { name: "Ouvrir le menu" })).toBeHidden();
+  const b = await page.locator(".sidebar").boundingBox();
+  expect(b!.x).toBe(0);
+  expect(b!.width).toBeGreaterThan(50); // le rail, visible en permanence
+});
