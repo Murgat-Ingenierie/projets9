@@ -3,7 +3,7 @@
 // `users.me()` mocké => l'AuthProvider résout l'utilisateur local.
 import type { Page, Route } from "@playwright/test";
 import type { Project, Task } from "../src/types";
-import { ADMIN, EPICS, PROJECTS, TASKS, MILESTONES, DEPENDENCIES, EQUIPES, TACHE_EQUIPE } from "./fixtures";
+import { ADMIN, ANNUAIRE, EPICS, PROJECTS, TASKS, MILESTONES, DEPENDENCIES, EQUIPES, TACHE_EQUIPE } from "./fixtures";
 
 /** Écarts aux fixtures, pour un test qui a besoin d'un état particulier.
  *
@@ -77,6 +77,10 @@ export async function mockApi(page: Page, over: Surcharges = {}): Promise<ApiCal
 
     if (method === "GET") {
       if (path.endsWith("/api/users/me")) return route.fulfill(json(ADMIN));
+      // Sans cette route, l'annuaire retombait sur le `[]` par défaut : tout
+      // sélecteur de personne s'affichait vide, et un test dessus n'aurait rien
+      // prouvé.
+      if (path.endsWith("/api/users/annuaire")) return route.fulfill(json(ANNUAIRE));
       if (path.endsWith("/api/epics")) return route.fulfill(json(EPICS));
       if (path.endsWith("/api/projects")) return route.fulfill(json(over.projects ?? PROJECTS));
       if (path.endsWith("/api/tasks")) return route.fulfill(json(over.tasks ?? TASKS));

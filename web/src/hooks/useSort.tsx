@@ -16,7 +16,13 @@ function pliable(v: unknown): string {
     .toLocaleLowerCase("fr");
 }
 
-export function useSortableList<T>(items: T[]) {
+/** `predicat` : filtre posé par la page AVANT recherche et filtres de colonne.
+ *
+ *  Il vit ici plutôt que dans un `items.filter()` côté page pour une raison de
+ *  comptage : `totalCount` doit rester le nombre total d'éléments, pas le nombre
+ *  après filtrage. Pré-filtrer à l'extérieur ferait afficher « 2 sur 2 » là où il
+ *  y en a cinq. */
+export function useSortableList<T>(items: T[], predicat?: (item: T) => boolean) {
   const [sort, setSort] = useState<SortState<T> | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
   // Recherche libre, sur TOUTES les colonnes à la fois. Elle se cumule avec les
@@ -27,7 +33,7 @@ export function useSortableList<T>(items: T[]) {
 
   const sorted = useMemo(() => {
     const activeFilters = Object.entries(filters).filter(([, v]) => v && v.trim() !== "");
-    let out: T[] = items;
+    let out: T[] = predicat ? items.filter(predicat) : items;
     const q = pliable(recherche.trim());
     if (q !== "") {
       // Une ligne est retenue si N'IMPORTE quelle colonne correspond — c'est ce
@@ -63,7 +69,7 @@ export function useSortableList<T>(items: T[]) {
       });
     }
     return out;
-  }, [items, sort, filters, recherche]);
+  }, [items, sort, filters, recherche, predicat]);
 
   function sortHeader(
     label: ReactNode,

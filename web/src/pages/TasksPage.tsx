@@ -7,6 +7,11 @@ import { ProjectSelect, UserSelect } from "../components/selects";
 import { Switch } from "../components/Switch";
 import { useInlineEdit } from "../hooks/useInlineEdit";
 import { useSortableList } from "../hooks/useSort";
+import {
+  FiltreResponsable,
+  predicatResponsable,
+  type ValeurResponsable,
+} from "../components/FiltreResponsable";
 import { navState } from "../hooks/useBreadcrumbState";
 import { fmtDate } from "../labels";
 import type { Project, Task } from "../types";
@@ -45,8 +50,12 @@ export default function TasksPage() {
     return m;
   }, [allUsers]);
 
+  // Filtre responsable : tenu ICI, mais appliqué DANS le hook, pour que le
+  // compteur « X sur Y » garde le total réel plutôt que le total après filtrage.
+  const [responsable, setResponsable] = useState<ValeurResponsable>("");
+  const predicat = useMemo(() => predicatResponsable<Task>(responsable), [responsable]);
   const { sorted, sortHeader, filteredCount, totalCount, recherche, setRecherche } =
-    useSortableList(items);
+    useSortableList(items, predicat);
   // Cartes DÉPLIÉES sur écran étroit : identifiants des lignes ouvertes.
   // Sans effet au-delà du seuil, où la table reste une table — la classe
   // posée plus bas n'y est lue par aucune règle.
@@ -99,6 +108,11 @@ export default function TasksPage() {
           value={recherche}
           onChange={(e) => setRecherche(e.target.value)}
           aria-label="Rechercher une tâche"
+        />
+        <FiltreResponsable
+          valeur={responsable}
+          onChange={setResponsable}
+          utilisateurs={allUsers}
         />
         <span className="muted">{filteredCount} sur {totalCount}</span>
       </div>
