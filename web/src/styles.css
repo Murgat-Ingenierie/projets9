@@ -954,6 +954,26 @@ dl.kv dd textarea {
   border-color: var(--md-primary);
 }
 
+.filtre-responsable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.filtre-responsable label {
+  font-size: 12px;
+  color: var(--md-text-secondary);
+}
+.filtre-responsable select {
+  padding: 7px 10px;
+  border: 1px solid var(--md-divider);
+  border-radius: var(--md-radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--md-surface);
+  max-width: 190px;
+}
+
 /* =============================================================
    Écrans étroits — Projets et Tâches seulement
    =============================================================
@@ -1103,8 +1123,24 @@ dl.kv dd textarea {
     color: var(--md-text-secondary);
     cursor: pointer;
   }
+  /* Trois éléments côte à côte ne tiennent pas dans 375 px : l'en-tête s'empile,
+     et le compteur passe en fin de ligne du sélecteur pour ne pas coûter une
+     troisième rangée. */
+  .barre-recherche {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
   .barre-recherche input {
     max-width: none;
+    flex-basis: 100%;
+  }
+  .filtre-responsable {
+    flex: 1;
+  }
+  .filtre-responsable select {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
   }
 
   /* Une pastille de statut se dimensionne sur son texte : dans une cellule en

@@ -17,6 +17,14 @@ export const ADMIN: User = {
   role: "admin", actif: true, created_at: "", updated_at: "",
 };
 
+/** Annuaire réduit — ce que `users.annuaire()` renvoie, et ce qui peuple le
+ *  sélecteur de responsable. Deux personnes suffisent : une qui porte des lignes,
+ *  une qui n'en porte aucune, pour distinguer « filtre vide » de « filtre cassé ». */
+export const ANNUAIRE = [
+  { id: 1, nom: "Admin Test" },
+  { id: 2, nom: "Mathieu Pourbaix" },
+];
+
 export const EPICS: Epic[] = [
   {
     trigramme: "O50", nom: "Optimisation bassins", critere_reussite: null,
