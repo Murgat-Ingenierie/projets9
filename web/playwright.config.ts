@@ -3,7 +3,11 @@ import { defineConfig } from "@playwright/test";
 // Filet e2e du planning (Phase 0 du plan C9). Les tests pilotent le Gantt réel
 // dans un vrai navigateur (Edge système, pas de téléchargement) et mockent l'API
 // côté Playwright — pas de backend requis, déterministe, rejouable en CI.
-const PORT = 5174;
+// 8882 et non 5174 : le port par défaut de Vite est disputé par les autres
+// projets de la machine, et `reuseExistingServer` (hors CI) fait alors tourner
+// la suite contre CE QUI RÉPOND — une autre application. Des tests qui ne
+// vérifient qu'une absence de débordement passeraient sans rien prouver.
+const PORT = 8882;
 
 // En CI (runners Linux, pas d'Edge) : chromium bundlé (installé par le job CI).
 // En local : Edge système par défaut (pas de téléchargement) ; surchargeable via

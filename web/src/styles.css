@@ -1084,13 +1084,21 @@ dl.kv dd textarea {
     font-weight: 500;
   }
   /* --- Cartes repliées ---------------------------------------------------
+     Réservé aux tables marquées `repliable`, EN PLUS de `responsive` : replier
+     suppose qu'une colonne fasse office de titre, ce qui n'a pas toujours de
+     sens — une dépendance est une relation entre deux tâches, la réduire à l'une
+     d'elles perdrait ce qu'elle dit.
+
+     Ce marqueur est un opt-in délibéré. La règle visait d'abord toute table
+     `responsive`, et masquait donc TOUTES les cellules de celles qui n'avaient
+     pas de `carte-titre` — la table des allocations d'une tâche était ainsi
+     devenue invisible sur mobile sans que rien ne le signale.
+
      Par défaut on ne montre que le NOM : une liste de trente projets déroulés
      sur six lignes chacun ne se parcourt pas au pouce. Le reste s'ouvre au
-     besoin, carte par carte.
-
-     La ligne en cours d'ÉDITION est exclue : on ne peut pas remplir un
-     formulaire dont on cache les champs. */
-  table.responsive tr:not(.carte-ouverte):not(.editing) td:not(.carte-titre) {
+     besoin, carte par carte. La ligne en cours d'ÉDITION est exclue : on ne peut
+     pas remplir un formulaire dont on cache les champs. */
+  table.responsive.repliable tr:not(.carte-ouverte):not(.editing) td:not(.carte-titre) {
     display: none;
   }
   /* Le titre n'a pas besoin de son intitulé : « Nom » au-dessus d'un nom de
@@ -1122,6 +1130,17 @@ dl.kv dd textarea {
     background: none;
     color: var(--md-text-secondary);
     cursor: pointer;
+    overflow: hidden;
+  }
+  /* La police d'icônes vient de Google Fonts : tant qu'elle n'est pas arrivée, la
+     ligature ne s'applique pas et le mot « expand_more » s'affiche littéralement —
+     130 px de texte. Borner le BOUTON ne suffit pas : il masque le rendu, mais la
+     boîte de l'icône garde sa largeur et continue de pousser la mise en page. On
+     borne donc l'icône elle-même. */
+  .carte-bascule .material-symbols-outlined {
+    display: block;
+    width: 24px;
+    overflow: hidden;
   }
   /* Trois éléments côte à côte ne tiennent pas dans 375 px : l'en-tête s'empile,
      et le compteur passe en fin de ligne du sélecteur pour ne pas coûter une

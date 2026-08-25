@@ -52,7 +52,8 @@ export default function DependenciesPage() {
     return m;
   }, [allTasks]);
 
-  const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
+  const { sorted, sortHeader, filteredCount, totalCount, recherche, setRecherche } =
+    useSortableList(items);
 
   async function remove(id: number) {
     if (!confirm("Supprimer cette dépendance ?")) return;
@@ -77,9 +78,21 @@ export default function DependenciesPage() {
         )}
       </div>
       <ErrorBanner error={err} />
+      {/* Les filtres par colonne vivent dans l'en-tête, masqué sur écran étroit :
+          la recherche libre est alors le seul moyen de filtrer. */}
+      <div className="barre-recherche">
+        <input
+          type="search"
+          placeholder="Rechercher une dépendance…"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          aria-label="Rechercher une dépendance"
+        />
+        <span className="muted">{filteredCount} sur {totalCount}</span>
+      </div>
       <p className="muted">
-        {filteredCount} sur {totalCount}. Le <strong>type</strong> se change directement ;
-        déplacer une extrémité demande toujours de supprimer puis recréer.
+        Le <strong>type</strong> se change directement ; déplacer une extrémité demande
+        toujours de supprimer puis recréer.
       </p>
       <p className="muted">
         Seules les dépendances <strong>Fin → Début</strong> décalent les tâches en cascade sur le
@@ -87,7 +100,7 @@ export default function DependenciesPage() {
         déplace rien — changer le type change donc le comportement, pas seulement le libellé.
       </p>
 
-      <table>
+      <table className="responsive">
         <thead>
           <tr>
             {sortHeader("Amont", "amont", (d: Dependency) => taskName.get(d.tache_amont_id) ?? "")}
@@ -99,9 +112,9 @@ export default function DependenciesPage() {
         <tbody>
           {sorted.map((d) => (
             <tr key={d.id}>
-              <td>{taskName.get(d.tache_amont_id) ?? `tâche #${d.tache_amont_id}`}</td>
-              <td>{taskName.get(d.tache_aval_id) ?? `tâche #${d.tache_aval_id}`}</td>
-              <td>
+              <td data-label="Amont">{taskName.get(d.tache_amont_id) ?? `tâche #${d.tache_amont_id}`}</td>
+              <td data-label="Aval">{taskName.get(d.tache_aval_id) ?? `tâche #${d.tache_aval_id}`}</td>
+              <td data-label="Type">
                 {/* Un seul champ modifiable : on enregistre au changement plutôt
                     que d'ouvrir un mode édition, qui coûterait deux clics de plus
                     pour choisir dans une liste de trois. */}
@@ -118,7 +131,7 @@ export default function DependenciesPage() {
                   TYPE_LABELS[d.type]
                 )}
               </td>
-              <td><BoutonSupprimer onClick={() => remove(d.id)} /></td>
+              <td className="row-actions"><BoutonSupprimer onClick={() => remove(d.id)} /></td>
             </tr>
           ))}
         </tbody>

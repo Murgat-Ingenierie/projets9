@@ -118,7 +118,7 @@ export default function TasksPage() {
         <span className="muted">{filteredCount} sur {totalCount}</span>
       </div>
 
-      <table className="responsive">
+      <table className="responsive repliable">
         <thead>
           <tr>
             {sortHeader("Projet", "projet", (t: Task) => projNameById.get(t.projet_id) ?? "")}

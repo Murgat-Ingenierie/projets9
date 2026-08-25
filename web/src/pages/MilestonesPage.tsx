@@ -41,7 +41,15 @@ export default function MilestonesPage() {
       .map((id) => projectName.get(id) ?? `#${id}`)
       .join(", ");
 
-  const { sorted, sortHeader, filteredCount, totalCount } = useSortableList(items);
+  const { sorted, sortHeader, filteredCount, totalCount, recherche, setRecherche } =
+    useSortableList(items);
+  const [ouvertes, setOuvertes] = useState<Set<number>>(new Set());
+  const basculer = (id: number) =>
+    setOuvertes((s) => {
+      const n = new Set(s);
+      if (!n.delete(id)) n.add(id);
+      return n;
+    });
 
   function startEdit(m: Milestone) {
     setEditing(m.id);
@@ -86,9 +94,20 @@ export default function MilestonesPage() {
         <button className="btn" onClick={() => nav("/milestones/new", navState(PARENT, SELF))}>+ Ajouter</button>
       </div>
       <ErrorBanner error={err} />
-      <p className="muted">{filteredCount} sur {totalCount}</p>
+      {/* Les filtres par colonne vivent dans l'en-tête, masqué sur écran étroit :
+          la recherche libre est alors le seul moyen de filtrer. */}
+      <div className="barre-recherche">
+        <input
+          type="search"
+          placeholder="Rechercher un jalon…"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          aria-label="Rechercher un jalon"
+        />
+        <span className="muted">{filteredCount} sur {totalCount}</span>
+      </div>
 
-      <table>
+      <table className="responsive repliable">
         <thead>
           <tr>
             {sortHeader("Projets", "projets", projectsLabel)}
@@ -102,21 +121,21 @@ export default function MilestonesPage() {
           {sorted.map((m) =>
             editing === m.id ? (
               <tr key={m.id} className="editing">
-                <td>{projectsLabel(m)}</td>
-                <td>
+                <td data-label="Projets">{projectsLabel(m)}</td>
+                <td data-label="Nom">
                   <input
                     value={editDraft.nom ?? ""}
                     onChange={(ev) => setEditDraft({ ...editDraft, nom: ev.target.value })}
                   />
                 </td>
-                <td>
+                <td data-label="Date">
                   <input
                     type="date"
                     value={editDraft.date ?? ""}
                     onChange={(ev) => setEditDraft({ ...editDraft, date: ev.target.value })}
                   />
                 </td>
-                <td>
+                <td data-label="Atteint">
                   <input
                     type="checkbox"
                     checked={!!editDraft.atteint}
@@ -130,12 +149,25 @@ export default function MilestonesPage() {
                 </td>
               </tr>
             ) : (
-              <tr key={m.id}>
-                <td>{projectsLabel(m)}</td>
-                <td>{m.nom}</td>
-                <td>{fmtDate(m.date)}</td>
-                <td>{m.atteint ? "Oui" : "Non"}</td>
-                <td><button className="btn secondary" onClick={() => startEdit(m)}>Éditer</button></td>
+              <tr key={m.id} className={ouvertes.has(m.id) ? "carte-ouverte" : ""}>
+                <td data-label="Projets">{projectsLabel(m)}</td>
+                <td data-label="Nom" className="carte-titre">
+                  {m.nom}
+                  <button
+                    type="button"
+                    className="carte-bascule"
+                    onClick={() => basculer(m.id)}
+                    aria-expanded={ouvertes.has(m.id)}
+                    aria-label={ouvertes.has(m.id) ? `Replier ${m.nom}` : `Déplier ${m.nom}`}
+                  >
+                    <span className="material-symbols-outlined">
+                      {ouvertes.has(m.id) ? "expand_less" : "expand_more"}
+                    </span>
+                  </button>
+                </td>
+                <td data-label="Date">{fmtDate(m.date)}</td>
+                <td data-label="Atteint">{m.atteint ? "Oui" : "Non"}</td>
+                <td className="row-actions"><button className="btn secondary" onClick={() => startEdit(m)}>Éditer</button></td>
               </tr>
             )
           )}

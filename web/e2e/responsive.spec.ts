@@ -232,3 +232,67 @@ test("sur grand écran, le rail reste en place et le bouton du tiroir n'existe p
   expect(b!.x).toBe(0);
   expect(b!.width).toBeGreaterThan(50); // le rail, visible en permanence
 });
+
+// --- Jalons et Dépendances ---------------------------------------------------
+
+test("les jalons deviennent des cartes repliées, comme Projets et Tâches", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await mockApi(page);
+  await page.goto("/milestones");
+  await expect(page.getByText("Bassin pilote equipe")).toBeVisible();
+
+  expect(await debordements(page)).toEqual([]);
+  const date = page.locator('td[data-label="Date"]').first();
+  await expect(date).toBeHidden();
+  await page.getByRole("button", { name: /Déplier Bassin pilote equipe/ }).click();
+  await expect(date).toBeVisible();
+});
+
+// Une dépendance est une RELATION entre deux tâches : la replier sur l'une de
+// ses extrémités perdrait ce qu'elle dit. Elle passe donc en cartes sans
+// repliage — d'où l'absence de `repliable` sur sa table.
+test("les dépendances passent en cartes, mais ne se replient pas", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await mockApi(page);
+  await page.goto("/dependencies");
+  await expect(page.getByText("Pose et calibration")).toBeVisible();
+
+  expect(await debordements(page)).toEqual([]);
+  await expect(page.locator("table.responsive.repliable")).toHaveCount(0);
+  // Les trois champs restent lisibles sans aucun geste.
+  for (const l of ["Amont", "Aval", "Type"]) {
+    await expect(page.locator(`td[data-label="${l}"]`).first()).toBeVisible();
+  }
+  await expect(page.locator(".carte-bascule")).toHaveCount(0);
+});
+
+// Régression de la première passe responsive : la règle de repliage visait TOUTE
+// table `responsive`, et masquait donc toutes les cellules de celles qui n'ont
+// pas de colonne-titre. La table des allocations d'une tâche était devenue
+// invisible sur mobile, sans que rien ne le signale.
+test("une table responsive sans colonne-titre reste lisible", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await mockApi(page);
+  await page.goto("/tasks/11/edit");
+  await expect(page.getByRole("heading", { name: /Équipes/ })).toBeVisible();
+
+  const equipe = page.locator('td[data-label="Équipe"]').first();
+  await expect(equipe).toBeVisible();
+  await expect(equipe).toContainText("Equipe A");
+});
+
+test("la recherche est disponible sur les quatre listes", async ({ page }) => {
+  await page.setViewportSize(MOBILE);
+  await mockApi(page);
+  for (const [url, intitule] of [
+    ["/projects", "Rechercher un projet"],
+    ["/tasks", "Rechercher une tâche"],
+    ["/milestones", "Rechercher un jalon"],
+    ["/dependencies", "Rechercher une dépendance"],
+  ]) {
+    await page.goto(url);
+    // Sans elle, il n'y a AUCUN moyen de filtrer à cette largeur : les filtres
+    // par colonne vivent dans l'en-tête, qui est masqué.
+    await expect(page.getByLabel(intitule)).toBeVisible();
+  }
+});
