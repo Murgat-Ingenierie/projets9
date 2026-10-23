@@ -23,6 +23,7 @@ import ChargeEquipesPage from "./pages/ChargeEquipesPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import GanttSvarPage from "./pages/GanttSvarPage";
 import ParametresPage from "./pages/ParametresPage";
+import ClaudePage from "./pages/ClaudePage";
 
 interface NavItem {
   to: string;
@@ -60,6 +61,7 @@ function Sidebar({
     { to: "/dependencies", icon: "account_tree", label: "Dépendances" },
     { to: "/equipes", icon: "groups", label: "Équipes" },
     { to: "/charge", icon: "monitoring", label: "Charge équipes" },
+    { to: "/claude", icon: "smart_toy", label: "Claude" },
   ];
   if (user?.role === "admin") {
     items.push({ to: "/users", icon: "group", label: "Utilisateurs" });
@@ -197,6 +199,7 @@ export default function App() {
         <Route path="/equipes" element={<Layout><EquipesPage /></Layout>} />
         <Route path="/equipes/new" element={<Layout><EquipeNewPage /></Layout>} />
         <Route path="/charge" element={<Layout><ChargeEquipesPage /></Layout>} />
+        <Route path="/claude" element={<Layout><ClaudePage /></Layout>} />
       </Routes>
     </AuthProvider>
   );

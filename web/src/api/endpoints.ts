@@ -205,3 +205,22 @@ export const imports = {
     return api<RapportImport>("/api/import/xlsx", { method: "POST", body: corps });
   },
 };
+
+// Assistant Claude (écran « Claude »). Sans mémoire côté serveur : on renvoie
+// tout le fil à chaque tour. `issue` n'est renseignée que le tour où Claude
+// a ouvert l'issue GitHub — la conversation s'arrête là.
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+export interface IssueCreee {
+  number: number;
+  url: string;
+}
+export const claude = {
+  chat: (messages: ChatMessage[]) =>
+    api<{ reply: string; issue: IssueCreee | null }>("/api/claude/chat", {
+      method: "POST",
+      body: JSON.stringify({ messages }),
+    }),
+};
