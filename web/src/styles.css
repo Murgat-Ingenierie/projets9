@@ -1249,3 +1249,45 @@ dl.kv dd textarea {
     padding-top: 60px;
   }
 }
+
+/* --- Écran « Claude » : un fil de messages et une zone de saisie --- */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 720px;
+  margin: 12px 0;
+}
+.chat-msg {
+  padding: 10px 14px;
+  border-radius: 16px;
+  white-space: pre-wrap;
+  max-width: 85%;
+  line-height: 1.4;
+}
+.chat-msg.user {
+  align-self: flex-end;
+  background: var(--md-primary-light);
+  color: var(--md-primary);
+}
+.chat-msg.assistant {
+  align-self: flex-start;
+  background: var(--md-surface);
+  border: 1px solid var(--md-divider);
+}
+.chat-issue {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--md-success-light);
+  color: var(--md-success);
+}
+.chat-saisie {
+  display: flex;
+  gap: 8px;
+  max-width: 720px;
+  align-items: flex-end;
+}
+.chat-saisie textarea {
+  flex: 1;
+  resize: vertical;
+}

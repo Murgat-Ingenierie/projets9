@@ -43,5 +43,12 @@ class Settings(BaseSettings):
     # données existantes. Destiné aux démos / au développement du front.
     seed_demo: bool = False
 
+    # --- Assistant Claude (écran « Claude » → issue GitHub) ---
+    # Les deux sont OPTIONNELLES : vides, l'écran répond 503 et rien d'autre
+    # ne change. Le jeton GitHub ne sert qu'à ouvrir des issues (scope minimal).
+    anthropic_api_key: str = ""
+    github_token: str = ""
+    github_repo: str = "Murgat-Ingenierie/projets9"
+
 
 settings = Settings()

@@ -212,6 +212,29 @@ Sur une branche de travail sans PR, la CI ne tourne donc pas : ouvrir une PR (m�
 > n'existe pas sur un dépôt privé en plan *free* — la repasser en privé la ferait perdre.
 > Voir [INVENTAIRE.md](INVENTAIRE.md), chantier **C13**.
 
+## Pipeline « Claude » — de la demande au déploiement
+
+```
+écran Claude ──► issue GitHub ──► label « claude-fix » ──► PR ──► CI ──► merge ──► serveur
+   (app)        (sans label)        (un humain)         (Claude)        (un humain)   (deploy.yml)
+```
+
+1. **Écran Claude** (menu) : un membre décrit un bug ou une idée ; Claude (Haiku) pose au
+   besoin une question puis **ouvre une issue**, sans label. Côté serveur : `ANTHROPIC_API_KEY`
+   et `GITHUB_TOKEN` (fine-grained, *Issues : read & write* sur ce seul dépôt) dans `.env`.
+   Sans eux, l'écran répond « non configuré » et rien d'autre ne change.
+2. **Validation 1 (humaine)** : relire l'issue, poser le label **`claude-fix`**.
+3. **`claude-fix.yml`** : Claude (Opus) code sur une branche, teste, et **ouvre une PR**
+   (« Fixes #n »). Secrets du dépôt : `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`) et
+   `GH_BOT_TOKEN` (PAT *repo* + *workflow* — une PR ouverte avec `GITHUB_TOKEN` ne
+   déclencherait pas la CI).
+4. **CI** sur la PR, comme toute PR.
+5. **Validation 2 (humaine)** : relecture, merge.
+6. **`deploy.yml`** : au push sur `main`, un runner **self-hosted sur le serveur** (label
+   `projets9`) fait `git pull` + `docker compose up -d --build` dans `~/projets9`, puis attend
+   `/api/health`. Installer le runner une fois (Settings → Actions → Runners → *New
+   self-hosted runner*, labels `projets9`), puis `sudo ./svc.sh install && sudo ./svc.sh start`.
+
 ## Phase 2 — Tests auto basés sur les invariants
 
 Les invariants sont codés dans [api/app/invariants/checks.py](api/app/invariants/checks.py).

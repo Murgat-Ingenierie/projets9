@@ -8,6 +8,7 @@ from app.config import settings
 from app.routes import (
     activites,
     backups,
+    claude,
     dependencies,
     epics,
     equipes,
@@ -71,6 +72,7 @@ app.include_router(equipes.router)
 app.include_router(tache_equipe.router)
 app.include_router(todos.router)
 app.include_router(activites.router)
+app.include_router(claude.router)
 
 
 @app.get("/api/health")

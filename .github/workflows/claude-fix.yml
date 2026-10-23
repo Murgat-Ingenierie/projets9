@@ -1,0 +1,96 @@
+# Étape de DÉVELOPPEMENT du pipeline « Claude » :
+#   écran Claude (app) → issue GitHub SANS label → un humain pose « claude-fix »
+#   → ce workflow : Claude code un correctif et OUVRE une PR → CI (ci.yml)
+#   → relecture + merge humains → deploy.yml déploie sur le serveur.
+#
+# Le label est le gate : rien ne part en développement sans ce geste. L'issue est
+# créée sans aucun label (cf. api/app/routes/claude.py) pour que sa création ne
+# déclenche pas un run « skipped » parasite.
+#
+# Runner GitHub (ubuntu-latest), pas self-hosted : le dépôt est PUBLIC, et un
+# runner auto-hébergé n'a rien à faire sur un chemin déclenché par des évènements
+# du dépôt. Rien ici n'a besoin de joindre le serveur.
+#
+# NB : l'action ne crée PAS de PR toute seule (elle pousse une branche). On lui
+# demande donc explicitement `gh pr create`. La PR est ouverte via le PAT
+# GH_BOT_TOKEN — c'est ce qui déclenche la CI : une PR ouverte avec GITHUB_TOKEN
+# ne déclenche AUCUN workflow (règle GitHub anti-boucle).
+name: claude-fix
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-fix-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: github.event.label.name == 'claude-fix'
+    runs-on: ubuntu-latest
+    # Pas de plafond de tours côté Claude : le temps de job est la seule borne.
+    timeout-minutes: 60
+    steps:
+      # La POINTE de main, pas le SHA de l'évènement « labeled » (qui peut être
+      # en retard si main a avancé) : le correctif se branche sur le code à jour.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - uses: anthropics/claude-code-action@d5335dd8cf5f4fba83b1231d92b150988f71463b # v1
+        id: claude
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GH_BOT_TOKEN }}
+          # Rapport final dans le « Step Summary » ; le déroulé lisible va dans les
+          # logs via l'étape « Transcription » ci-dessous. Pas de track_progress
+          # (commentaire de suivi sur l'issue) ni de show_full_output (JSON brut).
+          display_report: true
+          prompt: |
+            Implémente un correctif pour l'issue #${{ github.event.issue.number }} du
+            gestionnaire de projet « Les Fontaines » (dépôt ${{ github.repository }}).
+            Travaille et rédige en français.
+
+            Le dépôt : API Python 3.14 (FastAPI + SQLAlchemy + Alembic, tests pytest,
+            lint ruff) dans api/ ; front React 19 + TypeScript + Vite (tests Vitest,
+            e2e Playwright) dans web/. Les règles métier sont des INVARIANTS
+            (api/app/invariants/, docs/SPEC.md) : ne jamais en contourner un.
+
+            1. Lis l'issue et le code concerné. Lis CLAUDE.md / INVENTAIRE.md s'ils existent.
+            2. Crée une branche `claude/fix-issue-${{ github.event.issue.number }}`.
+            3. Applique le correctif MINIMAL, cohérent avec le style du dépôt
+               (commentaires en français qui expliquent le POURQUOI, conventions existantes).
+            4. Ajoute ou ajuste un test (pytest dans api/tests, Vitest dans web/src).
+               Si un modèle change, ajoute la migration Alembic correspondante.
+            5. Vérifie localement : `cd api && ruff check . && pytest -q` ;
+               `cd web && npm ci && npm run lint && npm test && npm run build`.
+            6. Commit, pousse la branche, puis OUVRE une Pull Request vers `main` avec
+               `gh pr create` : titre explicite, corps en français (diagnostic + correctif),
+               terminé par « Fixes #${{ github.event.issue.number }} ».
+            7. N'effectue AUCUNE action destructrice et ne fusionne pas : la PR attend
+               une relecture humaine, c'est la porte de validation du pipeline.
+
+            RÈGLE — pas de @mention : n'écris JAMAIS « @ » suivi d'un identifiant. Le
+            rapport cite le NOM de l'auteur, qui peut coïncider avec un compte GitHub
+            hors équipe. Cite les personnes en texte brut.
+          # Bash autorisé largement : coder exige git, gh, npm, pytest… Une allowlist
+          # granulaire finit en « error_max_turns ». Ce job est derrière le gate humain.
+          claude_args: |
+            --model claude-opus-5-5
+            --allowedTools "Read,Grep,Glob,Edit,Write,Bash"
+
+      # Déroulé lisible (messages + outils + résultat) à partir de l'execution_file.
+      # Best-effort : le script sort toujours 0. Chemin passé par l'environnement,
+      # jamais interpolé dans le shell.
+      - name: Transcription lisible de Claude
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: .github/scripts/format-claude-log.sh "$EXECUTION_FILE"

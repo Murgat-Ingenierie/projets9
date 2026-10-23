@@ -39,6 +39,10 @@ services:
       KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:?renseigner KEYCLOAK_BASE_URL dans .env}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:?renseigner KEYCLOAK_REALM dans .env}
       KEYCLOAK_API_AUDIENCE: ${KEYCLOAK_API_AUDIENCE:-projets9-api}
+      # Assistant Claude — optionnel : vides, l'écran répond 503 et c'est tout.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-Murgat-Ingenierie/projets9}
     volumes:
       - ./Liste des projets en cours - Epic.csv:/seed/epics.csv:ro
       # Historique des sauvegardes : LECTURE SEULE. L'API les liste, elle ne

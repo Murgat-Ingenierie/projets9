@@ -1,0 +1,53 @@
+# Déploiement sur le serveur : ce qui entre dans `main` est mis en production.
+#
+# `main` est protégée (PR obligatoire, CI verte, à jour) : le merge EST la
+# validation humaine. Ce workflow ne fait que rejouer, sur le serveur, le geste
+# qu'on faisait à la main : `git pull` puis `docker compose up -d --build`.
+#
+# Runner SELF-HOSTED, sur le serveur lui-même (label « projets9 ») — c'est ce qui
+# lui donne accès à docker et au checkout qui porte le `.env` (jamais versionné).
+# Un seul déclencheur, `push` sur main, que seuls les mainteneurs peuvent
+# produire : aucun code venu d'un fork ne passe par ici (dépôt public).
+#
+# Pas d'actions/checkout : la stack vit dans ~/projets9 (nom de projet compose
+# « projets9 », `.env` en place). Un checkout dans le workspace du runner
+# monterait une SECONDE stack à côté, en conflit sur le port.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Jamais deux déploiements en même temps ; on ne tue pas celui en cours.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, projets9]
+    timeout-minutes: 20
+    steps:
+      - name: Mettre à jour et reconstruire
+        run: |
+          cd "$HOME/projets9"
+          git fetch --prune origin
+          git checkout -q main
+          git pull --ff-only origin main
+          docker compose up -d --build
+          docker image prune -f >/dev/null
+
+      # /api/health ne répond 200 qu'une fois migrations + uvicorn prêts.
+      - name: Vérifier la santé
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8080/api/health && { echo "déployé : $(git -C "$HOME/projets9" rev-parse --short HEAD)"; exit 0; }
+            sleep 3
+          done
+          echo "::error::l'API ne répond pas après le déploiement"
+          docker compose -f "$HOME/projets9/docker-compose.yml" logs --tail 100 api
+          exit 1
