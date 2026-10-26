@@ -6,9 +6,16 @@ signal qui ouvre l'issue sur le dépôt. L'issue est créée SANS label — un h
 la relit et pose « claude-fix » pour lancer le développement (cf.
 .github/workflows/claude-fix.yml). Rien ne part en développement sans ce geste.
 
-Repli, comme dans murgatchat : si Claude est absent (pas de clé) ou injoignable
-(crédit épuisé, panne), l'issue est ouverte TELLE QUELLE à partir du message —
-la demande n'est jamais perdue, elle est seulement moins bien rédigée. Seul le
+Deux chemins vers Claude, comme dans murgatchat (server/src/anthropic.ts) :
+- le RELAIS `claude-helper` (`SUPPORT_RELAY_URL` + `CLAUDE_HELPER_TOKEN`) : la VM
+  exécute le tour via le SDK Claude Code, sur l'ABONNEMENT — c'est le seul moyen
+  de faire porter ce dialogue par l'abonnement, un jeton d'abonnement sur l'API
+  Messages brute étant throttlé par politique. Il prime quand il est configuré ;
+- sinon la clé API (`ANTHROPIC_API_KEY`), facturée en crédits.
+
+Repli, toujours comme murgatchat : Claude absent ou injoignable (crédit épuisé,
+helper saturé, panne), l'issue est ouverte TELLE QUELLE à partir du message — la
+demande n'est jamais perdue, elle est seulement moins bien rédigée. Seul le
 jeton GitHub est indispensable : sans lui, 503.
 
 La conversation vit côté navigateur (le client renvoie tout le fil à chaque
@@ -19,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Literal
+from typing import Any, Literal
 
 import anthropic
 import requests
@@ -95,8 +102,37 @@ def _sans_mention(texte: str) -> str:
     return re.sub(r"@(?=[a-z0-9_-])", "@​", texte, flags=re.IGNORECASE)
 
 
+class TourRelais(BaseModel):
+    """Réponse de `POST {relais}/support-turn` : le texte, et l'entrée de l'outil
+    `submit_ticket` (title, body, severity?, domain?) si Claude a finalisé."""
+
+    reply: str = ""
+    finalize: dict[str, Any] | None = None
+
+
+# Le helper fournit lui-même l'outil `submit_ticket` (title + body) : on lui
+# décrit le même déroulé, avec ce nom-là. Le type (bug/amélioration) n'a pas de
+# champ dédié chez lui, on le demande dans le titre.
+SYSTEME_RELAIS = SYSTEME.replace("creer_issue", "submit_ticket").replace(
+    "Dans creer_issue :", "Dans submit_ticket :"
+).replace("titre court et explicite", "title : « Bug : … » ou « Amélioration : … », court et explicite")
+
+
+def _appeler_relais(messages: list[dict[str, str]]) -> TourRelais:
+    """Un tour via la VM claude-helper. Isolé pour être remplacé dans les tests.
+    Synchrone, quelques secondes ; 429 `busy` quand deux tours tournent déjà."""
+    r = requests.post(
+        f"{settings.support_relay_url.rstrip('/')}/support-turn",
+        json={"system": SYSTEME_RELAIS, "messages": messages},
+        headers={"Authorization": f"Bearer {settings.claude_helper_token}"},
+        timeout=100,  # le helper coupe à 90 s
+    )
+    r.raise_for_status()
+    return TourRelais.model_validate(r.json())
+
+
 def _appeler_claude(messages: list[dict[str, str]]) -> anthropic.types.Message:
-    """Un tour de conversation. Isolé pour être remplacé dans les tests."""
+    """Un tour de conversation par l'API. Isolé pour être remplacé dans les tests."""
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     return client.messages.create(
         model=MODELE,
@@ -149,11 +185,31 @@ def chat(payload: ChatRequete, me: User = Depends(get_current_user)) -> ChatRepo
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Dépôt d'issues non configuré")
     if payload.messages[-1].role != "user":
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Le dernier message doit venir de l'utilisateur")
+    messages = [m.model_dump() for m in payload.messages]
+
+    if settings.support_relay_url and settings.claude_helper_token:
+        try:
+            tour = _appeler_relais(messages)
+        except (requests.RequestException, ValueError) as e:
+            log.error("relais claude-helper en échec, issue ouverte telle quelle : %s", e)
+            return _issue_telle_quelle(payload, me)
+        if tour.finalize is None:
+            return ChatReponse(reply=tour.reply)
+        f = tour.finalize
+        corps = _sans_mention(str(f.get("body") or ""))
+        if f.get("severity"):
+            corps = f"**Sévérité estimée :** {f['severity']}\n\n{corps}"
+        issue = _ouvrir(f"[Demande] {f.get('title') or 'sans titre'}"[:120], corps, me)
+        return ChatReponse(
+            reply=tour.reply or f"C'est noté : l'issue #{issue.number} est ouverte, l'équipe la relira.",
+            issue=issue,
+        )
+
     if not settings.anthropic_api_key:
         return _issue_telle_quelle(payload, me)
 
     try:
-        reponse = _appeler_claude([m.model_dump() for m in payload.messages])
+        reponse = _appeler_claude(messages)
     except anthropic.AnthropicError as e:
         # Crédit épuisé, saturation, panne : même repli que murgatchat.
         log.error("appel Claude échoué, issue ouverte telle quelle : %s", e)

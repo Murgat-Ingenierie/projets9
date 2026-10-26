@@ -63,6 +63,53 @@ def test_claude_injoignable_l_issue_est_ouverte_telle_quelle(client, auth, confi
     assert "glisse" in recu["corps"] and "@toto" not in recu["corps"] and "toto" in recu["corps"]
 
 
+@pytest.fixture
+def relais(monkeypatch):
+    monkeypatch.setattr(settings, "github_token", "ghp-test")
+    monkeypatch.setattr(settings, "support_relay_url", "http://helper.test:7070")
+    monkeypatch.setattr(settings, "claude_helper_token", "secret")
+    monkeypatch.setattr(claude, "_appeler_claude", lambda m: pytest.fail("le relais prime sur la clé API"))
+
+
+def test_relais_question_sans_issue(client, auth, relais, monkeypatch):
+    monkeypatch.setattr(claude, "_appeler_relais", lambda m: claude.TourRelais(reply="Sur quel écran ?"))
+    r = client.post("/api/claude/chat", json={"messages": [{"role": "user", "content": "Ça bugue"}]}, headers=auth)
+    assert r.status_code == 200, r.text
+    assert r.json() == {"reply": "Sur quel écran ?", "issue": None}
+
+
+def test_relais_finalisation_ouvre_l_issue(client, auth, relais, monkeypatch):
+    """Le helper renvoie l'entrée de `submit_ticket` : title/body/severity → issue."""
+    monkeypatch.setattr(
+        claude,
+        "_appeler_relais",
+        lambda m: claude.TourRelais(
+            finalize={"title": "Bug : jalon figé", "body": "## Résumé\nmerci @toto", "severity": "moyenne"}
+        ),
+    )
+    recu = {}
+    monkeypatch.setattr(
+        claude, "_creer_issue", lambda t, c: (recu.update(titre=t, corps=c), claude.IssueCreee(number=9, url="u"))[1]
+    )
+    r = client.post("/api/claude/chat", json={"messages": [{"role": "user", "content": "Crée l'issue"}]}, headers=auth)
+    assert r.status_code == 200, r.text
+    assert r.json()["issue"]["number"] == 9 and "#9" in r.json()["reply"]
+    assert recu["titre"] == "[Demande] Bug : jalon figé"
+    assert "Sévérité estimée :** moyenne" in recu["corps"] and "@toto" not in recu["corps"]
+
+
+def test_relais_en_panne_issue_telle_quelle(client, auth, relais, monkeypatch):
+    import requests
+
+    def plante(m):
+        raise requests.ConnectionError("helper injoignable")
+
+    monkeypatch.setattr(claude, "_appeler_relais", plante)
+    monkeypatch.setattr(claude, "_creer_issue", lambda t, c: claude.IssueCreee(number=10, url="u"))
+    r = client.post("/api/claude/chat", json={"messages": [{"role": "user", "content": "Le planning plante"}]}, headers=auth)
+    assert r.status_code == 200 and r.json()["issue"]["number"] == 10 and "indisponible" in r.json()["reply"]
+
+
 def test_sans_cle_anthropic_pas_de_dialogue_mais_une_issue(client, auth, monkeypatch):
     monkeypatch.setattr(settings, "github_token", "ghp-test")
     monkeypatch.setattr(claude, "_appeler_claude", lambda m: pytest.fail("Claude ne doit pas être appelé"))
