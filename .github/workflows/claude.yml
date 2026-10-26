@@ -1,0 +1,52 @@
+# Mode interactif : itérer avec Claude en l'interpellant avec « @claude » dans un
+# commentaire d'issue, de PR ou de revue — pour préciser une demande, ou discuter
+# pendant la relecture d'une PR ouverte par claude-fix. Sous l'abonnement Claude
+# Code (claude_code_oauth_token). Même pièce que dans murgatchat.
+#
+# Pas de déclencheur `issues: opened` : le tri se fait déjà dans l'application
+# (écran Claude) avant la création de l'issue, et un run par issue créée serait
+# un run inutile.
+#
+# Garde-fou, dépôt PUBLIC : seuls les auteurs membres de l'organisation (OWNER /
+# MEMBER / COLLABORATOR) déclenchent un run. Un « @claude » venu de l'extérieur ne
+# lance rien — ni coût, ni injection de consignes.
+name: claude
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    if: >-
+      (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+      ) &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # L'action lit la mention et répond elle-même en commentaire.
+      - uses: anthropics/claude-code-action@d5335dd8cf5f4fba83b1231d92b150988f71463b # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GH_BOT_TOKEN }}
+          claude_args: --model claude-sonnet-5-5

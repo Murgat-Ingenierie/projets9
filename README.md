@@ -223,7 +223,9 @@ Sur une branche de travail sans PR, la CI ne tourne donc pas : ouvrir une PR (m�
    besoin une question puis **ouvre une issue**, sans label. Côté serveur : `ANTHROPIC_API_KEY`
    et `GITHUB_TOKEN` (fine-grained, *Issues : read & write* sur ce seul dépôt) dans `.env`.
    Sans eux, l'écran répond « non configuré » et rien d'autre ne change.
-2. **Validation 1 (humaine)** : relire l'issue, poser le label **`claude-fix`**.
+2. **Validation 1 (humaine)** : relire l'issue, poser le label **`claude-fix`**. Pour préciser
+   une demande ou discuter d'une PR, interpeller Claude avec **`@claude`** dans un commentaire
+   (`claude.yml`, réservé aux membres de l'organisation — le dépôt est public).
 3. **`claude-fix.yml`** : Claude (Opus) code sur une branche, teste, et **ouvre une PR**
    (« Fixes #n »). Secrets du dépôt : `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`) et
    `GH_BOT_TOKEN` (PAT *repo* + *workflow* — une PR ouverte avec `GITHUB_TOKEN` ne
