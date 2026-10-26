@@ -32,9 +32,43 @@ def _outil(**entree):
     return SimpleNamespace(type="tool_use", name="creer_issue", input=entree)
 
 
-def test_sans_configuration_la_route_repond_503(client, auth):
+def test_sans_jeton_github_la_route_repond_503(client, auth):
     r = client.post("/api/claude/chat", json={"messages": [{"role": "user", "content": "Bonjour"}]}, headers=auth)
     assert r.status_code == 503
+
+
+def test_claude_injoignable_l_issue_est_ouverte_telle_quelle(client, auth, configure, monkeypatch):
+    """Comme murgatchat : crédit épuisé ou panne, la demande part quand même."""
+    import anthropic
+
+    def plante(m):
+        raise anthropic.AnthropicError("credit balance is too low")
+
+    monkeypatch.setattr(claude, "_appeler_claude", plante)
+    recu = {}
+    monkeypatch.setattr(
+        claude, "_creer_issue", lambda t, c: (recu.update(titre=t, corps=c), claude.IssueCreee(number=7, url="u"))[1]
+    )
+
+    fil = [
+        {"role": "user", "content": "Le jalon ne bouge pas\nquand je le glisse"},
+        {"role": "assistant", "content": "Où exactement ?"},
+        {"role": "user", "content": "Dans le planning, merci @toto"},
+    ]
+    r = client.post("/api/claude/chat", json={"messages": fil}, headers=auth)
+    assert r.status_code == 200, r.text
+    assert r.json()["issue"]["number"] == 7 and "indisponible" in r.json()["reply"]
+    assert recu["titre"] == "[Demande] Le jalon ne bouge pas"
+    assert "Où exactement" not in recu["corps"]  # seuls les messages de l'utilisateur
+    assert "glisse" in recu["corps"] and "@toto" not in recu["corps"] and "toto" in recu["corps"]
+
+
+def test_sans_cle_anthropic_pas_de_dialogue_mais_une_issue(client, auth, monkeypatch):
+    monkeypatch.setattr(settings, "github_token", "ghp-test")
+    monkeypatch.setattr(claude, "_appeler_claude", lambda m: pytest.fail("Claude ne doit pas être appelé"))
+    monkeypatch.setattr(claude, "_creer_issue", lambda t, c: claude.IssueCreee(number=8, url="u"))
+    r = client.post("/api/claude/chat", json={"messages": [{"role": "user", "content": "Bonjour à tous"}]}, headers=auth)
+    assert r.status_code == 200 and r.json()["issue"]["number"] == 8
 
 
 def test_une_question_revient_sans_issue(client, auth, configure, monkeypatch):

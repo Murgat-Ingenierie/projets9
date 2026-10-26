@@ -6,7 +6,11 @@ signal qui ouvre l'issue sur le dépôt. L'issue est créée SANS label — un h
 la relit et pose « claude-fix » pour lancer le développement (cf.
 .github/workflows/claude-fix.yml). Rien ne part en développement sans ce geste.
 
-Sans clé (`ANTHROPIC_API_KEY`) la fonctionnalité est simplement absente : 503.
+Repli, comme dans murgatchat : si Claude est absent (pas de clé) ou injoignable
+(crédit épuisé, panne), l'issue est ouverte TELLE QUELLE à partir du message —
+la demande n'est jamais perdue, elle est seulement moins bien rédigée. Seul le
+jeton GitHub est indispensable : sans lui, 503.
+
 La conversation vit côté navigateur (le client renvoie tout le fil à chaque
 tour) — pas de table, pas de migration, et rien d'intime ne reste en base.
 """
@@ -121,20 +125,39 @@ def _creer_issue(titre: str, corps: str) -> IssueCreee:
     return IssueCreee(number=d["number"], url=d["html_url"])
 
 
+def _ouvrir(titre: str, corps: str, me: User) -> IssueCreee:
+    try:
+        return _creer_issue(titre, f"> Demande déposée depuis l'application par {_sans_mention(me.nom)}.\n\n{corps}")
+    except requests.RequestException as e:
+        log.error("création d'issue échouée : %s", e)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Création de l'issue impossible") from None
+
+
+def _issue_telle_quelle(payload: ChatRequete, me: User) -> ChatReponse:
+    """Repli sans Claude : les messages de l'utilisateur deviennent l'issue."""
+    texte = _sans_mention("\n\n".join(m.content.strip() for m in payload.messages if m.role == "user"))
+    issue = _ouvrir(f"[Demande] {texte.splitlines()[0]}"[:120], texte, me)
+    return ChatReponse(
+        reply=f"L'assistant est indisponible : votre demande a été transmise telle quelle (issue #{issue.number}), l'équipe la relira.",
+        issue=issue,
+    )
+
+
 @router.post("/chat", response_model=ChatReponse)
 def chat(payload: ChatRequete, me: User = Depends(get_current_user)) -> ChatReponse:
-    if not settings.anthropic_api_key or not settings.github_token:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Assistant Claude non configuré")
+    if not settings.github_token:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Dépôt d'issues non configuré")
     if payload.messages[-1].role != "user":
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Le dernier message doit venir de l'utilisateur")
+    if not settings.anthropic_api_key:
+        return _issue_telle_quelle(payload, me)
 
     try:
         reponse = _appeler_claude([m.model_dump() for m in payload.messages])
-    except anthropic.RateLimitError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Assistant saturé, réessayer dans un instant") from None
-    except (anthropic.APIStatusError, anthropic.APIConnectionError) as e:
-        log.error("appel Claude échoué : %s", e)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Assistant injoignable") from None
+    except anthropic.AnthropicError as e:
+        # Crédit épuisé, saturation, panne : même repli que murgatchat.
+        log.error("appel Claude échoué, issue ouverte telle quelle : %s", e)
+        return _issue_telle_quelle(payload, me)
 
     reply = "\n".join(b.text for b in reponse.content if b.type == "text").strip()
     outil = next((b for b in reponse.content if b.type == "tool_use"), None)
@@ -142,17 +165,7 @@ def chat(payload: ChatRequete, me: User = Depends(get_current_user)) -> ChatRepo
         return ChatReponse(reply=reply)
 
     prefixe = "Bug" if outil.input["type"] == "bug" else "Amélioration"
-    titre = f"[{prefixe}] {outil.input['titre']}"[:120]
-    corps = (
-        f"> Demande déposée depuis l'application par {_sans_mention(me.nom)}.\n\n"
-        + _sans_mention(outil.input["corps"])
-    )
-    try:
-        issue = _creer_issue(titre, corps)
-    except requests.RequestException as e:
-        log.error("création d'issue échouée : %s", e)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Création de l'issue impossible") from None
-
+    issue = _ouvrir(f"[{prefixe}] {outil.input['titre']}"[:120], _sans_mention(outil.input["corps"]), me)
     return ChatReponse(
         reply=reply or f"C'est noté : l'issue #{issue.number} est ouverte, l'équipe la relira.",
         issue=issue,
