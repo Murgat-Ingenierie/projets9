@@ -4,14 +4,15 @@
 # validation humaine. Ce workflow ne fait que rejouer, sur le serveur, le geste
 # qu'on faisait à la main : `git pull` puis `docker compose up -d --build`.
 #
-# Runner SELF-HOSTED, sur le serveur lui-même (label « projets9 ») — c'est ce qui
-# lui donne accès à docker et au checkout qui porte le `.env` (jamais versionné).
-# Un seul déclencheur, `push` sur main, que seuls les mainteneurs peuvent
-# produire : aucun code venu d'un fork ne passe par ici (dépôt public).
+# Runner SELF-HOSTED sur la VM des runners (label « projets9 »), PAS sur le
+# serveur : il n'y a aucun runner sur la machine de production. Le runner joint
+# le serveur en SSH via l'alias `projets9` de son ~/.ssh/config (hôte, compte et
+# clé y vivent — rien d'interne dans ce dépôt public), avec la même clé que les
+# autres déploiements de cette VM. Un seul déclencheur, `push` sur main, que
+# seuls les mainteneurs peuvent produire : aucun code venu d'un fork ne passe ici.
 #
-# Pas d'actions/checkout : la stack vit dans ~/projets9 (nom de projet compose
-# « projets9 », `.env` en place). Un checkout dans le workspace du runner
-# monterait une SECONDE stack à côté, en conflit sur le port.
+# Pas d'actions/checkout : la stack vit dans ~/projets9 SUR LE SERVEUR (nom de
+# projet compose « projets9 », `.env` en place). Rien n'est construit sur la VM.
 name: deploy
 
 on:
@@ -32,22 +33,28 @@ jobs:
     runs-on: [self-hosted, projets9]
     timeout-minutes: 20
     steps:
-      - name: Mettre à jour et reconstruire
+      # BatchMode : pas de question interactive — une clé refusée fait échouer
+      # le job au lieu de le bloquer jusqu'au timeout.
+      - name: Mettre à jour et reconstruire (sur le serveur)
         run: |
-          cd "$HOME/projets9"
-          git fetch --prune origin
-          git checkout -q main
-          git pull --ff-only origin main
-          docker compose up -d --build
-          docker image prune -f >/dev/null
+          ssh -o BatchMode=yes -o ConnectTimeout=10 projets9 '
+            set -e
+            cd ~/projets9
+            git fetch --prune origin
+            git checkout -q main
+            git pull --ff-only origin main
+            docker compose up -d --build
+            docker image prune -f >/dev/null
+            echo "déployé : $(git rev-parse --short HEAD)"
+          '
 
       # /api/health ne répond 200 qu'une fois migrations + uvicorn prêts.
       - name: Vérifier la santé
         run: |
           for i in $(seq 1 30); do
-            curl -sf -o /dev/null http://localhost:8080/api/health && { echo "déployé : $(git -C "$HOME/projets9" rev-parse --short HEAD)"; exit 0; }
+            ssh -o BatchMode=yes projets9 'curl -sf -o /dev/null http://localhost:8080/api/health' && { echo "API saine"; exit 0; }
             sleep 3
           done
           echo "::error::l'API ne répond pas après le déploiement"
-          docker compose -f "$HOME/projets9/docker-compose.yml" logs --tail 100 api
+          ssh -o BatchMode=yes projets9 'docker compose -f ~/projets9/docker-compose.yml logs --tail 100 api'
           exit 1
