@@ -27,9 +27,7 @@ dependencies = [
     # L'import du classeur vit désormais DANS l'API (écran Paramètres), plus
     # seulement dans scripts/ : openpyxl remonte donc en dépendance principale.
     "openpyxl>=3.1",
-    # Écran « Claude » : dialogue (SDK Anthropic) puis ouverture d'une issue
-    # GitHub (requests, déjà utilisé par scripts/).
-    "anthropic>=1.0",
+    # Écran « Claude » : ouverture d'une issue GitHub (déjà utilisé par scripts/).
     "requests>=2.32",
 ]
 

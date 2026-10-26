@@ -206,21 +206,14 @@ export const imports = {
   },
 };
 
-// Assistant Claude (écran « Claude »). Sans mémoire côté serveur : on renvoie
-// tout le fil à chaque tour. `issue` n'est renseignée que le tour où Claude
-// a ouvert l'issue GitHub — la conversation s'arrête là.
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+// Écran « Claude » : une demande devient une issue GitHub. Le dialogue avec
+// Claude se poursuit sur l'issue (commentaires @claude), pas ici.
+export type TypeDemande = "bug" | "amelioration";
 export interface IssueCreee {
   number: number;
   url: string;
 }
 export const claude = {
-  chat: (messages: ChatMessage[]) =>
-    api<{ reply: string; issue: IssueCreee | null }>("/api/claude/chat", {
-      method: "POST",
-      body: JSON.stringify({ messages }),
-    }),
+  creerIssue: (data: { type: TypeDemande; titre: string; description: string }) =>
+    api<IssueCreee>("/api/claude/issues", { method: "POST", body: JSON.stringify(data) }),
 };

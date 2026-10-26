@@ -1,0 +1,94 @@
+# Dialogue avec Claude SUR l'issue — l'étape « clarification » du pipeline, sous
+# l'abonnement Claude Code (claude_code_oauth_token), pas l'API payante.
+#
+# Deux déclencheurs :
+#   - `issues: opened` : Claude relit une demande déposée depuis l'application
+#     (api/app/routes/claude.py) et, si elle est floue, pose ses questions en
+#     commentaire. Il ne code RIEN ici.
+#   - `@claude` dans un commentaire d'issue ou de PR : mode interactif, pour
+#     répondre à ses questions ou itérer avec lui pendant une revue.
+#
+# Garde-fou, dépôt PUBLIC : seuls les auteurs membres de l'organisation (OWNER /
+# MEMBER / COLLABORATOR) déclenchent un run. Une issue ou un « @claude » venu de
+# l'extérieur ne lance rien — ni coût, ni injection de consignes.
+name: claude
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  # Relecture d'une nouvelle issue : questions, ou simple accusé si tout y est.
+  relire:
+    if: >-
+      github.event_name == 'issues' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: anthropics/claude-code-action@d5335dd8cf5f4fba83b1231d92b150988f71463b # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GH_BOT_TOKEN }}
+          prompt: |
+            Tu relis l'issue #${{ github.event.issue.number }} du dépôt ${{ github.repository }}
+            (gestionnaire de projet « Les Fontaines » : API FastAPI dans api/, front React dans
+            web/). Rédige en français, de façon concise et directe.
+
+            Lis l'issue (`gh issue view ${{ github.event.issue.number }}`) et, si utile, le code
+            qu'elle désigne — pour comprendre, pas pour corriger.
+
+            Puis poste UN commentaire (`gh issue comment ${{ github.event.issue.number }}`) :
+            - si la demande est actionnable par un développeur : une reformulation en deux ou
+              trois lignes (ce qui se passe, ce qui est attendu, où dans le code probablement),
+              et la phrase « Prête pour `claude-fix` si l'équipe valide. » ;
+            - sinon : une à trois questions courtes, les plus utiles, en indiquant de répondre en
+              commentaire avec « @claude ». Jamais un interrogatoire.
+
+            Tu NE codes PAS, ne crées ni branche ni PR, ne poses aucun label : la validation
+            est humaine. RÈGLE — pas de @mention : n'écris jamais « @ » suivi d'un identifiant
+            (sauf, littéralement, « @claude » pour expliquer comment te répondre). L'auteur
+            cité dans l'issue l'est par son nom ; un pseudo peut coïncider avec un compte GitHub
+            hors équipe.
+          claude_args: |
+            --model claude-sonnet-5-5
+            --allowedTools "Read,Grep,Glob,Bash(gh issue view:*),Bash(gh issue comment:*)"
+
+  # Mode interactif : réponse à « @claude » (issue ou PR). L'action lit la
+  # mention et répond elle-même en commentaire — pas de prompt à fournir.
+  repondre:
+    if: >-
+      (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+      ) &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: anthropics/claude-code-action@d5335dd8cf5f4fba83b1231d92b150988f71463b # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GH_BOT_TOKEN }}
+          claude_args: --model claude-sonnet-5-5
