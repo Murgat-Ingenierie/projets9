@@ -1,104 +1,106 @@
-// Claude — déposer un bug ou une idée, en ressortir avec une issue GitHub.
+// Claude — décrire un bug ou une idée, en ressortir avec une issue GitHub.
 //
-// Le formulaire ouvre l'issue telle quelle ; le dialogue avec Claude se poursuit
-// SUR l'issue (il relit, pose ses questions en commentaire, on lui répond avec
-// @claude) — sous l'abonnement Claude Code, et avec une trace. La suite est
-// humaine : relecture, puis label « claude-fix » sur GitHub.
+// Le fil vit ICI, dans l'état de la page : l'API est sans mémoire et reçoit
+// tout le fil à chaque tour. Quitter la page efface la conversation — c'est
+// voulu, une demande se règle en quelques échanges. Une fois l'issue ouverte,
+// la suite est humaine : relecture, puis label « claude-fix » sur GitHub.
 
-import { useState, type FormEvent } from "react";
-import { claude as claudeApi, type IssueCreee, type TypeDemande } from "../api/endpoints";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { claude as claudeApi, type ChatMessage, type IssueCreee } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
 
 export default function ClaudePage() {
-  const [type, setType] = useState<TypeDemande>("bug");
-  const [titre, setTitre] = useState("");
-  const [description, setDescription] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [saisie, setSaisie] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [issue, setIssue] = useState<IssueCreee | null>(null);
   const [err, setErr] = useState<unknown>(null);
+  const bas = useRef<HTMLDivElement>(null);
 
-  async function envoyer(ev: FormEvent) {
-    ev.preventDefault();
+  useEffect(() => {
+    bas.current?.scrollIntoView({ block: "end" });
+  }, [messages, enCours]);
+
+  async function envoyer() {
+    const texte = saisie.trim();
+    if (!texte || enCours) return;
+    const fil: ChatMessage[] = [...messages, { role: "user", content: texte }];
+    setMessages(fil);
+    setSaisie("");
     setErr(null);
     setEnCours(true);
     try {
-      setIssue(await claudeApi.creerIssue({ type, titre, description }));
+      const r = await claudeApi.chat(fil);
+      setMessages([...fil, { role: "assistant", content: r.reply }]);
+      if (r.issue) setIssue(r.issue);
     } catch (e) {
       setErr(e);
+      // On rend la saisie pour que l'utilisateur ne la retape pas.
+      setMessages(messages);
+      setSaisie(texte);
     } finally {
       setEnCours(false);
     }
   }
 
-  function recommencer() {
-    setIssue(null);
-    setTitre("");
-    setDescription("");
-    setErr(null);
+  function surTouche(ev: KeyboardEvent<HTMLTextAreaElement>) {
+    if (ev.key === "Enter" && !ev.shiftKey) {
+      ev.preventDefault();
+      void envoyer();
+    }
   }
 
-  if (issue) {
-    return (
-      <>
-        <div className="page-header"><h2>Claude</h2></div>
-        <div className="chat-issue">
-          Issue <a href={issue.url} target="_blank" rel="noreferrer">#{issue.number}</a> ouverte.
-        </div>
-        <p className="muted" style={{ marginTop: 12 }}>
-          Claude va la relire et poser ses questions en commentaire : réponds-lui sur GitHub
-          en l'interpellant avec <code>@claude</code>. L'équipe valide ensuite le développement.
-        </p>
-        <button className="btn secondary" onClick={recommencer}>Nouvelle demande</button>
-      </>
-    );
+  function recommencer() {
+    setMessages([]);
+    setIssue(null);
+    setErr(null);
+    setSaisie("");
   }
 
   return (
     <>
-      <div className="page-header"><h2>Claude</h2></div>
+      <div className="page-header">
+        <h2>Claude</h2>
+        {messages.length > 0 && (
+          <button className="btn secondary" onClick={recommencer}>Nouvelle demande</button>
+        )}
+      </div>
       <p className="muted">
-        Décris un bug ou une amélioration. L'issue est ouverte sur GitHub ; Claude la relit et
-        te pose ses questions là-bas, puis l'équipe valide avant tout développement.
+        Décris un bug ou une amélioration. Claude pose au besoin une question, puis ouvre
+        une issue GitHub que l'équipe relit avant tout développement.
       </p>
       <ErrorBanner error={err} />
 
-      <form onSubmit={envoyer} className="chat-saisie" style={{ flexDirection: "column", alignItems: "stretch" }}>
-        <label>
-          Type
-          <select value={type} onChange={(ev) => setType(ev.target.value as TypeDemande)}>
-            <option value="bug">Bug</option>
-            <option value="amelioration">Amélioration</option>
-          </select>
-        </label>
-        <label>
-          Titre
-          <input
-            value={titre}
-            onChange={(ev) => setTitre(ev.target.value)}
-            placeholder="Ex. : impossible de déplacer un jalon depuis le planning"
-            minLength={3}
-            maxLength={100}
-            required
-          />
-        </label>
-        <label>
-          Description
+      <div className="chat">
+        {messages.map((m, i) => (
+          <div key={i} className={`chat-msg ${m.role}`}>{m.content}</div>
+        ))}
+        {enCours && <div className="chat-msg assistant muted">…</div>}
+        {issue && (
+          <div className="chat-issue">
+            Issue <a href={issue.url} target="_blank" rel="noreferrer">#{issue.number}</a> ouverte.
+            Elle sera relue par l'équipe.
+          </div>
+        )}
+        <div ref={bas} />
+      </div>
+
+      {!issue && (
+        <div className="chat-saisie">
           <textarea
-            value={description}
-            onChange={(ev) => setDescription(ev.target.value)}
-            placeholder="Où, quand, ce que tu attendais, ce qui s'est passé…"
-            rows={6}
-            minLength={10}
-            maxLength={5000}
-            required
+            value={saisie}
+            onChange={(ev) => setSaisie(ev.target.value)}
+            onKeyDown={surTouche}
+            placeholder="Ex. : impossible de déplacer un jalon depuis le planning…"
+            rows={2}
+            disabled={enCours}
+            aria-label="Votre message"
           />
-        </label>
-        <div>
-          <button className="btn" type="submit" disabled={enCours}>
-            {enCours ? "Envoi…" : "Ouvrir l'issue"}
+          <button className="btn" onClick={envoyer} disabled={enCours || !saisie.trim()}>
+            Envoyer
           </button>
         </div>
-      </form>
+      )}
     </>
   );
 }

@@ -219,15 +219,13 @@ Sur une branche de travail sans PR, la CI ne tourne donc pas : ouvrir une PR (m�
    (app)        (sans label)        (un humain)         (Claude)        (un humain)   (deploy.yml)
 ```
 
-1. **Écran Claude** (menu) : un membre décrit un bug ou une idée dans un formulaire ; l'API
-   **ouvre l'issue**, sans label. Côté serveur : `GITHUB_TOKEN` (fine-grained, *Issues : read &
-   write* sur ce seul dépôt) dans `.env`. Sans lui, l'écran répond « non configuré ».
-2. **`claude.yml`** : Claude relit l'issue dès sa création et, si elle est floue, pose ses
-   questions en commentaire ; on lui répond en l'interpellant avec **`@claude`**. Tout passe par
-   l'abonnement Claude Code (`CLAUDE_CODE_OAUTH_TOKEN`), pas par l'API payante — c'est pourquoi
-   le dialogue vit sur l'issue plutôt que dans l'application. Seuls les membres de
-   l'organisation déclenchent Claude (dépôt public).
-3. **Validation 1 (humaine)** : relire l'issue, poser le label **`claude-fix`**.
+1. **Écran Claude** (menu) : un membre décrit un bug ou une idée ; Claude (Haiku) pose au
+   besoin une question puis **ouvre une issue**, sans label. Côté serveur : `ANTHROPIC_API_KEY`
+   et `GITHUB_TOKEN` (fine-grained, *Issues : read & write* sur ce seul dépôt) dans `.env`.
+   Sans eux, l'écran répond « non configuré » et rien d'autre ne change.
+2. **Validation 1 (humaine)** : relire l'issue, poser le label **`claude-fix`**. Pour préciser
+   une demande ou discuter d'une PR, interpeller Claude avec **`@claude`** dans un commentaire
+   (`claude.yml`, réservé aux membres de l'organisation — le dépôt est public).
 3. **`claude-fix.yml`** : Claude (Opus) code sur une branche, teste, et **ouvre une PR**
    (« Fixes #n »). Secrets du dépôt : `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`) et
    `GH_BOT_TOKEN` (PAT *repo* + *workflow* — une PR ouverte avec `GITHUB_TOKEN` ne
