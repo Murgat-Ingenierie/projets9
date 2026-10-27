@@ -5,9 +5,18 @@
 // voulu, une demande se règle en quelques échanges. Une fois l'issue ouverte,
 // la suite est humaine : relecture, puis label « claude-fix » sur GitHub.
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { claude as claudeApi, type ChatMessage, type IssueCreee } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { IconeClaude } from "../components/IconeClaude";
+
+/** Couleur de la marque Claude, réservée à son avatar dans le fil. */
+const COULEUR_CLAUDE = "#d97757";
+
+/** Hauteur maximale de la zone de saisie (px). Au-delà elle défile : sur un
+ *  téléphone, une zone qui grandit sans limite repousserait le fil hors de
+ *  l'écran, clavier virtuel déjà ouvert. */
+const HAUTEUR_MAX_SAISIE = 200;
 
 export default function ClaudePage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -30,6 +39,18 @@ export default function ClaudePage() {
   useEffect(() => {
     if (!enCours) zoneSaisie.current?.focus();
   }, [enCours]);
+
+  // La zone suit son contenu (#130) : deux lignes fixes coupaient une
+  // description de bug dès la troisième, et la poignée de redimensionnement
+  // est introuvable au doigt. On remet la hauteur à `auto` avant de mesurer,
+  // sinon elle ne pourrait que grandir — jamais se rétracter après un envoi.
+  // `useLayoutEffect` : mesurer avant l'affichage évite un saut visible.
+  useLayoutEffect(() => {
+    const el = zoneSaisie.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, HAUTEUR_MAX_SAISIE)}px`;
+  }, [saisie]);
 
   async function envoyer() {
     const texte = saisie.trim();
@@ -70,7 +91,10 @@ export default function ClaudePage() {
   return (
     <>
       <div className="page-header">
-        <h2>Claude</h2>
+        <h2 className="chat-titre">
+          <IconeClaude taille={26} couleur={COULEUR_CLAUDE} />
+          Claude
+        </h2>
         {messages.length > 0 && (
           <button className="btn secondary" onClick={recommencer}>Nouvelle demande</button>
         )}
@@ -82,10 +106,26 @@ export default function ClaudePage() {
       <ErrorBanner error={err} />
 
       <div className="chat">
-        {messages.map((m, i) => (
-          <div key={i} className={`chat-msg ${m.role}`}>{m.content}</div>
-        ))}
-        {enCours && <div className="chat-msg assistant muted">…</div>}
+        {messages.map((m, i) =>
+          m.role === "assistant" ? (
+            <div key={i} className="chat-ligne assistant">
+              <Avatar />
+              <div className="chat-msg assistant">{m.content}</div>
+            </div>
+          ) : (
+            <div key={i} className="chat-msg user">{m.content}</div>
+          ),
+        )}
+        {/* Trois points animés plutôt qu'un « … » figé : sans mouvement, rien
+            ne distinguait une réponse en préparation d'un écran bloqué. */}
+        {enCours && (
+          <div className="chat-ligne assistant">
+            <Avatar />
+            <div className="chat-msg assistant chat-attente" role="status" aria-label="Claude rédige sa réponse">
+              <span /><span /><span />
+            </div>
+          </div>
+        )}
         {issue && (
           <div className="chat-issue">
             Issue <a href={issue.url} target="_blank" rel="noreferrer">#{issue.number}</a> ouverte.
@@ -97,21 +137,41 @@ export default function ClaudePage() {
 
       {!issue && (
         <div className="chat-saisie">
-          <textarea
-            ref={zoneSaisie}
-            value={saisie}
-            onChange={(ev) => setSaisie(ev.target.value)}
-            onKeyDown={surTouche}
-            placeholder="Ex. : impossible de déplacer un jalon depuis le planning…"
-            rows={2}
-            disabled={enCours}
-            aria-label="Votre message"
-          />
-          <button className="btn" onClick={envoyer} disabled={enCours || !saisie.trim()}>
-            Envoyer
-          </button>
+          {/* Zone et bouton dans un même cadre, qui porte le focus : l'ensemble
+              se lit comme UN champ, comme dans les messageries usuelles. */}
+          <div className="chat-saisie-cadre">
+            <textarea
+              ref={zoneSaisie}
+              value={saisie}
+              onChange={(ev) => setSaisie(ev.target.value)}
+              onKeyDown={surTouche}
+              placeholder="Ex. : impossible de déplacer un jalon depuis le planning…"
+              rows={1}
+              disabled={enCours}
+              aria-label="Votre message"
+            />
+            <button
+              type="button"
+              className="chat-envoyer"
+              onClick={envoyer}
+              disabled={enCours || !saisie.trim()}
+              aria-label="Envoyer"
+              title="Envoyer"
+            >
+              <span className="material-symbols-outlined">arrow_upward</span>
+            </button>
+          </div>
+          <div className="chat-aide">Entrée pour envoyer · Maj + Entrée pour aller à la ligne</div>
         </div>
       )}
     </>
+  );
+}
+
+function Avatar() {
+  return (
+    <span className="chat-avatar" aria-hidden="true">
+      <IconeClaude taille={18} couleur={COULEUR_CLAUDE} />
+    </span>
   );
 }
