@@ -341,6 +341,17 @@
   height: 100%;
 }
 
+/* Polices du thème (#137) : Willow réclame « Open Sans », servie par cdn.svar.dev
+ * que la CSP refuse — ses @font-face sont retirés au build (planning/policesSvar.ts).
+ * Plutôt que de retomber sur Arial, le thème reprend la police de l'app, Roboto,
+ * déjà chargée depuis Google Fonts. Sélecteur NON préfixé par .svar-planning : les
+ * popups SVAR peuvent être rendues hors du planning. Même spécificité que la règle
+ * de SVAR, mais ce fichier est importé après all.css → il gagne. Les autres
+ * variables *-font-family du thème dérivent toutes de celle-ci. */
+.wx-willow-theme {
+  --wx-font-family: "Roboto", system-ui, -apple-system, sans-serif;
+}
+
 
 /* — Dépassement d'échéance : la part de barre postérieure au jalon — */
 /*
