@@ -16,10 +16,20 @@ export default function ClaudePage() {
   const [issue, setIssue] = useState<IssueCreee | null>(null);
   const [err, setErr] = useState<unknown>(null);
   const bas = useRef<HTMLDivElement>(null);
+  const zoneSaisie = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bas.current?.scrollIntoView({ block: "end" });
   }, [messages, enCours]);
+
+  // La zone est désactivée pendant l'appel, et un champ désactivé perd le
+  // focus : sans ce rappel, il fallait recliquer dedans avant chaque nouveau
+  // message (#131). On le rend donc dès qu'elle redevient active — après une
+  // réponse comme après une erreur, où la saisie a été restituée. Au premier
+  // rendu, cela place aussi le curseur, prêt pour le premier message.
+  useEffect(() => {
+    if (!enCours) zoneSaisie.current?.focus();
+  }, [enCours]);
 
   async function envoyer() {
     const texte = saisie.trim();
@@ -88,6 +98,7 @@ export default function ClaudePage() {
       {!issue && (
         <div className="chat-saisie">
           <textarea
+            ref={zoneSaisie}
             value={saisie}
             onChange={(ev) => setSaisie(ev.target.value)}
             onKeyDown={surTouche}
