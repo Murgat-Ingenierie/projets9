@@ -14,6 +14,22 @@ from app.config import settings
 from app.routes import claude
 
 
+@pytest.fixture(autouse=True)
+def isole(monkeypatch):
+    """Aucun test ne doit dépendre de l'environnement ni toucher le réseau.
+
+    Leçon de l'issue #132 : exécutée dans le runner claude-fix, où GITHUB_TOKEN
+    est défini, la suite a ouvert une VRAIE issue « [Demande] Bonjour » — le test
+    du 503 supposait un jeton absent, et `_creer_issue` n'était pas remplacée.
+    Ici tout part à vide, et chaque appel sortant fait échouer le test, sauf
+    remplacement explicite.
+    """
+    for champ in ("github_token", "anthropic_api_key", "support_relay_url", "claude_helper_token"):
+        monkeypatch.setattr(settings, champ, "")
+    for fonction in ("_creer_issue", "_appeler_claude", "_appeler_relais"):
+        monkeypatch.setattr(claude, fonction, lambda *a, f=fonction: pytest.fail(f"{f} appelée sans remplacement"))
+
+
 @pytest.fixture
 def configure(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_api_key", "sk-test")
