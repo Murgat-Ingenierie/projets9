@@ -24,11 +24,14 @@ import AuthCallbackPage from "./pages/AuthCallbackPage";
 import GanttSvarPage from "./pages/GanttSvarPage";
 import ParametresPage from "./pages/ParametresPage";
 import ClaudePage from "./pages/ClaudePage";
+import { IconeClaude } from "./components/IconeClaude";
 
 interface NavItem {
   to: string;
   end?: boolean;
-  icon: string;
+  /** Nom Material Symbols, ou élément tout fait pour une marque absente de la
+   *  police (le logo Claude). */
+  icon: string | ReactNode;
   label: string;
 }
 
@@ -61,7 +64,7 @@ function Sidebar({
     { to: "/dependencies", icon: "account_tree", label: "Dépendances" },
     { to: "/equipes", icon: "groups", label: "Équipes" },
     { to: "/charge", icon: "monitoring", label: "Charge équipes" },
-    { to: "/claude", icon: "smart_toy", label: "Claude" },
+    { to: "/claude", icon: <IconeClaude taille={22} className="icone-svg" />, label: "Claude" },
   ];
   if (user?.role === "admin") {
     items.push({ to: "/users", icon: "group", label: "Utilisateurs" });
@@ -84,7 +87,7 @@ function Sidebar({
       <nav>
         {items.map((it) => (
           <NavLink key={it.to} to={it.to} end={it.end} title={it.label} onClick={onNaviguer}>
-            <Icon name={it.icon} />
+            {typeof it.icon === "string" ? <Icon name={it.icon} /> : it.icon}
             <span className="label">{it.label}</span>
           </NavLink>
         ))}

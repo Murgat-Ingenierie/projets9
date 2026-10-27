@@ -83,3 +83,46 @@ describe("focus de la zone de saisie", () => {
     expect(document.activeElement).toBe(zone);
   });
 });
+
+// Refonte du chat (#130) : ce qui se vérifie hors navigateur — l'accessibilité
+// du nouveau bouton-icône, l'indicateur d'attente et la hauteur de la zone.
+describe("zone de saisie et indicateur d'attente", () => {
+  it("le bouton-icône garde un nom accessible et n'envoie rien de vide", () => {
+    render(<ClaudePage />);
+    const bouton = screen.getByRole("button", { name: "Envoyer" }) as HTMLButtonElement;
+    expect(bouton.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Votre message"), { target: { value: "   " } });
+    expect(bouton.disabled).toBe(true);
+  });
+
+  it("annonce que Claude rédige, puis retire l'indicateur à la réponse", async () => {
+    const { resoudre } = reponseDifferee();
+    render(<ClaudePage />);
+
+    envoyer("Le planning ne se charge pas");
+    expect(screen.getByRole("status", { name: "Claude rédige sa réponse" })).toBeTruthy();
+
+    await act(async () => resoudre({ reply: "Sur quel écran ?", issue: null }));
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText("Sur quel écran ?")).toBeTruthy();
+  });
+
+  it("suit la hauteur du contenu, plafonnée, et se rétracte une fois vidée", () => {
+    render(<ClaudePage />);
+    const zone = screen.getByLabelText("Votre message") as HTMLTextAreaElement;
+    // jsdom ne calcule aucune mise en page : on simule la hauteur du contenu.
+    let contenu = 120;
+    Object.defineProperty(zone, "scrollHeight", { configurable: true, get: () => contenu });
+
+    fireEvent.change(zone, { target: { value: "ligne 1\nligne 2\nligne 3" } });
+    expect(zone.style.height).toBe("120px");
+
+    contenu = 900;
+    fireEvent.change(zone, { target: { value: "un très long message…" } });
+    expect(zone.style.height).toBe("200px");
+
+    contenu = 38;
+    fireEvent.change(zone, { target: { value: "" } });
+    expect(zone.style.height).toBe("38px");
+  });
+});
