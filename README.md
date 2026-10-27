@@ -219,10 +219,13 @@ Sur une branche de travail sans PR, la CI ne tourne donc pas : ouvrir une PR (m�
    (app)        (sans label)        (un humain)         (Claude)        (un humain)   (deploy.yml)
 ```
 
-1. **Écran Claude** (menu) : un membre décrit un bug ou une idée ; Claude (Haiku) pose au
-   besoin une question puis **ouvre une issue**, sans label. Côté serveur : `ANTHROPIC_API_KEY`
-   et `GITHUB_TOKEN` (fine-grained, *Issues : read & write* sur ce seul dépôt) dans `.env`.
-   Sans eux, l'écran répond « non configuré » et rien d'autre ne change.
+1. **Écran Claude** (menu) : un membre décrit un bug ou une idée ; Claude pose au besoin une
+   question puis **ouvre une issue**, sans label. Côté serveur, dans `.env` : `GITHUB_TOKEN`
+   (fine-grained, *Issues : read & write* sur ce seul dépôt, durée ≤ 1 an) — indispensable —
+   et, pour le dialogue, **le relais `claude-helper`** (`SUPPORT_RELAY_URL` +
+   `CLAUDE_HELPER_TOKEN`, la VM qui exécute le tour via le SDK sur l'**abonnement** Claude,
+   comme murgatchat) ou à défaut `ANTHROPIC_API_KEY` (crédits API). Sans dialogue possible,
+   l'issue est ouverte **telle quelle** à partir du message : rien n'est perdu.
 2. **Validation 1 (humaine)** : relire l'issue, poser le label **`claude-fix`**. Pour préciser
    une demande ou discuter d'une PR, interpeller Claude avec **`@claude`** dans un commentaire
    (`claude.yml`, réservé aux membres de l'organisation — le dépôt est public).

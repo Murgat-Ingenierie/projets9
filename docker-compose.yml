@@ -39,7 +39,10 @@ services:
       KEYCLOAK_BASE_URL: ${KEYCLOAK_BASE_URL:?renseigner KEYCLOAK_BASE_URL dans .env}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:?renseigner KEYCLOAK_REALM dans .env}
       KEYCLOAK_API_AUDIENCE: ${KEYCLOAK_API_AUDIENCE:-projets9-api}
-      # Assistant Claude — optionnel : vides, l'écran répond 503 et c'est tout.
+      # Assistant Claude — optionnel. Relais claude-helper (abonnement) d'abord,
+      # clé API sinon ; sans GITHUB_TOKEN l'écran répond 503 et c'est tout.
+      SUPPORT_RELAY_URL: ${SUPPORT_RELAY_URL:-}
+      CLAUDE_HELPER_TOKEN: ${CLAUDE_HELPER_TOKEN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_REPO: ${GITHUB_REPO:-Murgat-Ingenierie/projets9}

@@ -44,8 +44,13 @@ class Settings(BaseSettings):
     seed_demo: bool = False
 
     # --- Assistant Claude (écran « Claude » → issue GitHub) ---
-    # Les deux sont OPTIONNELLES : vides, l'écran répond 503 et rien d'autre
-    # ne change. Le jeton GitHub ne sert qu'à ouvrir des issues (scope minimal).
+    # Seul le jeton GitHub est indispensable (sans lui : 503) ; il ne sert qu'à
+    # ouvrir des issues (scope minimal). Pour le dialogue, deux chemins, comme
+    # dans murgatchat : le RELAIS claude-helper (VM qui exécute le tour via le SDK
+    # sur l'abonnement Claude — prime quand il est configuré), sinon la clé API.
+    # Ni l'un ni l'autre : l'issue est ouverte telle quelle.
+    support_relay_url: str = ""
+    claude_helper_token: str = ""
     anthropic_api_key: str = ""
     github_token: str = ""
     github_repo: str = "Murgat-Ingenierie/projets9"
