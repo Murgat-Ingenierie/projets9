@@ -228,8 +228,8 @@ const creationTache: { current: (projetId: number) => void } = { current: () => 
  *  plus.
  *
  *  Rendue sur les lignes de PROJET seulement : une tâche n'a pas de sous-tâche
- *  dans ce modèle, un jalon n'en porte pas, et créer un projet depuis un epic
- *  demanderait un mode de panneau qui n'existe pas. Proposer un bouton inerte
+ *  dans ce modèle, un jalon n'en porte pas, et la création d'un projet passe par
+ *  le bouton « Projet » de la barre d'outils (#139). Proposer un bouton inerte
  *  ailleurs reproduirait le défaut qu'on corrige.
  */
 function CelluleAjout({ row }: { row: ITask }) {
@@ -802,6 +802,18 @@ export default function GanttSvarPage() {
         >
           <span className="material-symbols-outlined" aria-hidden="true">today</span>
           Aujourd'hui : {fmtDate(new Date())}
+        </button>
+        {/* Création de projet dans le panneau latéral, comme Jalon et Tâche :
+            sans ce bouton il fallait quitter le planning pour la liste Projets
+            (#139). Le panneau recharge l'arbre à l'enregistrement. */}
+        <button
+          type="button"
+          className="svar-toggle"
+          onClick={() => setPanelTarget({ type: "project-new" })}
+          title="Créer un projet"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">add</span>
+          Projet
         </button>
         <button
           type="button"
