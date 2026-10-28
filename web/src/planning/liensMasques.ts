@@ -32,11 +32,17 @@ const SENS_LABEL: Record<LienMasque["sens"], string> = {
  * `visibles` à `null` signifie « pas de filtre » : rien n'est masqué, la table
  * revient vide. Une dépendance dont les DEUX bouts sont hors périmètre ne
  * concerne aucune ligne affichée, elle est donc ignorée.
+ *
+ * Un prédécesseur peut être la fin d'un PROJET (#141) : sa visibilité est celle
+ * de la ligne du projet (`projetsVisibles`). Seul le côté tâche est signalé —
+ * les moignons vivent sur les barres de tâche.
  */
 export function liensMasquesParTache(
   dependencies: readonly Dependency[],
   nomParTacheId: ReadonlyMap<number, string>,
   visibles: ReadonlySet<number> | null,
+  nomParProjetId: ReadonlyMap<number, string> = new Map(),
+  projetsVisibles: ReadonlySet<number> | null = null,
 ): Map<number, LienMasque[]> {
   const out = new Map<number, LienMasque[]>();
   if (!visibles) return out;
@@ -48,6 +54,14 @@ export function liensMasquesParTache(
   };
 
   for (const d of dependencies) {
+    if (d.projet_amont_id != null) {
+      if (visibles.has(d.tache_aval_id) && !projetsVisibles?.has(d.projet_amont_id)) {
+        const nom = nomParProjetId.get(d.projet_amont_id) ?? `projet ${d.projet_amont_id}`;
+        ajouter(d.tache_aval_id, { sens: "amont", nomAutre: `fin du projet ${nom}`, type: d.type });
+      }
+      continue;
+    }
+    if (d.tache_amont_id == null) continue;
     const amontVisible = visibles.has(d.tache_amont_id);
     const avalVisible = visibles.has(d.tache_aval_id);
     // Les deux visibles : la flèche est dessinée, rien à signaler.

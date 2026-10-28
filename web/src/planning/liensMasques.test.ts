@@ -34,6 +34,20 @@ describe("liensMasquesParTache", () => {
     expect(m.has(11)).toBe(false); // la tâche masquée n'a pas de ligne
   });
 
+  // #141 : la fin d'un projet peut précéder une tâche. Sa visibilité est celle
+  // de la LIGNE du projet, pas d'une tâche.
+  it("projet amont hors filtre ⇒ l'aval visible nomme la fin du projet", () => {
+    const lien = { id: 2, tache_amont_id: null, projet_amont_id: 5, tache_aval_id: 12, type: "FS" } as Dependency;
+    const m = liensMasquesParTache([lien], NOMS, new Set([12]), new Map([[5, "Lot 2"]]), new Set());
+    expect(m.get(12)).toEqual([{ sens: "amont", nomAutre: "fin du projet Lot 2", type: "FS" }]);
+  });
+
+  it("projet amont visible ⇒ rien (la flèche part de sa barre)", () => {
+    const lien = { id: 2, tache_amont_id: null, projet_amont_id: 5, tache_aval_id: 12, type: "FS" } as Dependency;
+    const m = liensMasquesParTache([lien], NOMS, new Set([12]), new Map([[5, "Lot 2"]]), new Set([5]));
+    expect(m.size).toBe(0);
+  });
+
   it("l'aval est hors filtre ⇒ l'amont visible porte la marque, en sens « aval »", () => {
     const m = liensMasquesParTache([dep(1, 11, 12)], NOMS, new Set([11]));
     expect(m.get(11)).toEqual([{ sens: "aval", nomAutre: "Pose et calibration", type: "FS" }]);

@@ -8,7 +8,7 @@ import type { Dependency } from "../types";
 function dependentsByAmontFrom(deps: Dependency[]): Map<number, number[]> {
   const m = new Map<number, number[]>();
   for (const d of deps) {
-    if (d.type !== "FS") continue;
+    if (d.type !== "FS" || d.tache_amont_id == null) continue;
     if (!m.has(d.tache_amont_id)) m.set(d.tache_amont_id, []);
     m.get(d.tache_amont_id)!.push(d.tache_aval_id);
   }

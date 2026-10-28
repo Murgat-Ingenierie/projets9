@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,13 +11,28 @@ from app.invariants.checks import (
     check_dependency_acyclic,
     check_dependency_no_self,
 )
-from app.models.dependency import Dependency
+from app.models.dependency import Dependency, DependencyType
+from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
 from app.routes.errors import http_from_invariant
 from app.schemas.dependency import DependencyCreate, DependencyRead, DependencyUpdate
 
 router = APIRouter(prefix="/api/dependencies", tags=["dependencies"])
+
+
+def verifier_graphe(db: Session, new_edge: Dependency | None = None) -> None:
+    """Rejoue INV-14 sur tout le graphe, liens de projet compris.
+
+    Appelée aussi depuis `routes/tasks.py` : rattacher une tâche à un autre
+    projet change les arêtes implicites tâche → fin de projet, et peut fermer un
+    cycle sans qu'aucune dépendance n'ait été écrite.
+    """
+    existing = list(db.execute(select(Dependency)).scalars().all())
+    taches_par_projet: dict[int, list[int]] = defaultdict(list)
+    for tache_id, projet_id in db.execute(select(Task.id, Task.projet_id)).all():
+        taches_par_projet[projet_id].append(tache_id)
+    check_dependency_acyclic(existing, new_edge=new_edge, taches_par_projet=taches_par_projet)
 
 
 @router.get("", response_model=list[DependencyRead])
@@ -39,13 +56,17 @@ def create_dep(
     ferme donc la création plutôt que d'ouvrir la suppression — décision prise le
     2026-08-04, cf. INVENTAIRE R4.
     """
-    amont = db.get(Task, payload.tache_amont_id)
-    aval = db.get(Task, payload.tache_aval_id)
-    if amont is None or aval is None:
+    if payload.projet_amont_id is not None:
+        if db.get(Project, payload.projet_amont_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Projet amont introuvable")
+    elif db.get(Task, payload.tache_amont_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tâche amont ou aval introuvable")
+    if db.get(Task, payload.tache_aval_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tâche amont ou aval introuvable")
 
     new = Dependency(
         tache_amont_id=payload.tache_amont_id,
+        projet_amont_id=payload.projet_amont_id,
         tache_aval_id=payload.tache_aval_id,
         type=payload.type,
         updated_by_id=me.id,
@@ -53,8 +74,7 @@ def create_dep(
 
     try:
         check_dependency_no_self(new)
-        existing = list(db.execute(select(Dependency)).scalars().all())
-        check_dependency_acyclic(existing, new_edge=new)
+        verifier_graphe(db, new_edge=new)
     except InvariantError as e:
         raise http_from_invariant(e) from None
 
@@ -84,10 +104,18 @@ def update_dep(
     Le changement n'est pas cosmétique pour autant : seules les `FS` propagent la
     cascade du planning. Passer une dépendance en `SS` retire sa tâche aval des
     décalages automatiques.
+
+    Un lien de projet reste `FS` : c'est la FIN du projet qui est attendue (#141),
+    les autres types n'y ont pas de sens.
     """
     dep = db.get(Dependency, dep_id)
     if dep is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Dépendance introuvable")
+    if dep.projet_amont_id is not None and payload.type != DependencyType.FS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Un projet ne précède une tâche que par sa fin (type FS)",
+        )
     dep.type = payload.type
     dep.updated_by_id = me.id
     db.commit()

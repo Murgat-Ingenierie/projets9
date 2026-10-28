@@ -16,6 +16,11 @@ describe("buildSvarLinks", () => {
     ]);
   });
 
+  it("un projet amont (#141) fait partir la flèche de sa barre proj:<id>", () => {
+    const links = buildSvarLinks([{ id: 4, tache_amont_id: null, projet_amont_id: 7, tache_aval_id: 12, type: "FS" }]);
+    expect(links).toEqual([{ id: 4, source: "proj:7", target: "task:12", type: "e2s" }]);
+  });
+
   it("liste vide → []", () => {
     expect(buildSvarLinks([])).toEqual([]);
   });
@@ -34,9 +39,22 @@ describe("svarLinkToDependency", () => {
     expect(svarLinkToDependency({ source: "task:1", target: "task:2", type: "s2e" })).toBeNull();
   });
 
-  it("null si une extrémité n'est pas une tâche (epic/projet/jalon)", () => {
-    expect(svarLinkToDependency({ source: "proj:1", target: "task:2", type: "e2s" })).toBeNull();
+  it("fin de projet → tâche (#141) : dépendance à projet amont, FS", () => {
+    expect(svarLinkToDependency({ source: "proj:1", target: "task:2", type: "e2s" })).toEqual({
+      projet_amont_id: 1, tache_aval_id: 2, type: "FS",
+    });
+  });
+
+  it("null pour un projet relié autrement que par sa fin : seule la fin est attendue", () => {
+    expect(svarLinkToDependency({ source: "proj:1", target: "task:2", type: "s2s" })).toBeNull();
+    expect(svarLinkToDependency({ source: "proj:1", target: "task:2", type: "e2e" })).toBeNull();
+  });
+
+  it("null si l'aval n'est pas une tâche, ou l'amont un epic/jalon", () => {
+    expect(svarLinkToDependency({ source: "task:1", target: "proj:2", type: "e2s" })).toBeNull();
     expect(svarLinkToDependency({ source: "task:1", target: "ms:2", type: "e2s" })).toBeNull();
+    expect(svarLinkToDependency({ source: "epic:ABC", target: "task:2", type: "e2s" })).toBeNull();
+    expect(svarLinkToDependency({ source: "ms:1", target: "task:2", type: "e2s" })).toBeNull();
   });
 
   it("null si un champ manque (lien incomplet)", () => {
@@ -47,5 +65,10 @@ describe("svarLinkToDependency", () => {
   it("round-trip : buildSvarLinks puis svarLinkToDependency redonne la paire/type", () => {
     const [link] = buildSvarLinks([{ id: 7, tache_amont_id: 3, tache_aval_id: 5, type: "FF" }]);
     expect(svarLinkToDependency(link)).toEqual({ tache_amont_id: 3, tache_aval_id: 5, type: "FF" });
+  });
+
+  it("round-trip d'un lien de projet", () => {
+    const [link] = buildSvarLinks([{ id: 8, tache_amont_id: null, projet_amont_id: 2, tache_aval_id: 5, type: "FS" }]);
+    expect(svarLinkToDependency(link)).toEqual({ projet_amont_id: 2, tache_aval_id: 5, type: "FS" });
   });
 });

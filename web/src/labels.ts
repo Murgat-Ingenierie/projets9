@@ -56,6 +56,7 @@ export const FIELD_LABELS: Record<string, string> = {
   unite: "Unité",
   valeur: "Valeur",
   tache_amont_id: "Tâche amont",
+  projet_amont_id: "Projet amont",
   tache_aval_id: "Tâche aval",
   type: "Type",
 };

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { dependencies, tasks } from "../api/endpoints";
+import { dependencies, projects, tasks } from "../api/endpoints";
 import { Breadcrumb, type Crumb } from "../components/Breadcrumb";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { useSortableList } from "../hooks/useSort";
 import { navState } from "../hooks/useBreadcrumbState";
-import type { Dependency, DependencyType, Task } from "../types";
+import type { Dependency, DependencyType, Project, Task } from "../types";
 import { BoutonSupprimer } from "../components/BoutonSupprimer";
 import { useEstAdmin } from "../hooks/useEstAdmin";
 
@@ -23,13 +23,15 @@ export default function DependenciesPage() {
   const estAdmin = useEstAdmin();
   const [items, setItems] = useState<Dependency[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [err, setErr] = useState<unknown>(null);
 
   function load() {
-    Promise.all([dependencies.list(), tasks.list()])
-      .then(([d, t]) => {
+    Promise.all([dependencies.list(), tasks.list(), projects.list()])
+      .then(([d, t, p]) => {
         setItems(d);
         setAllTasks(t);
+        setAllProjects(p);
       })
       .catch(setErr);
   }
@@ -51,6 +53,15 @@ export default function DependenciesPage() {
     allTasks.forEach((t) => m.set(t.id, t.nom));
     return m;
   }, [allTasks]);
+
+  // L'amont est une tâche, ou la fin d'un projet (#141).
+  const amontName = useMemo(() => {
+    const projetName = new Map(allProjects.map((p) => [p.id, p.nom]));
+    return (d: Dependency) =>
+      d.projet_amont_id != null
+        ? `Fin du projet ${projetName.get(d.projet_amont_id) ?? `#${d.projet_amont_id}`}`
+        : (taskName.get(d.tache_amont_id ?? -1) ?? `tâche #${d.tache_amont_id}`);
+  }, [allProjects, taskName]);
 
   const { sorted, sortHeader, filteredCount, totalCount, recherche, setRecherche } =
     useSortableList(items);
@@ -103,7 +114,7 @@ export default function DependenciesPage() {
       <table className="responsive">
         <thead>
           <tr>
-            {sortHeader("Amont", "amont", (d: Dependency) => taskName.get(d.tache_amont_id) ?? "")}
+            {sortHeader("Amont", "amont", amontName)}
             {sortHeader("Aval", "aval", (d: Dependency) => taskName.get(d.tache_aval_id) ?? "")}
             {sortHeader("Type", "type", (d: Dependency) => d.type)}
             <th></th>
@@ -112,13 +123,15 @@ export default function DependenciesPage() {
         <tbody>
           {sorted.map((d) => (
             <tr key={d.id}>
-              <td data-label="Amont">{taskName.get(d.tache_amont_id) ?? `tâche #${d.tache_amont_id}`}</td>
+              <td data-label="Amont">{amontName(d)}</td>
               <td data-label="Aval">{taskName.get(d.tache_aval_id) ?? `tâche #${d.tache_aval_id}`}</td>
               <td data-label="Type">
                 {/* Un seul champ modifiable : on enregistre au changement plutôt
                     que d'ouvrir un mode édition, qui coûterait deux clics de plus
                     pour choisir dans une liste de trois. */}
-                {estAdmin ? (
+                {/* Un lien de projet n'a qu'un type possible (FS, #141) :
+                    proposer de le changer offrirait un refus garanti. */}
+                {estAdmin && d.projet_amont_id == null ? (
                   <select
                     value={d.type}
                     onChange={(ev) => changerType(d.id, ev.target.value as DependencyType)}
