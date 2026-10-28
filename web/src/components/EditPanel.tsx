@@ -10,6 +10,7 @@ import { TaskEditor } from "./TaskEditor";
 export type PanelTarget =
   | { type: "epic"; trigramme: string }
   | { type: "project"; id: number }
+  | { type: "project-new" }
   | { type: "task"; id: number }
   | { type: "task-new"; projet_id: number }
   | { type: "milestone"; id: number }
@@ -69,6 +70,23 @@ function ProjectForm({ id, onClose, onSaved }: { id: number; onClose: () => void
           onSaved={() => { onSaved(); onClose(); }}
           onCancel={onClose}
           showDelete
+          formStyle={{ boxShadow: "none", padding: 0, background: "transparent" }}
+        />
+      </div>
+    </>
+  );
+}
+
+// Création d'un projet sans quitter le planning (#139). L'epic reste à choisir
+// dans le formulaire : la barre d'outils n'a pas de sélection d'epic à reprendre.
+function ProjectNewForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  return (
+    <>
+      <PanelHeader title="Nouveau projet" onClose={onClose} />
+      <div className="panel-body">
+        <ProjectEditor
+          onSaved={() => { onSaved(); onClose(); }}
+          onCancel={onClose}
           formStyle={{ boxShadow: "none", padding: 0, background: "transparent" }}
         />
       </div>
@@ -196,6 +214,9 @@ export function EditPanel({ target, onClose, onSaved }: Props) {
         )}
         {target.type === "project" && (
           <ProjectForm id={target.id} onClose={onClose} onSaved={onSaved} />
+        )}
+        {target.type === "project-new" && (
+          <ProjectNewForm onClose={onClose} onSaved={onSaved} />
         )}
         {target.type === "task" && (
           <TaskForm id={target.id} onClose={onClose} onSaved={onSaved} />

@@ -29,7 +29,8 @@ vi.mock("@svar-ui/react-gantt", () => ({
 
 vi.mock("../api/endpoints", () => ({
   epics: { list: vi.fn().mockResolvedValue([]) },
-  projects: { list: vi.fn().mockResolvedValue([]), update: vi.fn() },
+  projects: { list: vi.fn().mockResolvedValue([]), update: vi.fn(), create: vi.fn().mockResolvedValue({}) },
+  users: { annuaire: vi.fn().mockResolvedValue([]) },
   tasks: { list: vi.fn().mockResolvedValue([]), update: vi.fn() },
   dependencies: { list: vi.fn().mockResolvedValue([]), create: vi.fn(), remove: vi.fn() },
   milestones: { list: vi.fn().mockResolvedValue([]), update: vi.fn() },
@@ -87,5 +88,31 @@ describe("GanttSvarPage — pas de ré-initialisation parasite de SVAR", () => {
       expect(c.tasks).toBe(firstTasks);
       expect(c.links).toBe(firstLinks);
     }
+  });
+});
+
+// #139 : la création d'un projet doit être possible SANS quitter le planning.
+describe("GanttSvarPage — bouton « Nouveau projet »", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("ouvre le panneau de création, enregistre puis referme et recharge", async () => {
+    const { projects } = await import("../api/endpoints");
+    render(<GanttSvarPage />);
+    await waitFor(() => expect(screen.getByTestId("gantt-mock")).toBeDefined());
+    const chargementsAvant = vi.mocked(projects.list).mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: /Projet/ }));
+    const titre = await screen.findByRole("heading", { name: "Nouveau projet" });
+
+    // `submit` direct : jsdom n'applique pas la validation HTML (`required`),
+    // seul compte ici le câblage panneau → API → rechargement.
+    fireEvent.submit(titre.closest(".panel")!.querySelector("form")!);
+
+    await waitFor(() => expect(projects.create).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Nouveau projet" })).toBeNull());
+    expect(vi.mocked(projects.list).mock.calls.length).toBeGreaterThan(chargementsAvant);
   });
 });
