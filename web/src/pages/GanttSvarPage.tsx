@@ -24,6 +24,12 @@ import { celluleCouvre, type Depassement } from "../planning/echeances";
 import type { HorsFenetre } from "../planning/horsFenetre";
 import { couleurTexteSur } from "../planning/ganttStyles";
 import { deriveTeamFilter } from "../planning/teamFilter";
+import {
+  PREFIXE_LIEN_COUCHE,
+  idsInterProjets,
+  liensCoucheInterProjets,
+  styleLiensInterProjets,
+} from "../planning/liensInterProjets";
 import { useEstAdmin } from "../hooks/useEstAdmin";
 import { useUndo } from "../planning/useUndo";
 import { useStableList } from "../planning/useStableList";
@@ -281,6 +287,11 @@ export default function GanttSvarPage() {
   // Défaut À PLAT (parité avec l'ancien Gantt) : projets au niveau racine ; le toggle
   // « Grouper par epic » ajoute les lignes d'en-tête epic (reparente sous l'epic).
   const [groupByEpic, setGroupByEpic] = useState(false);
+  // Couche « liens inter-projets » (#143) : reporte sur les barres de projet les
+  // dépendances qui traversent deux projets, visibles même projets repliés.
+  // DÉSACTIVÉE par défaut : c'est une vue d'analyse, pas l'affichage courant —
+  // permanente, elle doublerait les flèches et surchargerait le planning.
+  const [coucheInterProjets, setCoucheInterProjets] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
   // Panneau d'édition/création (parité ancien Gantt) : ouvert au double-clic sur une
   // ligne (on intercepte l'éditeur natif de SVAR) et par les boutons « + » de la barre.
@@ -418,12 +429,30 @@ export default function GanttSvarPage() {
     });
   }, [dependencies, teamFilterTaskIds, teamFilterProjectIds]);
 
+  // Projet de chaque tâche, sur la table NON filtrée : classer un lien comme
+  // inter-projets ne dépend pas de ce que le filtre laisse voir.
+  const projetParTacheId = useMemo(() => new Map(tasks.map((t) => [t.id, t.projet_id])), [tasks]);
+  const liensCouche = useMemo(
+    () => (coucheInterProjets ? liensCoucheInterProjets(dependencies, projetParTacheId, teamFilterProjectIds) : []),
+    [coucheInterProjets, dependencies, projetParTacheId, teamFilterProjectIds],
+  );
+  const svarLinksAvecCouche = useMemo(
+    () => (liensCouche.length ? [...svarLinksRaw, ...liensCouche] : svarLinksRaw),
+    [svarLinksRaw, liensCouche],
+  );
+  // Style des liens inter-projets : TOUJOURS appliqué, couche active ou non —
+  // c'est ce qui les distingue des dépendances internes quand on déplie.
+  const styleInterProjets = useMemo(
+    () => styleLiensInterProjets([...idsInterProjets(dependencies, projetParTacheId), ...liensCouche.map((l) => String(l.id))]),
+    [dependencies, projetParTacheId, liensCouche],
+  );
+
   // Anti-clignotement : SVAR ré-initialise TOUT son store dès que `tasks`/`links`
   // change de RÉFÉRENCE. Or `reload()` tourne après chaque mutation et reconstruit
   // ces tableaux même quand rien n'a bougé (créer/supprimer un lien ne touche aucune
   // tâche). On ne propage donc que les changements de CONTENU réels.
   const svarTasks = useStableList(svarTasksRaw);
-  const svarLinks = useStableList(svarLinksRaw);
+  const svarLinks = useStableList(svarLinksAvecCouche);
 
   // Nom barré dans la colonne de gauche pour les lignes terminées.
   //
@@ -700,6 +729,10 @@ export default function GanttSvarPage() {
       // faisait réapparaître — un clignotement doublé d'un message d'erreur pour
       // une action qui n'était pas la sienne.
       if (!estAdminRef.current) return false;
+      // Un lien de la couche inter-projets agrège des dépendances sans en être
+      // une : le supprimer n'aurait rien à effacer en base, et le retirer de
+      // l'écran laisserait croire le contraire.
+      if (String(ev.id).startsWith(PREFIXE_LIEN_COUCHE)) return false;
       const link = api.getState().links.byId(ev.id);
       if (link) {
         deletedLinkRef.current.set(ev.id, { source: link.source, target: link.target, type: link.type });
@@ -796,6 +829,16 @@ export default function GanttSvarPage() {
             {groupByEpic ? "folder_open" : "folder"}
           </span>
           Grouper par epic
+        </button>
+        <button
+          type="button"
+          className={`svar-toggle${coucheInterProjets ? " active" : ""}`}
+          aria-pressed={coucheInterProjets}
+          onClick={() => setCoucheInterProjets((v) => !v)}
+          title="Reporter sur les barres de projet les dépendances entre projets, même projets repliés"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">conversion_path</span>
+          Liens inter-projets
         </button>
         <button
           type="button"
@@ -901,6 +944,7 @@ export default function GanttSvarPage() {
       )}
       <ErrorBanner error={err} />
       {styleTermines && <style>{styleTermines}</style>}
+      {styleInterProjets && <style>{styleInterProjets}</style>}
       <div className={`svar-planning${zoom === "month" ? " zoom-mois" : ""}${estAdmin ? "" : " liens-verrouilles"}`}>
         <Willow>
           <Gantt
