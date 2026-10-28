@@ -41,7 +41,10 @@ export function buildSvarTasks(input: BuildSvarTasksInput): ITask[] {
   for (const liste of tasksByProject.values()) {
     for (const t of liste) nomParTacheId.set(t.id, t.nom);
   }
-  const masquesParTache = liensMasquesParTache(dependencies, nomParTacheId, teamFilterTaskIds);
+  const nomParProjetId = new Map(projects.map((p) => [p.id, p.nom]));
+  const masquesParTache = liensMasquesParTache(
+    dependencies, nomParTacheId, teamFilterTaskIds, nomParProjetId, teamFilterProjectIds,
+  );
 
   // Jalons en tête (comme la swimlane actuelle), un par jalon.
   for (const m of [...milestones].sort((a, b) => a.date.localeCompare(b.date))) {

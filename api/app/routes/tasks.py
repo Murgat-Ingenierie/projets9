@@ -9,6 +9,7 @@ from app.invariants.checks import check_task_dates
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
+from app.routes.dependencies import verifier_graphe
 from app.routes.errors import http_from_invariant
 from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
 
@@ -74,10 +75,23 @@ def update_task(
     t = db.get(Task, task_id)
     if t is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Task introuvable")
+    ancien_projet = t.projet_id
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(t, k, v)
     t.updated_by_id = me.id
     _validate(t, db)
+    if t.projet_id != ancien_projet:
+        # Changer de projet, c'est changer la fin de projet que la tâche fait
+        # attendre : si ce projet précède déjà, même de loin, cette tâche, le
+        # rattachement ferme un cycle (#141). Le `flush` (la session n'est pas en
+        # autoflush) fait voir le nouveau `projet_id` à `verifier_graphe` ; le
+        # rollback l'annule en cas de refus.
+        try:
+            db.flush()
+            verifier_graphe(db)
+        except InvariantError as e:
+            db.rollback()
+            raise http_from_invariant(e) from None
     db.commit()
     db.refresh(t)
     return t

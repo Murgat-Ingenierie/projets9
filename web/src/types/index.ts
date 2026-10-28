@@ -66,7 +66,10 @@ export interface Milestone {
 
 export interface Dependency {
   id: number;
-  tache_amont_id: number;
+  /** Prédécesseur : une tâche OU la fin d'un projet (#141) — exactement l'un des
+   *  deux. Un lien de projet est toujours FS. */
+  tache_amont_id: number | null;
+  projet_amont_id?: number | null;
   tache_aval_id: number;
   type: DependencyType;
 }

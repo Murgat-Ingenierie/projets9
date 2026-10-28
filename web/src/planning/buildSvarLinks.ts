@@ -4,6 +4,8 @@ import { parseSvarId } from "./svarAdapter";
 
 // Dépendances métier → liens SVAR. Les tâches sont identifiées "task:<id>" dans
 // buildSvarTasks. FS = end-to-start, SS = start-to-start, FF = end-to-end.
+// Un prédécesseur peut aussi être la FIN d'un projet (#141) : la flèche part
+// alors de la barre "proj:<id>".
 const LINK_TYPE: Record<DependencyType, ILink["type"]> = {
   FS: "e2s",
   SS: "s2s",
@@ -13,7 +15,7 @@ const LINK_TYPE: Record<DependencyType, ILink["type"]> = {
 export function buildSvarLinks(deps: Dependency[]): ILink[] {
   return deps.map((d) => ({
     id: d.id,
-    source: `task:${d.tache_amont_id}`,
+    source: d.projet_amont_id != null ? `proj:${d.projet_amont_id}` : `task:${d.tache_amont_id}`,
     target: `task:${d.tache_aval_id}`,
     type: LINK_TYPE[d.type],
   }));
@@ -28,14 +30,13 @@ const DEP_TYPE: Record<ILink["type"], DependencyType | null> = {
   s2e: null,
 };
 
-export interface DependencyDraft {
-  tache_amont_id: number;
-  tache_aval_id: number;
-  type: DependencyType;
-}
+export type DependencyDraft =
+  | { tache_amont_id: number; tache_aval_id: number; type: DependencyType }
+  | { projet_amont_id: number; tache_aval_id: number; type: "FS" };
 
 // Lien SVAR → dépendance à créer, ou null si non représentable dans le domaine :
-// une extrémité qui n'est pas une tâche (epic/projet/jalon) ou un type SF.
+// un aval qui n'est pas une tâche, un amont epic/jalon, un type SF — ou un projet
+// amont relié autrement que par sa fin (seul FS a un sens, cf. #141).
 // Inverse de buildSvarLinks — utilisé au dessin d'un lien (add-link).
 export function svarLinkToDependency(
   link: Partial<Pick<ILink, "source" | "target" | "type">>,
@@ -43,8 +44,12 @@ export function svarLinkToDependency(
   if (link.source == null || link.target == null || !link.type) return null;
   const src = parseSvarId(String(link.source));
   const tgt = parseSvarId(String(link.target));
-  if (src?.kind !== "task" || tgt?.kind !== "task") return null;
+  if (tgt?.kind !== "task") return null;
   const type = DEP_TYPE[link.type];
   if (!type) return null;
+  if (src?.kind === "proj") {
+    return type === "FS" ? { projet_amont_id: Number(src.ref), tache_aval_id: Number(tgt.ref), type } : null;
+  }
+  if (src?.kind !== "task") return null;
   return { tache_amont_id: Number(src.ref), tache_aval_id: Number(tgt.ref), type };
 }

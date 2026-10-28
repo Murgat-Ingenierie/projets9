@@ -95,7 +95,11 @@ function startOfToday(): Date {
 function fsEdgesFromDeps(deps: Dependency[]): FsEdge[] {
   const edges: FsEdge[] = [];
   for (const d of deps) {
-    if (d.type === "FS") edges.push({ amontId: d.tache_amont_id, avalId: d.tache_aval_id });
+    // Les liens « fin de projet → tâche » (#141) restent hors cascade : un projet
+    // déplacé l'est en BLOC, et un bloc ne propage rien au-delà (planBlockShift).
+    if (d.type === "FS" && d.tache_amont_id != null) {
+      edges.push({ amontId: d.tache_amont_id, avalId: d.tache_aval_id });
+    }
   }
   return edges;
 }
@@ -406,14 +410,13 @@ export default function GanttSvarPage() {
     return all.filter((l) => {
       const s = parseSvarId(String(l.source));
       const t = parseSvarId(String(l.target));
-      return (
-        s?.kind === "task" &&
-        t?.kind === "task" &&
-        teamFilterTaskIds.has(Number(s.ref)) &&
-        teamFilterTaskIds.has(Number(t.ref))
-      );
+      // Un projet amont (#141) est visible si sa LIGNE l'est.
+      const sourceVisible =
+        (s?.kind === "task" && teamFilterTaskIds.has(Number(s.ref))) ||
+        (s?.kind === "proj" && !!teamFilterProjectIds?.has(Number(s.ref)));
+      return sourceVisible && t?.kind === "task" && teamFilterTaskIds.has(Number(t.ref));
     });
-  }, [dependencies, teamFilterTaskIds]);
+  }, [dependencies, teamFilterTaskIds, teamFilterProjectIds]);
 
   // Anti-clignotement : SVAR ré-initialise TOUT son store dès que `tasks`/`links`
   // change de RÉFÉRENCE. Or `reload()` tourne après chaque mutation et reconstruit
@@ -719,7 +722,7 @@ export default function GanttSvarPage() {
       const draft = svarLinkToDependency(ev.link);
       if (!draft) {
         api.exec("delete-link", { id });
-        setErr(new Error("Lien non pris en charge : une dépendance relie deux tâches (FS, SS ou FF)."));
+        setErr(new Error("Lien non pris en charge : une dépendance mène à une tâche, depuis une tâche (FS, SS ou FF) ou depuis la fin d'un projet."));
         return;
       }
       setErr(null);

@@ -357,7 +357,10 @@ def _verifier_invariants(db: Session) -> None:
 
     for d in deps:
         check_dependency_no_self(d)
-    check_dependency_acyclic(deps)
+    check_dependency_acyclic(
+        deps,
+        taches_par_projet={pid: [t.id for t in ts] for pid, ts in taches_par_projet.items()},
+    )
 
     noms_vus: list[str] = []
     for eq in equipes:

@@ -258,7 +258,7 @@ Unité : **jour calendaire**. Toutes les comparaisons sont inclusives.
 
 | ID | Énoncé |
 |---|---|
-| INV-14 | Le graphe global des dépendances entre tâches est un DAG (pas de cycle). Les dépendances **peuvent traverser projets et epics**. |
+| INV-14 | Le graphe global des dépendances entre tâches est un DAG (pas de cycle). Les dépendances **peuvent traverser projets et epics**. *Depuis #141, le prédécesseur peut aussi être la **fin d'un projet** (`projet_amont_id`, type FS uniquement). Comme cette fin attend chacune des tâches du projet, le graphe contrôlé inclut les arêtes implicites tâche → fin de son projet : un projet ne peut donc précéder ni l'une de ses tâches, ni une tâche dont il dépend. Le contrôle est rejoué aussi quand une tâche change de projet.* |
 | INV-15 | Une `Dépendance` a `tâche_amont_id ≠ tâche_aval_id` (pas d'auto-dépendance). |
 
 ### Avancement & statut

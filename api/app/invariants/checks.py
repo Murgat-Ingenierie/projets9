@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
@@ -76,7 +76,8 @@ class MilestoneLike(Protocol):
 
 
 class DependencyLike(Protocol):
-    tache_amont_id: int
+    # None quand le prédécesseur est la fin d'un projet (`projet_amont_id`, #141).
+    tache_amont_id: int | None
     tache_aval_id: int
     type: str
 
@@ -245,39 +246,70 @@ def check_dependency_no_self(dep: DependencyLike) -> None:
         raise InvariantError("INV-15", "Auto-dépendance interdite")
 
 
+# Nœud du graphe : ("tache", id) ou ("projet", id) — le second désigne la FIN
+# d'un projet, prédécesseur possible depuis #141.
+_Noeud = tuple[str, int]
+
+
 @dataclass
 class _Edge:
-    amont: int
-    aval: int
+    amont: _Noeud
+    aval: _Noeud
+
+
+def _amont(d: DependencyLike) -> _Noeud:
+    # `getattr` : les tests unitaires passent des doublures sans ce champ, qui ne
+    # connaissent que les liens entre tâches.
+    projet_id = getattr(d, "projet_amont_id", None)
+    if projet_id is not None:
+        return ("projet", projet_id)
+    return ("tache", d.tache_amont_id)
+
+
+def _libelle(n: _Noeud) -> str:
+    return f"la tâche {n[1]}" if n[0] == "tache" else f"la fin du projet {n[1]}"
 
 
 def check_dependency_acyclic(
-    existing: Iterable[DependencyLike], new_edge: DependencyLike | None = None
+    existing: Iterable[DependencyLike],
+    new_edge: DependencyLike | None = None,
+    taches_par_projet: Mapping[int, Iterable[int]] | None = None,
 ) -> None:
     """INV-14 : le graphe des dépendances reste un DAG après ajout de `new_edge`.
 
     Si `new_edge` est None, on vérifie juste les arêtes existantes.
-    """
-    edges: list[_Edge] = [_Edge(d.tache_amont_id, d.tache_aval_id) for d in existing]
-    if new_edge is not None:
-        edges.append(_Edge(new_edge.tache_amont_id, new_edge.tache_aval_id))
 
-    adj: dict[int, list[int]] = defaultdict(list)
-    nodes: set[int] = set()
+    Un projet peut précéder une tâche par sa fin (#141). Or la fin d'un projet
+    ATTEND chacune de ses tâches : `taches_par_projet` ajoute ces arêtes
+    implicites tâche → fin de son projet. Sans elles, « le projet P précède sa
+    propre tâche T » passerait — T attendrait une fin qui l'attend. Seuls les
+    projets effectivement prédécesseurs y sont lus.
+    """
+    edges: list[_Edge] = [_Edge(_amont(d), ("tache", d.tache_aval_id)) for d in existing]
+    if new_edge is not None:
+        edges.append(_Edge(_amont(new_edge), ("tache", new_edge.tache_aval_id)))
+
+    projets_amont = {e.amont[1] for e in edges if e.amont[0] == "projet"}
+    for projet_id in projets_amont:
+        for tache_id in (taches_par_projet or {}).get(projet_id, ()):
+            edges.append(_Edge(("tache", tache_id), ("projet", projet_id)))
+
+    adj: dict[_Noeud, list[_Noeud]] = defaultdict(list)
+    nodes: set[_Noeud] = set()
     for e in edges:
         adj[e.amont].append(e.aval)
         nodes.add(e.amont)
         nodes.add(e.aval)
 
     WHITE, GRAY, BLACK = 0, 1, 2
-    color: dict[int, int] = {n: WHITE for n in nodes}
+    color: dict[_Noeud, int] = {n: WHITE for n in nodes}
 
-    def dfs(u: int) -> None:
+    def dfs(u: _Noeud) -> None:
         color[u] = GRAY
         for v in adj.get(u, ()):
             if color[v] == GRAY:
                 raise InvariantError(
-                    "INV-14", f"Cycle détecté impliquant les tâches {u} et {v}"
+                    "INV-14", f"Cycle détecté impliquant {_libelle(u)} et {_libelle(v)}"
                 )
             if color[v] == WHITE:
                 dfs(v)
