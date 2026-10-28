@@ -100,7 +100,7 @@ export default function ClaudePage() {
         )}
       </div>
       <p className="muted">
-        Décris un bug ou une amélioration. Claude pose au besoin une question, puis ouvre
+        Décris un bug ou une amélioration. Claude pose au besoin quelques questions, puis ouvre
         une issue GitHub que l'équipe relit avant tout développement.
       </p>
       <ErrorBanner error={err} />

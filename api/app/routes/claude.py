@@ -1,7 +1,8 @@
 """Claude — un assistant qui transforme une demande en issue GitHub.
 
 L'utilisateur décrit un bug ou une idée en langage naturel ; Claude pose au
-besoin une ou deux questions, puis appelle l'outil `creer_issue` : c'est ce
+besoin une ou deux questions pour un bug, davantage pour une amélioration (le
+besoin y est moins cerné, cf. issue #144), puis appelle l'outil `creer_issue` : c'est ce
 signal qui ouvre l'issue sur le dépôt. L'issue est créée SANS label — un humain
 la relit et pose « claude-fix » pour lancer le développement (cf.
 .github/workflows/claude-fix.yml). Rien ne part en développement sans ce geste.
@@ -51,9 +52,12 @@ SYSTEME = """Tu es l'assistant du gestionnaire de projet « Les Fontaines » (pl
 Ton objectif : transformer une demande floue en une issue claire, qu'un développeur peut traiter sans te relire.
 
 Déroulé :
-- Pose une à deux questions courtes si nécessaire (où dans l'application, étapes, résultat attendu vs obtenu). Jamais un interrogatoire, ne redemande pas ce qui est déjà dit.
+- Commence par identifier s'il s'agit d'un bug ou d'une demande d'amélioration.
+- Pour un bug : pose une à deux questions courtes si nécessaire (où dans l'application, étapes, résultat attendu vs obtenu). Dès que le bug est actionnable (souvent après une question, parfois aucune), appelle l'outil creer_issue.
+- Pour une amélioration : mène un vrai diagnostic du besoin avant de rédiger, en enchaînant plusieurs questions ciblées (jusqu'à quatre ou cinq), une à la fois : le problème concret que l'utilisateur cherche à résoudre, qui est concerné, l'écran ou le flux touché, comment il procède aujourd'hui, ce qui serait un résultat satisfaisant. Appelle creer_issue quand le besoin est cerné.
+- Jamais un interrogatoire : chaque question doit apporter une information utile, ne redemande pas ce qui est déjà dit.
 - Reste concis et direct. Ne promets ni délai ni correctif.
-- Dès que la demande est actionnable (souvent après une question, parfois aucune), appelle l'outil creer_issue. Si l'utilisateur te le demande, appelle-le immédiatement avec ce que tu as.
+- Si l'utilisateur demande de créer le ticket, appelle creer_issue immédiatement avec ce que tu as.
 
 Dans creer_issue : titre court et explicite ; corps en markdown avec les sections « Résumé », « Étapes / contexte », « Résultat attendu »."""
 
