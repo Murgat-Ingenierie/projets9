@@ -143,6 +143,31 @@ def test_une_question_revient_sans_issue(client, auth, configure, monkeypatch):
     assert r.json() == {"reply": "Où exactement ?", "issue": None}
 
 
+def test_la_consigne_autorise_un_diagnostic_pour_les_ameliorations():
+    """Issue #144 : une question puis le ticket, c'est bien pour un bug simple,
+    trop court pour cerner une amélioration. La consigne distingue les deux cas,
+    sur les DEUX chemins (API et relais, dont le prompt est dérivé par remplacements)."""
+    for systeme in (claude.SYSTEME, claude.SYSTEME_RELAIS):
+        assert "Pour un bug" in systeme
+        assert "Pour une amélioration" in systeme and "plusieurs questions" in systeme
+    # Les remplacements du relais ont bien porté : aucun nom d'outil de l'API ne fuit.
+    assert "creer_issue" not in claude.SYSTEME_RELAIS and "submit_ticket" in claude.SYSTEME_RELAIS
+
+
+def test_plusieurs_questions_de_diagnostic_restent_sans_issue(client, auth, configure, monkeypatch):
+    """Un fil de plusieurs questions/réponses est accepté : tant que Claude
+    n'appelle pas l'outil, aucune issue n'est ouverte."""
+    monkeypatch.setattr(claude, "_appeler_claude", lambda m: _reponse(_texte("Qui serait concerné ?")))
+    monkeypatch.setattr(claude, "_creer_issue", lambda *a: pytest.fail("aucune issue attendue"))
+
+    fil = [{"role": "user", "content": "J'aimerais filtrer le planning"}]
+    for question, reponse in [("Par quoi ?", "Par équipe"), ("Sur quel écran ?", "Le Gantt")]:
+        fil += [{"role": "assistant", "content": question}, {"role": "user", "content": reponse}]
+    r = client.post("/api/claude/chat", json={"messages": fil}, headers=auth)
+    assert r.status_code == 200, r.text
+    assert r.json() == {"reply": "Qui serait concerné ?", "issue": None}
+
+
 def test_l_appel_d_outil_ouvre_une_issue_signee_sans_mention(client, auth, configure, monkeypatch):
     monkeypatch.setattr(
         claude,
