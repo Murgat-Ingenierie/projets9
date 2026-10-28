@@ -336,6 +336,16 @@
 .svar-planning {
   height: 78vh;
   border: 1px solid #e5e7eb;
+  /* Liens inter-projets (#143) : violet, absent du reste du planning (bleu de
+   * sélection, rouge d'alerte, orange des jalons) — il ne se lit pas comme un
+   * état de la tâche. Appliqué par la règle engendrée dans GanttSvarPage. */
+  --lien-inter-projets: #7e57c2;
+}
+/* Liens de la COUCHE (projet → projet) : plus discrets que les flèches de
+ * tâches, qu'ils doublent une fois les projets dépliés — ils situent, le détail
+ * reste aux tâches. `^=":xp:"` : SVAR préfixe de « : » les ids en chaîne. */
+.svar-planning [data-link-id^=":xp:"] .wx-line-draw {
+  opacity: 0.6;
 }
 .svar-planning .wx-theme {
   height: 100%;
