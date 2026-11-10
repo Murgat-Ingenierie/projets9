@@ -10,9 +10,11 @@
 //
 // Réponse : (a) un style propre, toujours appliqué, pour les liens dont les deux
 // bouts sont dans des projets différents ; (b) une COUCHE activable qui reporte
-// ces liens sur les barres de PROJET, toujours affichées. Activable et non
+// ces liens sur les barres de PROJET, toujours affichées. Masquable et non
 // permanente : sur un planning chargé, une flèche par paire de projets en plus
 // des flèches de tâches surchargerait la vue — c'est la réserve de l'utilisateur.
+// Affichée par défaut depuis #151 : c'est l'information recherchée dans la
+// plupart des consultations.
 
 import type { ILink } from "@svar-ui/react-gantt";
 import type { Dependency, DependencyType } from "../types";

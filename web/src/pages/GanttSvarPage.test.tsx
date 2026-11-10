@@ -91,6 +91,27 @@ describe("GanttSvarPage — pas de ré-initialisation parasite de SVAR", () => {
   });
 });
 
+// #151 : les liens inter-projets servent dans la quasi-totalité des consultations,
+// ils doivent donc être affichés dès l'ouverture — le bouton ne sert plus qu'à les
+// masquer ponctuellement.
+describe("GanttSvarPage — couche « Liens inter-projets »", () => {
+  beforeEach(() => {
+    cleanup();
+  });
+
+  it("est ACTIVE par défaut et reste masquable puis réaffichable", async () => {
+    render(<GanttSvarPage />);
+    await waitFor(() => expect(screen.getByTestId("gantt-mock")).toBeDefined());
+    const bouton = screen.getByRole("button", { name: /Liens inter-projets/ });
+
+    expect(bouton.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(bouton);
+    expect(bouton.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(bouton);
+    expect(bouton.getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
 // #139 : la création d'un projet doit être possible SANS quitter le planning.
 describe("GanttSvarPage — bouton « Nouveau projet »", () => {
   beforeEach(() => {
