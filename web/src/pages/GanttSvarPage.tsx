@@ -289,9 +289,11 @@ export default function GanttSvarPage() {
   const [groupByEpic, setGroupByEpic] = useState(false);
   // Couche « liens inter-projets » (#143) : reporte sur les barres de projet les
   // dépendances qui traversent deux projets, visibles même projets repliés.
-  // DÉSACTIVÉE par défaut : c'est une vue d'analyse, pas l'affichage courant —
-  // permanente, elle doublerait les flèches et surchargerait le planning.
-  const [coucheInterProjets, setCoucheInterProjets] = useState(false);
+  // ACTIVÉE par défaut, pour toute l'équipe (#151) : à l'usage, ces liens servent
+  // dans la quasi-totalité des consultations, et devoir les réactiver à chaque
+  // ouverture de la page était une friction. Le bouton reste là pour les masquer
+  // ponctuellement quand le planning est trop chargé (réserve d'origine, #143).
+  const [coucheInterProjets, setCoucheInterProjets] = useState(true);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
   // Panneau d'édition/création (parité ancien Gantt) : ouvert au double-clic sur une
   // ligne (on intercepte l'éditeur natif de SVAR) et par les boutons « + » de la barre.
