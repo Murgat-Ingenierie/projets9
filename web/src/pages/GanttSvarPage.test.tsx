@@ -45,6 +45,9 @@ vi.mock("../api/endpoints", () => ({
 // renvoie null et le rendu casse. On simule le hook de rôle plutôt que toute
 // l'authentification : c'est la seule dépendance qui compte ici.
 vi.mock("../hooks/useEstAdmin", () => ({ useEstAdmin: () => true }));
+// Idem pour l'utilisateur courant, lu par le filtre « Responsable » (#155) :
+// sans utilisateur, le planning s'ouvre sur « Tous » — le cas de ces tests.
+vi.mock("../auth", () => ({ useAuth: () => ({ user: null }) }));
 
 import GanttSvarPage from "./GanttSvarPage";
 

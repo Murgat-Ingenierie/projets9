@@ -71,3 +71,32 @@ test("le filtre existe aussi sur Projets, et sur écran étroit", async ({ page 
   await expect(page.getByLabel("Responsable")).toBeVisible();
   await expect(page.locator("table.responsive thead")).toBeHidden();
 });
+
+// Planning (#155) : à l'ouverture, pré-filtré sur l'utilisateur connecté (Admin,
+// id 1, qui porte la tâche 12) — et le filtre reste modifiable.
+test("le planning s'ouvre sur les tâches de l'utilisateur connecté", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-20T08:00:00"));
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await mockApi(page, { tasks: REPARTIES });
+  await page.goto("/");
+  const filtre = page.getByLabel("Responsable");
+  await expect(filtre).toHaveValue("1");
+  // Projets repliés à l'ouverture : on juge sur leurs lignes. Le projet 1 porte
+  // la tâche 12 ; le projet 2 n'a que la tâche 13, sans responsable.
+  await expect(page.locator('[data-task-id=":proj:1"]').first()).toBeVisible();
+  await expect(page.locator('[data-task-id=":proj:2"]')).toHaveCount(0);
+
+  await filtre.selectOption({ label: "Tous" });
+  await expect(page.locator('[data-task-id=":proj:2"]').first()).toBeVisible();
+});
+
+// Le repli : sans tâche à soi (fixtures d'origine, aucun responsable), on ouvre
+// sur « Tous » plutôt que sur un planning vide.
+test("sans tâche à soi, le planning s'ouvre sur « Tous »", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-20T08:00:00"));
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await mockApi(page);
+  await page.goto("/");
+  await expect(page.locator('[data-task-id^=":proj:"]').first()).toBeVisible();
+  await expect(page.getByLabel("Responsable")).toHaveValue("");
+});

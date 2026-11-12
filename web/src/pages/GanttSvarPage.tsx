@@ -23,7 +23,7 @@ import { planBlockShift, planCascadeShifts, planGroupShifts, type FsEdge, type T
 import { celluleCouvre, type Depassement } from "../planning/echeances";
 import type { HorsFenetre } from "../planning/horsFenetre";
 import { couleurTexteSur } from "../planning/ganttStyles";
-import { deriveTeamFilter } from "../planning/teamFilter";
+import { deriveTeamFilter, responsableParDefaut, restreindreParResponsable } from "../planning/teamFilter";
 import {
   PREFIXE_LIEN_COUCHE,
   idsInterProjets,
@@ -31,6 +31,7 @@ import {
   styleLiensInterProjets,
 } from "../planning/liensInterProjets";
 import { useEstAdmin } from "../hooks/useEstAdmin";
+import { useAuth } from "../auth";
 import { useUndo } from "../planning/useUndo";
 import { useStableList } from "../planning/useStableList";
 import {
@@ -38,8 +39,14 @@ import {
   projects as projectsApi,
   milestones as milestonesApi,
   dependencies as depsApi,
+  users as usersApi,
 } from "../api/endpoints";
 import { ErrorBanner } from "../components/ErrorBanner";
+import {
+  FiltreResponsable,
+  predicatResponsable,
+  type ValeurResponsable,
+} from "../components/FiltreResponsable";
 import { EditPanel, type PanelTarget } from "../components/EditPanel";
 import type { Dependency, Task } from "../types";
 
@@ -295,6 +302,13 @@ export default function GanttSvarPage() {
   // ponctuellement quand le planning est trop chargé (réserve d'origine, #143).
   const [coucheInterProjets, setCoucheInterProjets] = useState(true);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
+  // Filtre « Responsable » (#155), PRÉ-RÉGLÉ sur l'utilisateur connecté : chacun
+  // perdait du temps à retrouver ses tâches dans le planning de toute l'équipe.
+  // Le sélecteur reste là pour élargir (« Tous ») ou regarder le travail d'un autre.
+  // `null` = défaut pas encore fixé : il dépend des tâches, résolu plus bas.
+  const { user } = useAuth();
+  const [responsableChoisi, setResponsable] = useState<ValeurResponsable | null>(null);
+  const [annuaire, setAnnuaire] = useState<{ id: number; nom: string }[]>([]);
   // Panneau d'édition/création (parité ancien Gantt) : ouvert au double-clic sur une
   // ligne (on intercepte l'éditeur natif de SVAR) et par les boutons « + » de la barre.
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
@@ -341,10 +355,31 @@ export default function GanttSvarPage() {
     clearError: () => setErr(null),
   });
 
+  // Défaut du filtre responsable, fixé UNE fois, au premier chargement des tâches
+  // — pendant le rendu plutôt que dans un effet, pour ne jamais afficher tout le
+  // planning une frame avant de le filtrer. Figé ensuite : une tâche qu'on
+  // s'attribue en cours de session ne doit pas refiltrer la vue sous les yeux.
+  if (responsableChoisi === null && tasks.length > 0) {
+    setResponsable(responsableParDefaut(user?.id, tasks));
+  }
+  const responsable = responsableChoisi ?? "";
+
+  // Annuaire du sélecteur « Responsable ». Un échec ne bloque pas le planning :
+  // on le signale, et le filtre courant (l'utilisateur connecté) reste appliqué.
+  useEffect(() => {
+    usersApi.annuaire().then(setAnnuaire).catch(setErr);
+  }, []);
+
   // Filtre équipe : tâches/projets en scope (null = pas de filtre). Pur, testé.
-  const { taskIds: teamFilterTaskIds, projectIds: teamFilterProjectIds } = useMemo(
+  const filtreEquipe = useMemo(
     () => deriveTeamFilter({ allocations, tasks, selectedTeamIds }),
     [allocations, tasks, selectedTeamIds],
+  );
+  // Puis le filtre responsable, en intersection. Les noms `teamFilter*` sont
+  // gardés en aval : ils désignent désormais le périmètre des DEUX filtres.
+  const { taskIds: teamFilterTaskIds, projectIds: teamFilterProjectIds } = useMemo(
+    () => restreindreParResponsable(filtreEquipe, tasks, predicatResponsable(responsable)),
+    [filtreEquipe, tasks, responsable],
   );
 
   // Colonnes surlignées : « aujourd'hui » (parité todayColor de l'ancien Gantt)
@@ -842,6 +877,7 @@ export default function GanttSvarPage() {
           <span className="material-symbols-outlined" aria-hidden="true">conversion_path</span>
           Liens inter-projets
         </button>
+        <FiltreResponsable valeur={responsable} onChange={setResponsable} utilisateurs={annuaire} />
         <button
           type="button"
           className="svar-today"
